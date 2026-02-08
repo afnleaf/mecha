@@ -1,0 +1,11 @@
+pack:
+  runtime:
+    enabled: false
+  meta:
+    title: "Mecha Prototype"
+    description: "mecha bullet hell prototype packed by histos"
+  css:
+    - "./style.css"
+  scripts:
+    - "./setup.js"
+    - "./game.js"
