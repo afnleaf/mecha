@@ -1,8 +1,8 @@
-/*
- * Mecha Bullet Hell - Mini Prototype
- *
- * Version 0.0.1
- */
+/******************************************************************************
+* Mecha Bullet Hell - Mini Prototype
+*
+* Version 0.0.1
+******************************************************************************/
 #include "raylib.h"
 #include "raymath.h"
 #ifdef PLATFORM_WEB
@@ -39,8 +39,10 @@ typedef struct Dash {
     float timer;
     float speed;
     float duration;
-    float cooldown;
-    float cooldownTimer;
+    float rechargeTime;
+    float rechargeTimer;
+    int charges;
+    int maxCharges;
     Vector2 dir;
 } Dash;
 
@@ -145,18 +147,23 @@ static GameState g;
 // right now, we already have a default config header
 void NextFrame(void);
 static void InitGame(void);
-static void SpawnBullet(Vector2 pos, Vector2 dir, float speed, int damage, float lifetime, bool isEnemy);
+static void SpawnBullet(
+    Vector2 pos, Vector2 dir, 
+    float speed, int damage, float lifetime, bool isEnemy);
 static void SpawnEnemy(void);
 static void SpawnParticles(Vector2 pos, Color color, int count);
 static void SpawnParticle(
-    Vector2 pos, Vector2 vel, Color color, float size, float lifetime);
+    Vector2 pos, Vector2 vel, 
+    Color color, float size, float lifetime);
 static void DamageEnemy(int idx, int damage);
 
 // refactoring artifact
-static void UpdateGameLong(float dt);
+static void UpdateGamePlayer(float dt);
 static void UpdateGame(void);
 
-static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float alpha);
+static void DrawCube2D(
+    Vector2 pos, 
+    float size, float rotY, float rotX, float alpha);
 static void DrawWorld(void);
 static void DrawHUD(void);
 
@@ -179,9 +186,11 @@ static void InitGame(void)
     p->sword.duration = SWORD_DURATION;
     p->sword.arc      = SWORD_ARC;
     p->sword.radius   = SWORD_RADIUS;
-    p->dash.speed     = DASH_SPEED;
-    p->dash.duration  = DASH_DURATION;
-    p->dash.cooldown  = DASH_COOLDOWN;
+    p->dash.speed       = DASH_SPEED;
+    p->dash.duration    = DASH_DURATION;
+    p->dash.rechargeTime = DASH_COOLDOWN;
+    p->dash.charges     = DASH_MAX_CHARGES;
+    p->dash.maxCharges  = DASH_MAX_CHARGES;
     p->spin.duration  = SPIN_DURATION;
     p->spin.radius    = SPIN_RADIUS;
     p->spin.cooldown  = SPIN_COOLDOWN;
@@ -232,6 +241,8 @@ static void SpawnEnemy(void)
             // Roll for RECT type after enough kills
             bool spawnRect = (g.enemiesKilled >= RECT_SPAWN_KILLS)
                 && (GetRandomValue(1, 100) <= RECT_SPAWN_CHANCE);
+            // spawn pentagon
+            // spawn boss after a while?
 
             if (spawnRect) {
                 e->type = RECT;
@@ -336,7 +347,10 @@ static void DamageEnemy(int idx, int damage)
         e->active = false;
         g.score += 100;
         g.enemiesKilled++;
+        // fire/explosion
         SpawnParticles(e->pos, RED, 8);
+        SpawnParticles(e->pos, ORANGE, 8);
+        SpawnParticles(e->pos, YELLOW, 8);
     }
 }
 
@@ -369,6 +383,10 @@ static Vector2 mouse() {
     // ok I see now, this could be out? 
     // we need toMouse as output? so a mouse function?
     // --- Mouse aim ---
+    // this takes the position of the mouse and the camera
+    // trace a ray between them, figure out where mouse is
+    // then you have the player position in the world
+    // we should draw this out on paper to understand better
     Vector2 screenMouse = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
@@ -376,7 +394,11 @@ static Vector2 mouse() {
     return toMouse;
 }
 
-static void UpdateGameLong(float dt)
+// should we refactor this further?
+// or do we tackle that once we start adding different loadoats?
+// diff base mechas
+// adding abilities, etc
+static void UpdateGamePlayer(float dt)
 {
     Player *p = &g.player;
     
@@ -397,18 +419,26 @@ static void UpdateGameLong(float dt)
         p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, p->speed * dt));
     }
 
-    // does dash count as a type of movement?
-    // --- Dash ---
-    p->dash.cooldownTimer -= dt;
-    if (p->dash.cooldownTimer < 0) p->dash.cooldownTimer = 0;
+    // --- Dash (charge system) ---
+    if (p->dash.charges < p->dash.maxCharges) {
+        p->dash.rechargeTimer -= dt;
+        if (p->dash.rechargeTimer <= 0) {
+            p->dash.charges++;
+            if (p->dash.charges < p->dash.maxCharges)
+                p->dash.rechargeTimer = p->dash.rechargeTime;
+        }
+    }
 
-    if (IsKeyPressed(KEY_SPACE) 
-        && !p->dash.active 
-        && p->dash.cooldownTimer <= 0
+    if (IsKeyPressed(KEY_SPACE)
+        && !p->dash.active
+        && p->dash.charges > 0
     ) {
         p->dash.active = true;
         p->dash.timer = p->dash.duration;
-        p->dash.cooldownTimer = p->dash.cooldown;
+        bool wasFull = (p->dash.charges == p->dash.maxCharges);
+        p->dash.charges--;
+        if (wasFull)
+            p->dash.rechargeTimer = p->dash.rechargeTime;
         p->iFrames = p->dash.duration;
         if (moveLen > 0) {
             p->dash.dir = moveDir;
@@ -445,9 +475,14 @@ static void UpdateGameLong(float dt)
         float spread = ((float)GetRandomValue(-30, 30)) * 0.001f;
         float bulletAngle = p->angle + spread;
         Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
-        Vector2 muzzle = Vector2Add(p->pos, Vector2Scale(aimDir, p->size + 4.0f));
-        SpawnBullet(muzzle, bulletDir, GUN_BULLET_SPEED, GUN_BULLET_DAMAGE, GUN_BULLET_LIFETIME, false);
-        SpawnParticle(muzzle, Vector2Scale(bulletDir, 100.0f), YELLOW, 3.0f, 0.08f);
+        Vector2 muzzle = 
+            Vector2Add(p->pos, Vector2Scale(aimDir, p->size + 4.0f));
+        SpawnBullet(muzzle, bulletDir, 
+            GUN_BULLET_SPEED, GUN_BULLET_DAMAGE, GUN_BULLET_LIFETIME, false);
+        // we should make the bullet, actually bullet coloured
+        // like a golden brassy, u know
+        SpawnParticle(muzzle, 
+                      Vector2Scale(bulletDir, 100.0f), YELLOW, 3.0f, 0.08f);
     }
 
     // i think i see the pattern here
@@ -462,9 +497,20 @@ static void UpdateGameLong(float dt)
         p->sword.hitMask = 0;
 
         // no probably not using ternary? if its over 80 chars?
-        float arc = p->sword.dashSlash ? p->sword.arc * 1.3f : p->sword.arc;
-        float radius = p->sword.dashSlash ? p->sword.radius * 1.5f : p->sword.radius;
-        Color slashColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
+        // nvm its fine with multiline
+        float arc = 
+            p->sword.dashSlash ? 
+            p->sword.arc * 1.3f : 
+            p->sword.arc;
+        float radius = 
+            p->sword.dashSlash ? 
+            p->sword.radius * 1.5f : 
+            p->sword.radius;
+        // hmm when does this trigger?
+        Color slashColor = 
+            p->sword.dashSlash ? 
+            SKYBLUE : 
+            ORANGE;
         for (int i = 0; i < 6; i++) {
             float a = p->sword.angle - arc / 2.0f + arc * (float)i / 5.0f;
             Vector2 particlePos = Vector2Add(
@@ -681,6 +727,13 @@ static void camera(float dt)
     // --- Camera smooth follow ---
     Player *p = &g.player;
     // let's search up Vector2Lerp in raylib.h
+    // ok I understand what linear interpolation is, but what is this amount?
+    // ok so amount, t if taken as a value between 0 and 1 is where you are 
+    // looking to interpolate, 0.5, would be right in the middle of both points
+    // why 8 * delta time? lags 8 times the ms of the frame?
+    // so its like how much the camera lags behind the player?
+    // should be normed between 0 and 1 or capped?
+    // game feel thing for sure
     g.camera.target = Vector2Lerp(g.camera.target, p->pos, 8.0f * dt);
 
     // update camera offset to current browser window size
@@ -700,11 +753,11 @@ static void camera(float dt)
 static void UpdateGame(void) 
 {
     // frametime clamp
-    float dt = GetFrameTime();
     // ? why 0.05? if less delta time greater than this we make it that time?
+    // 0.05 is a 20fps frametime, this is a nice minimum
     // why, is it like a max frame time/hz for each calculation we want to do?
-    // im not sure i intuit this clearly
     // if the world get's too far ahead, don't let the physics break.
+    float dt = GetFrameTime();
     if (dt > 0.05f) dt = 0.05f;
     
     // need to make sure that esc also pauses in native build
@@ -715,8 +768,8 @@ static void UpdateGame(void)
         return;
     }
 
-    // ok so we could potentially refactor everything above to another void?
     // like a pause state? hmmm
+    // early return on pause, make sure nothing in the game world is updating
     if (g.paused) return;
 
     // check keys
@@ -724,7 +777,7 @@ static void UpdateGame(void)
     // update player
     // update movement
     // update bullets
-    UpdateGameLong(dt);
+    UpdateGamePlayer(dt);
     
     // update enemy
     // update movement
@@ -766,7 +819,9 @@ static Color HsvToRgb(float h, float s, float v, float alpha) {
     };
 }
 
-static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float alpha)
+static void DrawCube2D(
+    Vector2 pos, 
+    float size, float rotY, float rotX, float alpha)
 {
     float s = size;
 
@@ -848,10 +903,22 @@ static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float al
                 #define BILERP(A,B,C,D,u,v) \
                     ((1-(v))*((1-(u))*(A) + (u)*(B)) + (v)*((1-(u))*(D) + (u)*(C)))
 
-                Vector2 q00 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v0) };
-                Vector2 q10 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v0) };
-                Vector2 q11 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v1) };
-                Vector2 q01 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v1) };
+                Vector2 q00 = {
+                    BILERP(p0.x,p1.x,p2.x,p3.x,u0,v0), 
+                    BILERP(p0.y,p1.y,p2.y,p3.y,u0,v0) 
+                };
+                Vector2 q10 = {
+                    BILERP(p0.x,p1.x,p2.x,p3.x,u1,v0), 
+                    BILERP(p0.y,p1.y,p2.y,p3.y,u1,v0) 
+                };
+                Vector2 q11 = {
+                    BILERP(p0.x,p1.x,p2.x,p3.x,u1,v1),
+                    BILERP(p0.y,p1.y,p2.y,p3.y,u1,v1)
+                };
+                Vector2 q01 = {
+                    BILERP(p0.x,p1.x,p2.x,p3.x,u0,v1), 
+                    BILERP(p0.y,p1.y,p2.y,p3.y,u0,v1)
+                };
 
                 float uc = (u0 + u1) * 0.5f, vc = (v0 + v1) * 0.5f;
                 float hC = BILERP(h0, h1, h2, h3, uc, vc);
@@ -921,9 +988,27 @@ static void DrawWorld(void)
 
         switch (e->type) {
         case TRI: {
-            Vector2 tip = Vector2Add(e->pos, (Vector2){ cosf(eAngle) * e->size, sinf(eAngle) * e->size });
-            Vector2 left = Vector2Add(e->pos, (Vector2){ cosf(eAngle + 2.4f) * e->size, sinf(eAngle + 2.4f) * e->size });
-            Vector2 right = Vector2Add(e->pos, (Vector2){ cosf(eAngle - 2.4f) * e->size, sinf(eAngle - 2.4f) * e->size });
+            Vector2 tip = Vector2Add(
+                    e->pos, 
+                    (Vector2){ 
+                        cosf(eAngle) * e->size, 
+                        sinf(eAngle) * e->size 
+                    }
+                );
+            Vector2 left = Vector2Add(
+                    e->pos, 
+                    (Vector2){ 
+                        cosf(eAngle + 2.4f) * e->size, 
+                        sinf(eAngle + 2.4f) * e->size 
+                    }
+                );
+            Vector2 right = Vector2Add(
+                    e->pos, 
+                    (Vector2){ 
+                        cosf(eAngle - 2.4f) * e->size, 
+                        sinf(eAngle - 2.4f) * e->size 
+                    }
+                );
             DrawTriangle(tip, right, left, eColor);
             DrawTriangleLines(tip, right, left, MAROON);
         } break;
@@ -938,10 +1023,22 @@ static void DrawWorld(void)
                 rFill);
             // Corner outline
             Vector2 corners[4] = {
-                { e->pos.x + (-hw)*ca - (-hh)*sa, e->pos.y + (-hw)*sa + (-hh)*ca },
-                { e->pos.x + ( hw)*ca - (-hh)*sa, e->pos.y + ( hw)*sa + (-hh)*ca },
-                { e->pos.x + ( hw)*ca - ( hh)*sa, e->pos.y + ( hw)*sa + ( hh)*ca },
-                { e->pos.x + (-hw)*ca - ( hh)*sa, e->pos.y + (-hw)*sa + ( hh)*ca },
+                    { 
+                        e->pos.x + (-hw)*ca - (-hh)*sa, 
+                        e->pos.y + (-hw)*sa + (-hh)*ca 
+                    },
+                    { 
+                        e->pos.x + ( hw)*ca - (-hh)*sa, 
+                        e->pos.y + ( hw)*sa + (-hh)*ca 
+                    },
+                    { 
+                        e->pos.x + ( hw)*ca - ( hh)*sa, 
+                        e->pos.y + ( hw)*sa + ( hh)*ca 
+                    },
+                    { 
+                        e->pos.x + (-hw)*ca - ( hh)*sa, 
+                        e->pos.y + (-hw)*sa + ( hh)*ca 
+                    },
             };
             for (int ci = 0; ci < 4; ci++)
                 DrawLineV(corners[ci], corners[(ci + 1) % 4], DARKPURPLE);
@@ -954,8 +1051,18 @@ static void DrawWorld(void)
             float barW = e->size * 2.0f;
             float barH = 3.0f;
             float hpRatio = (float)e->hp / e->maxHp;
-            DrawRectangle((int)(e->pos.x - barW / 2), (int)(e->pos.y - e->size - 8), (int)barW, (int)barH, DARKGRAY);
-            DrawRectangle((int)(e->pos.x - barW / 2), (int)(e->pos.y - e->size - 8), (int)(barW * hpRatio), (int)barH, RED);
+            DrawRectangle(
+                (int)(e->pos.x - barW / 2), 
+                (int)(e->pos.y - e->size - 8), 
+                (int)barW, 
+                (int)barH,
+                DARKGRAY);
+            DrawRectangle(
+                (int)(e->pos.x - barW / 2), 
+                (int)(e->pos.y - e->size - 8), 
+                (int)(barW * hpRatio), 
+                (int)barH, 
+                RED);
         }
     }
 
@@ -977,7 +1084,12 @@ static void DrawWorld(void)
                 Vector2 ghostPos = Vector2Subtract(p->pos,
                     Vector2Scale(p->dash.dir, offset));
                 float ga = 0.5f * (1.0f - (float)gi / 6.0f);
-                DrawCube2D(ghostPos, p->size, rotY - (float)gi * 0.15f, rotX, ga);
+                DrawCube2D(
+                    ghostPos, 
+                    p->size, 
+                    rotY - (float)gi * 0.15f, 
+                    rotX, 
+                    ga);
             }
         }
 
@@ -993,31 +1105,62 @@ static void DrawWorld(void)
     // --- Sword swing arc ---
     if (p->sword.timer > 0) {
         float progress = 1.0f - (p->sword.timer / p->sword.duration);
-        float sweepAngle = p->sword.angle - p->sword.arc / 2.0f + p->sword.arc * progress;
+        float sweepAngle = 
+            p->sword.angle - p->sword.arc / 2.0f + p->sword.arc * progress;
         int numSegments = 12;
         float arcHalf = p->sword.arc / 2.0f;
         for (int i = 0; i <= numSegments; i++) {
-            float a = p->sword.angle - arcHalf + p->sword.arc * (float)i / numSegments;
-            Vector2 pt = Vector2Add(p->pos, (Vector2){ cosf(a) * p->sword.radius, sinf(a) * p->sword.radius });
+            float a = 
+                p->sword.angle - arcHalf 
+                + p->sword.arc * (float)i / numSegments;
+            Vector2 pt = Vector2Add(
+                p->pos, 
+                (Vector2){ 
+                    cosf(a) * p->sword.radius, 
+                    sinf(a) * p->sword.radius 
+                });
             if (i > 0) {
-                float aPrev = p->sword.angle - arcHalf + p->sword.arc * (float)(i - 1) / numSegments;
-                Vector2 ptPrev = Vector2Add(p->pos, (Vector2){ cosf(aPrev) * p->sword.radius, sinf(aPrev) * p->sword.radius });
+                float aPrev = 
+                    p->sword.angle - arcHalf 
+                    + p->sword.arc * (float)(i - 1) / numSegments;
+                Vector2 ptPrev = Vector2Add(
+                    p->pos, 
+                    (Vector2){ 
+                        cosf(aPrev) * p->sword.radius, 
+                        sinf(aPrev) * p->sword.radius 
+                    });
                 DrawLineEx(ptPrev, pt, 2.0f, Fade(ORANGE, 0.7f));
             }
         }
-        Vector2 sweepEnd = Vector2Add(p->pos, (Vector2){ cosf(sweepAngle) * p->sword.radius, sinf(sweepAngle) * p->sword.radius });
+        Vector2 sweepEnd = Vector2Add(
+            p->pos, 
+            (Vector2){ 
+                cosf(sweepAngle) * p->sword.radius, 
+                sinf(sweepAngle) * p->sword.radius 
+            });
         DrawLineEx(p->pos, sweepEnd, 3.0f, WHITE);
     }
 
     // --- Spin attack circle ---
     if (p->spin.timer > 0) {
         float alpha = p->spin.timer / p->spin.duration;
-        DrawCircleLinesV(p->pos, p->spin.radius, Fade(YELLOW, alpha));
-        DrawCircleLinesV(p->pos, p->spin.radius * 0.7f, Fade(ORANGE, alpha * 0.5f));
+        DrawCircleLinesV(
+            p->pos, 
+            p->spin.radius, 
+            Fade(YELLOW, alpha));
+        DrawCircleLinesV(
+            p->pos, 
+            p->spin.radius * 0.7f, 
+            Fade(ORANGE, alpha * 0.5f));
         float spinAngle = (1.0f - alpha) * PI * 4.0f;
         for (int i = 0; i < 4; i++) {
             float a = spinAngle + (float)i * PI / 2.0f;
-            Vector2 end = Vector2Add(p->pos, (Vector2){ cosf(a) * p->spin.radius, sinf(a) * p->spin.radius });
+            Vector2 end = Vector2Add(
+                p->pos, 
+                (Vector2){ 
+                    cosf(a) * p->spin.radius, 
+                    sinf(a) * p->spin.radius 
+                });
             DrawLineEx(p->pos, end, 2.0f, Fade(YELLOW, alpha * 0.6f));
         }
     }
@@ -1043,31 +1186,55 @@ static void DrawHUD(void)
     Color hpColor = (hpRatio > 0.5f) ? GREEN : (hpRatio > 0.25f) ? ORANGE : RED;
     DrawRectangle(hpBarX, hpBarY, (int)(hpBarW * hpRatio), hpBarH, hpColor);
     DrawRectangleLines(hpBarX, hpBarY, hpBarW, hpBarH, WHITE);
-    DrawText(TextFormat("HP: %d/%d", p->hp, p->maxHp), hpBarX + (int)(4 * ui), hpBarY + (int)(1 * ui), (int)(14 * ui), WHITE);
+    DrawText(
+        TextFormat("HP: %d/%d", p->hp, p->maxHp), 
+        hpBarX + (int)(4 * ui), hpBarY + (int)(1 * ui), (int)(14 * ui), WHITE);
 
     // Score
-    DrawText(TextFormat("Score: %d", g.score), (int)(10 * ui), (int)(34 * ui), (int)(20 * ui), WHITE);
-    DrawText(TextFormat("Kills: %d", g.enemiesKilled), (int)(10 * ui), (int)(58 * ui), (int)(16 * ui), LIGHTGRAY);
+    DrawText(
+        TextFormat("Score: %d", g.score), 
+        (int)(10 * ui), (int)(34 * ui), (int)(20 * ui), WHITE);
+    DrawText(
+        TextFormat("Kills: %d", g.enemiesKilled), 
+        (int)(10 * ui), (int)(58 * ui), (int)(16 * ui), LIGHTGRAY);
 
     // Cooldown indicators
-    int cdBarW = (int)(80 * ui);
+    // this needs to be refactored
+    // different from dash, diff CDs 
+    // also its a UI thing that will be redesigned eventually
+    // spin??
+    // spin bar?
+    int cdBarW = (int)(28 * ui);
     int cdBarH = (int)(10 * ui);
     int cdX = (int)(10 * ui);
     int cdY = (int)(82 * ui);
     int cdFontSize = (int)(12 * ui);
     int cdLabelX = cdX + cdBarW + (int)(6 * ui);
     
-    // we will want to add a dash charge later
-    // Dash
-    if (p->dash.cooldownTimer > 0) {
-        float cdRatio = p->dash.cooldownTimer / p->dash.cooldown;
-        DrawRectangle(cdX, cdY, (int)(cdBarW * (1.0f - cdRatio)), cdBarH, SKYBLUE);
-        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-        DrawText("DASH", cdLabelX, cdY, cdFontSize, GRAY);
-    } else {
-        DrawRectangle(cdX, cdY, cdBarW, cdBarH, SKYBLUE);
-        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-        DrawText("DASH", cdLabelX, cdY, cdFontSize, SKYBLUE);
+    // Dash charges
+    {
+        int pipW = (int)(12 * ui);
+        int pipGap = (int)(4 * ui);
+        for (int i = 0; i < p->dash.maxCharges; i++) {
+            int pipX = cdX + i * (pipW + pipGap);
+            if (i < p->dash.charges) {
+                DrawRectangle(pipX, cdY, pipW, cdBarH, SKYBLUE);
+                DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
+            } else if (i == p->dash.charges
+                && p->dash.charges < p->dash.maxCharges) {
+                float ratio = 1.0f
+                    - (p->dash.rechargeTimer / p->dash.rechargeTime);
+                DrawRectangle(pipX, cdY, (int)(pipW * ratio), cdBarH,
+                    Fade(SKYBLUE, 0.4f));
+                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
+            } else {
+                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
+            }
+        }
+        int labelX = cdX
+            + p->dash.maxCharges * (pipW + pipGap) + (int)(2 * ui);
+        DrawText("DASH", labelX, cdY, cdFontSize,
+            p->dash.charges > 0 ? SKYBLUE : GRAY);
     }
 
     cdY += (int)(16 * ui);
@@ -1094,12 +1261,48 @@ static void DrawHUD(void)
 
     // Crosshair cursor
     Vector2 mouse = GetMousePosition();
-    float ch = 12.0f * ui;
-    float chThick = 1.5f * ui;
-    Color chColor = Fade(WHITE, 0.8f);
-    DrawLineEx((Vector2){ mouse.x - ch, mouse.y }, (Vector2){ mouse.x + ch, mouse.y }, chThick, chColor);
-    DrawLineEx((Vector2){ mouse.x, mouse.y - ch }, (Vector2){ mouse.x, mouse.y + ch }, chThick, chColor);
-    DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
+    // we can refactor this crosshair to default
+    // eventually make it editable
+    float ch = 4.0f * ui;
+    float chThick = 1.0f * ui;
+    float chGap = 2.0f * ui;
+    //Color chColor = Fade(WHITE, 0.8f);
+    Color chColor = Fade(GREEN, 1.0f);
+    // we're going to create a gap between in the middle of the cross hair
+    // so we need 4 lines
+    // middle left
+    //DrawLineEx(
+    //    (Vector2){ mouse.x - ch, mouse.y }, 
+    //    (Vector2){ mouse.x + ch, mouse.y }, 
+    //    chThick, chColor);
+    DrawLineEx(
+        (Vector2){ mouse.x - chGap, mouse.y },
+        (Vector2){ mouse.x - ch - chGap, mouse.y },
+        chThick, chColor
+    );
+    // middle right
+    DrawLineEx(
+        (Vector2){ mouse.x + chGap, mouse.y },
+        (Vector2){ mouse.x + ch + chGap, mouse.y },
+        chThick, chColor
+    );
+    // top
+    //DrawLineEx(
+    //    (Vector2){ mouse.x, mouse.y - ch }, 
+    //    (Vector2){ mouse.x, mouse.y + ch }, 
+    //    chThick, chColor);
+    DrawLineEx(
+        (Vector2){ mouse.x, mouse.y - chGap},
+        (Vector2){ mouse.x, mouse.y - ch - chGap},
+        chThick, chColor
+    );
+    // bottom
+    DrawLineEx(
+        (Vector2){ mouse.x, mouse.y + ch + chGap},
+        (Vector2){ mouse.x, mouse.y + chGap},
+        chThick, chColor
+    );
+    //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
 
     // Pause overlay
     if (g.paused && !g.gameOver) {
@@ -1107,11 +1310,21 @@ static void DrawHUD(void)
         int pauseFont = (int)(60 * ui);
         const char *pauseText = "PAUSED";
         int pW = MeasureText(pauseText, pauseFont);
-        DrawText(pauseText, sw / 2 - pW / 2, sh / 2 - (int)(40 * ui), pauseFont, WHITE);
+        DrawText(
+            pauseText, 
+            sw / 2 - pW / 2,
+            sh / 2 - (int)(40 * ui), 
+            pauseFont, 
+            WHITE);
         int resumeFont = (int)(20 * ui);
         const char *resumeText = "P or Esc to resume";
         int rW = MeasureText(resumeText, resumeFont);
-        DrawText(resumeText, sw / 2 - rW / 2, sh / 2 + (int)(30 * ui), resumeFont, LIGHTGRAY);
+        DrawText(
+            resumeText, 
+            sw / 2 - rW / 2, 
+            sh / 2 + (int)(30 * ui), 
+            resumeFont, 
+            LIGHTGRAY);
     }
 
     // Game Over overlay
@@ -1120,17 +1333,33 @@ static void DrawHUD(void)
         int goFont = (int)(70 * ui);
         const char *goText = "GAME OVER";
         int goW = MeasureText(goText, goFont);
-        DrawText(goText, sw / 2 - goW / 2, sh / 2 - (int)(60 * ui), goFont, RED);
+        DrawText(
+            goText, 
+            sw / 2 - goW / 2, 
+            sh / 2 - (int)(60 * ui), 
+            goFont, 
+            RED);
 
         int scFont = (int)(28 * ui);
-        const char *scoreText = TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
+        const char *scoreText = 
+            TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
         int sW = MeasureText(scoreText, scFont);
-        DrawText(scoreText, sw / 2 - sW / 2, sh / 2 + (int)(20 * ui), scFont, WHITE);
+        DrawText(
+            scoreText, 
+            sw / 2 - sW / 2, 
+            sh / 2 + (int)(20 * ui), 
+            scFont, 
+            WHITE);
 
         int rsFont = (int)(20 * ui);
         const char *restartText = "Press R to restart";
         int rW = MeasureText(restartText, rsFont);
-        DrawText(restartText, sw / 2 - rW / 2, sh / 2 + (int)(60 * ui), rsFont, LIGHTGRAY);
+        DrawText(
+            restartText, 
+            sw / 2 - rW / 2, 
+            sh / 2 + (int)(60 * ui), 
+            rsFont, 
+            LIGHTGRAY);
     }
 }
 

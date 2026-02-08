@@ -25,8 +25,8 @@
 #define IFRAME_DURATION         0.5f
 
 // Gun
-#define GUN_FIRE_RATE           10.0f
-#define GUN_BULLET_SPEED        700.0f
+#define GUN_FIRE_RATE           12.0f
+#define GUN_BULLET_SPEED        1200.0f
 #define GUN_BULLET_LIFETIME     1.5f
 #define GUN_BULLET_DAMAGE       10
 
@@ -38,12 +38,13 @@
 #define SWORD_DASH_DAMAGE       40
 
 // Dash
-#define DASH_SPEED              900.0f
-#define DASH_DURATION           0.22f
-#define DASH_COOLDOWN           0.6f
+#define DASH_SPEED              1600.0f
+#define DASH_DURATION           0.2f
+#define DASH_COOLDOWN           1.0f
+#define DASH_MAX_CHARGES        2
 
 // Spin
-#define SPIN_DURATION           0.4f
+#define SPIN_DURATION           0.7f
 #define SPIN_RADIUS             100.0f
 #define SPIN_COOLDOWN           2.0f
 #define SPIN_DAMAGE             35
