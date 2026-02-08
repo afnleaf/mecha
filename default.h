@@ -28,8 +28,8 @@
 
 // Dash
 #define DASH_SPEED              900.0f
-#define DASH_DURATION           0.15f
-#define DASH_COOLDOWN           0.8f
+#define DASH_DURATION           0.22f
+#define DASH_COOLDOWN           0.6f
 
 // Spin
 #define SPIN_DURATION           0.4f
@@ -44,7 +44,7 @@
 #define ENEMY_SPEED_MIN         100.0f
 #define ENEMY_SPEED_VAR         80
 #define ENEMY_CONTACT_DAMAGE    15
-#define SPAWN_INTERVAL          2.0f
+#define SPAWN_INTERVAL          1.6f
 #define SPAWN_RAMP              0.98f
 #define SPAWN_MIN_INTERVAL      0.4f
 #define SPAWN_MARGIN            400.0f
@@ -56,6 +56,9 @@
 
 // Map
 #define MAP_SIZE                1600.0f
+#define BG_COLOR                (Color){ 20, 20, 30, 255 }
+#define GRID_COLOR              (Color){ 40, 40, 55, 255 }
+#define GRID_STEP               100.0f
 
 // Player iFrames
 #define IFRAME_DURATION         0.5f

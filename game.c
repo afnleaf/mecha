@@ -1,6 +1,4 @@
-// Mecha Bullet Hell - Mini Protoi
-// this is THE piece of data that we are operating on
-// it sits inside of our pipelinetype
+// Mecha Bullet Hell - Mini Prototype
 // // Compile: emcc game.c -o game.js -Os -I ./raylib/src -L ./raylib/src -l:libraylib.web.a -s USE_GLFW=3 -s SINGLE_FILE=1 -DPLATFORM_WEB
 //
 // Controls: WASD move, Mouse aim, M1 shoot, M2 sword, Space dash, Shift spin
@@ -98,12 +96,18 @@ typedef struct Particle {
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
 typedef struct GameState {
+    // the player entity
     Player player;
     Bullet bullets[MAX_BULLETS];
+    // separate enemy bullets?
     Enemy enemies[MAX_ENEMIES];
+    // 
     Particle particles[MAX_PARTICLES];
+    // 
     Camera2D camera;
     int score;
+    // maybe I can combine some of this into a u64? u32? bit pack
+    // especially the bools
     float spawnTimer;
     float spawnInterval;
     int enemiesKilled;
@@ -128,6 +132,9 @@ static void SpawnParticles(Vector2 pos, Color color, int count);
 static void SpawnParticle(
     Vector2 pos, Vector2 vel, Color color, float size, float lifetime);
 static void DamageEnemy(int idx, int damage);
+static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float alpha);
+static void DrawWorld(void);
+static void DrawHUD(void);
 
 // ========================================================================== /
 // Init
@@ -319,6 +326,7 @@ static void UpdateGame(void)
     // ? why 0.05? if less delta time greater than this we make it that time?
     // why, is it like a max frame time/hz for each calculation we want to do?
     // im not sure i intuit this clearly
+    // if the world get's too far ahead, don't let the physics break.
     if (dt > 0.05f) dt = 0.05f;
 
     // need to make sure that esc also pauses in native build
@@ -367,6 +375,7 @@ static void UpdateGame(void)
         p->dash.active = true;
         p->dash.timer = p->dash.duration;
         p->dash.cooldownTimer = p->dash.cooldown;
+        p->iFrames = p->dash.duration;
         if (moveLen > 0) {
             p->dash.dir = moveDir;
         } else {
@@ -474,8 +483,7 @@ static void UpdateGame(void)
         p->spin.timer -= dt;
     }
 
-    // what is Clamp?
-    // --- Clamp to map ---
+    // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
     if (p->pos.y < p->size) p->pos.y = p->size;
     if (p->pos.x > MAP_SIZE - p->size) p->pos.x = MAP_SIZE - p->size;
@@ -592,33 +600,152 @@ static void UpdateGame(void)
 
 
 // ========================================================================== /
-// Draw
+// Draw — Rainbow cube (fake 3D, subdivided gradient faces)
 // ========================================================================== /
-// similar to update, this has got to be refactored into chunks
-// hmmm, this is where the question of assets comes into play
-// how do we define our assets?
-// sprites? textures? needs to be inside binary at compile time? 
-// tech problem. not sure what is possible with C, Rust has include_dir! macro
-// a simple header assets.h so called config file for now?
-static void DrawGame(void)
+// Manual HSV conversion to ensure no dependency issues in web build
+static Color HsvToRgb(float h, float s, float v, float alpha) {
+    if (h < 0.0f) h = fmodf(h, 360.0f) + 360.0f;
+    else if (h >= 360.0f) h = fmodf(h, 360.0f);
+    
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+    float m = v - c;
+    
+    float r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    return (Color){
+        (unsigned char)((r + m) * 255.0f),
+        (unsigned char)((g + m) * 255.0f),
+        (unsigned char)((b + m) * 255.0f),
+        (unsigned char)(alpha * 255.0f)
+    };
+}
+
+static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float alpha)
 {
-    BeginDrawing();
-    // this should not be hardcoded?
-    ClearBackground((Color){ 20, 20, 30, 255 });
+    float s = size;
 
-    BeginMode2D(g.camera);
+    // 8 cube vertices in local 3D space
+    float vtx[8][3] = {
+        {-s,-s,-s}, { s,-s,-s}, { s, s,-s}, {-s, s,-s},
+        {-s,-s, s}, { s,-s, s}, { s, s, s}, {-s, s, s},
+    };
 
+    float cy = cosf(rotY), sy = sinf(rotY);
+    float cx = cosf(rotX), sx = sinf(rotX);
+
+    Vector2 pj[8];
+    float pz[8];
+    float hues[8];
+    float time = (float)GetTime();
+
+    for (int i = 0; i < 8; i++) {
+        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
+        float x1 = x * cy - z * sy;
+        float z1 = x * sy + z * cy;
+        float y1 = y * cx - z1 * sx;
+        float z2 = y * sx + z1 * cx;
+        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
+        pz[i] = z2;
+        // Generate hue offset for "rainbow" look
+        hues[i] = fmodf(time * 60.0f + (float)i * 45.0f, 360.0f);
+    }
+
+    // 6 faces: {0,3,2,1} is Front, {4,5,6,7} is Back
+    int faces[6][4] = {
+        {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 4, 7, 3},
+        {1, 2, 6, 5}, {0, 1, 5, 4}, {3, 7, 6, 2},
+    };
+
+    float faceZ[6];
+    bool faceVis[6];
+    for (int f = 0; f < 6; f++) {
+        faceZ[f] = 0;
+        for (int vi = 0; vi < 4; vi++) faceZ[f] += pz[faces[f][vi]];
+        faceZ[f] *= 0.25f;
+        
+        Vector2 a = pj[faces[f][0]];
+        Vector2 b = pj[faces[f][1]];
+        Vector2 c = pj[faces[f][2]];
+        // 2D Cross Product: (b-a)x(c-a)
+        // Note: Screen Y is down. Standard CCW winding produces Negative cross product.
+        // We want to show faces facing the camera (Front).
+        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        faceVis[f] = (cross < 0);
+    }
+
+    // Sort back-to-front (Painter's algorithm)
+    // Smallest Z is "Far" in this projection? Actually standard 3D: Z+ is near?
+    // Let's sort simply by Z value.
+    int order[6] = {0, 1, 2, 3, 4, 5};
+    for (int i = 0; i < 5; i++)
+        for (int j = i + 1; j < 6; j++)
+            if (faceZ[order[i]] > faceZ[order[j]]) { // Swap if i is 'closer' than j?
+                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+            }
+
+    int N = 6; // Grid subdivision
+    
+    for (int fi = 0; fi < 6; fi++) {
+        int f = order[fi];
+        if (!faceVis[f]) continue;
+
+        Vector2 p0 = pj[faces[f][0]], p1 = pj[faces[f][1]];
+        Vector2 p2 = pj[faces[f][2]], p3 = pj[faces[f][3]];
+        float h0 = hues[faces[f][0]], h1 = hues[faces[f][1]];
+        float h2 = hues[faces[f][2]], h3 = hues[faces[f][3]];
+
+        for (int gy = 0; gy < N; gy++) {
+            for (int gx = 0; gx < N; gx++) {
+                float u0 = (float)gx / N, u1 = (float)(gx + 1) / N;
+                float v0 = (float)gy / N, v1 = (float)(gy + 1) / N;
+
+                #define BILERP(A,B,C,D,u,v) \
+                    ((1-(v))*((1-(u))*(A) + (u)*(B)) + (v)*((1-(u))*(D) + (u)*(C)))
+
+                Vector2 q00 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v0) };
+                Vector2 q10 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v0) };
+                Vector2 q11 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v1) };
+                Vector2 q01 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v1) };
+
+                float uc = (u0 + u1) * 0.5f, vc = (v0 + v1) * 0.5f;
+                float hC = BILERP(h0, h1, h2, h3, uc, vc);
+                
+                Color cc = HsvToRgb(hC, 0.85f, 1.0f, alpha);
+                DrawTriangle(q00, q10, q11, cc);
+                DrawTriangle(q00, q11, q01, cc);
+
+                #undef BILERP
+            }
+        }
+        
+        Color edge = Fade(WHITE, 0.5f * alpha);
+        DrawLineV(p0, p1, edge);
+        DrawLineV(p1, p2, edge);
+        DrawLineV(p2, p3, edge);
+        DrawLineV(p3, p0, edge);
+    }
+}
+
+// ========================================================================== /
+// Draw — World (camera space)
+// ========================================================================== /
+static void DrawWorld(void)
+{
     Player *p = &g.player;
 
     // --- Map grid ---
-    // also not hardcoded
-    Color gridColor = (Color){ 40, 40, 55, 255 };
-    float gridStep = 100.0f;
-    for (float x = 0; x <= MAP_SIZE; x += gridStep) {
-        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, gridColor);
+    for (float x = 0; x <= MAP_SIZE; x += GRID_STEP) {
+        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, GRID_COLOR);
     }
-    for (float y = 0; y <= MAP_SIZE; y += gridStep) {
-        DrawLineV((Vector2){ 0, y }, (Vector2){ MAP_SIZE, y }, gridColor);
+    for (float y = 0; y <= MAP_SIZE; y += GRID_STEP) {
+        DrawLineV((Vector2){ 0, y }, (Vector2){ MAP_SIZE, y }, GRID_COLOR);
     }
 
     // Map boundary
@@ -670,44 +797,34 @@ static void DrawGame(void)
         }
     }
 
-    // --- Player ---
-    // Determine player color based on state
-    Color playerColor = (Color){ 60, 180, 75, 255 }; // green
-    if (p->dash.active) playerColor = SKYBLUE;
-    else if (p->spin.timer > 0) playerColor = YELLOW;
-
-    // Flash during iFrames
+    // --- Player — RGB color cube ---
     bool visible = true;
     if (p->iFrames > 0) {
         visible = ((int)(p->iFrames * 20) % 2 == 0);
     }
 
     if (visible) {
-        // Rotated square
-        float halfSize = p->size;
-        float ca = cosf(p->angle);
-        float sa = sinf(p->angle);
-        Vector2 corners[4];
-        float offsets[4][2] = {
-            { -halfSize, -halfSize },
-            {  halfSize, -halfSize },
-            {  halfSize,  halfSize },
-            { -halfSize,  halfSize },
-        };
-        for (int i = 0; i < 4; i++) {
-            corners[i].x = p->pos.x + offsets[i][0] * ca - offsets[i][1] * sa;
-            corners[i].y = p->pos.y + offsets[i][0] * sa + offsets[i][1] * ca;
-        }
-        // Draw as two triangles
-        DrawTriangle(corners[0], corners[1], corners[2], playerColor);
-        DrawTriangle(corners[0], corners[2], corners[3], playerColor);
-        // Outline
-        for (int i = 0; i < 4; i++) {
-            DrawLineV(corners[i], corners[(i + 1) % 4], WHITE);
+        float t = (float)GetTime();
+        float rotY = t * 2.0f;
+        float rotX = 0.45f;
+
+        // Ghost trail during dash
+        if (p->dash.active) {
+            for (int gi = 5; gi >= 1; gi--) {
+                float offset = (float)gi * 14.0f;
+                Vector2 ghostPos = Vector2Subtract(p->pos,
+                    Vector2Scale(p->dash.dir, offset));
+                float ga = 0.5f * (1.0f - (float)gi / 6.0f);
+                DrawCube2D(ghostPos, p->size, rotY - (float)gi * 0.15f, rotX, ga);
+            }
         }
 
+        DrawCube2D(p->pos, p->size, rotY, rotX, 1.0f);
+
         // Gun barrel
-        Vector2 gunTip = Vector2Add(p->pos, (Vector2){ ca * (halfSize + 12.0f), sa * (halfSize + 12.0f) });
+        float ca = cosf(p->angle), sa = sinf(p->angle);
+        Vector2 gunTip = Vector2Add(p->pos,
+            (Vector2){ ca * (p->size + 12.0f), sa * (p->size + 12.0f) });
         DrawLineEx(p->pos, gunTip, 3.0f, DARKGRAY);
     }
 
@@ -742,13 +859,14 @@ static void DrawGame(void)
             DrawLineEx(p->pos, end, 2.0f, Fade(YELLOW, alpha * 0.6f));
         }
     }
+}
 
-    EndMode2D();
-
-    // ====================================================================== /
-    // HUD (screen space) — auto-scaled to screen height
-    // ====================================================================== /
-    //obviously we separate HUD/UI from the game itself
+// ========================================================================== /
+// Draw — HUD (screen space)
+// ========================================================================== /
+static void DrawHUD(void)
+{
+    Player *p = &g.player;
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
     float ui = (float)sh / 450.0f;
@@ -851,6 +969,21 @@ static void DrawGame(void)
         int rW = MeasureText(restartText, rsFont);
         DrawText(restartText, sw / 2 - rW / 2, sh / 2 + (int)(60 * ui), rsFont, LIGHTGRAY);
     }
+}
+
+// ========================================================================== /
+// Draw — orchestrator
+// ========================================================================== /
+static void DrawGame(void)
+{
+    BeginDrawing();
+    ClearBackground(BG_COLOR);
+
+    BeginMode2D(g.camera);
+    DrawWorld();
+    EndMode2D();
+
+    DrawHUD();
 
     EndDrawing();
 }

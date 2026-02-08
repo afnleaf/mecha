@@ -6,7 +6,8 @@ A playable mecha prototype: player square with machine gun, sword, dash, and spi
 ## Project Structure
 ```
 GDD.md          - the game design document, still barebones
-PHILOSOPHY.     - the software philosophy to follow
+PHILOSOPHY.md   - the software philosophy to follow
+NOTES.md        - todo list and design thinking space
 game.c          - all game logic (single file)
 default.h       - all tunable gameplay values (defines)
 config.yaml     - histos packing config
@@ -31,6 +32,11 @@ histos config.yaml
 
 ## Native Build
 game.c supports native compilation via `#ifdef PLATFORM_WEB` guards. The emscripten-specific code (EM_ASM_INT, emscripten_set_main_loop) is guarded; the else branch uses a standard raylib game loop.
+
+```bash
+./build.sh n    # debug native build (no optimization)
+./build.sh o    # optimized native build (-O2 -march=native -flto -ffast-math, stripped)
+```
 
 ## Architecture
 - Single global `GameState g` struct — required because emscripten_set_main_loop takes void(*)(void) with no userdata
