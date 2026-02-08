@@ -11,13 +11,24 @@
 #define MAX_ENEMIES             64
 #define MAX_PARTICLES           256
 
+// Map
+#define MAP_SIZE                1600.0f
+#define BG_COLOR                (Color){ 20, 20, 30, 255 }
+#define GRID_COLOR              (Color){ 40, 40, 55, 255 }
+#define GRID_STEP               100.0f
+
+// Mecha ------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
 #define PLAYER_SIZE             16.0f
 #define PLAYER_HP               100
+#define IFRAME_DURATION         0.5f
 
 // Gun
 #define GUN_FIRE_RATE           10.0f
+#define GUN_BULLET_SPEED        700.0f
+#define GUN_BULLET_LIFETIME     1.5f
+#define GUN_BULLET_DAMAGE       10
 
 // Sword
 #define SWORD_DURATION          0.25f
@@ -38,28 +49,29 @@
 #define SPIN_DAMAGE             35
 #define SPIN_KNOCKBACK          300.0f
 
-// Enemies
-#define ENEMY_SIZE              14.0f
-#define ENEMY_HP                30
-#define ENEMY_SPEED_MIN         100.0f
-#define ENEMY_SPEED_VAR         80
-#define ENEMY_CONTACT_DAMAGE    15
+// Enemies ------------------------------------------------------------------ /
+// Spawning
 #define SPAWN_INTERVAL          1.6f
 #define SPAWN_RAMP              0.98f
 #define SPAWN_MIN_INTERVAL      0.4f
 #define SPAWN_MARGIN            400.0f
 
-// Bullets
-#define BULLET_SPEED            700.0f
-#define BULLET_LIFETIME         1.5f
-#define BULLET_DAMAGE           10
+// Enemy — Triangle (chaser)
+#define TRI_SIZE                14.0f
+#define TRI_HP                  30
+#define TRI_SPEED_MIN           100.0f
+#define TRI_SPEED_VAR           80
+#define TRI_CONTACT_DAMAGE      15
 
-// Map
-#define MAP_SIZE                1600.0f
-#define BG_COLOR                (Color){ 20, 20, 30, 255 }
-#define GRID_COLOR              (Color){ 40, 40, 55, 255 }
-#define GRID_STEP               100.0f
-
-// Player iFrames
-#define IFRAME_DURATION         0.5f
-
+// Enemy — Rectangle (ranged)
+#define RECT_SIZE               22.0f
+#define RECT_HP                 80
+#define RECT_SPEED_MIN          55.0f
+#define RECT_SPEED_VAR          30
+#define RECT_CONTACT_DAMAGE     20
+#define RECT_SHOOT_INTERVAL     0.5f
+#define RECT_BULLET_SPEED       350.0f
+#define RECT_BULLET_DAMAGE      12
+#define RECT_BULLET_LIFETIME    2.0f
+#define RECT_SPAWN_KILLS        5
+#define RECT_SPAWN_CHANCE       20

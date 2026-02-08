@@ -51,11 +51,12 @@ I'm surprised the binary executable is 1.1mb while the full index.html single fi
 - [x] make the player model an cube that rotates but in 2d but it looks 3dish? if you catch my drift
 - [x] dash animation, ghosting through enemies
 - [x] make dash longer
-- [] add enemy type, the debug texture as a rectangle, bigger than triangle, more hp and shoots bullets every half second at your current location
-- [] bullet pool scaling separation player and enemy, also ownership
-- [] refactor update (design clean approach to separating this like draw world and draw hud)
+- [x] add enemy type, the debug texture as a rectangle, bigger than triangle, more hp and shoots bullets every half second at your current location
+// big refactor is in progress
+- [] refactor update game (design clean approach to separating this like draw world and draw hud)
 - [] make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
 - [] fix what dash follows, mouse or wasd? what takes prio?
+- [] add double dash that recharges (like tracer blinks)
 - [] damage system design (not implementation, what is the math behind it)
 - [] asset blob data design, how to parse? how to create?
 - [] physics as deterministic for multiplayer future? (FPS TARGET)
@@ -67,6 +68,7 @@ I'm surprised the binary executable is 1.1mb while the full index.html single fi
 - [] shaders GLSL
 - [] study vector 2 implementation
 - [] reading raylib.h
+- [] bullet pool scaling separation player and enemy, also ownership
 
 
 

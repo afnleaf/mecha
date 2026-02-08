@@ -1,8 +1,8 @@
-// Mecha Bullet Hell - Mini Prototype
-// // Compile: emcc game.c -o game.js -Os -I ./raylib/src -L ./raylib/src -l:libraylib.web.a -s USE_GLFW=3 -s SINGLE_FILE=1 -DPLATFORM_WEB
-//
-// Controls: WASD move, Mouse aim, M1 shoot, M2 sword, Space dash, Shift spin
-
+/*
+ * Mecha Bullet Hell - Mini Prototype
+ *
+ * Version 0.0.1
+ */
 #include "raylib.h"
 #include "raymath.h"
 #ifdef PLATFORM_WEB
@@ -16,6 +16,9 @@
 // ========================================================================== /
 // Data Structures
 // ========================================================================== /
+
+// player ------------------------------------------------------------------- /
+// declare abilities above player
 typedef struct Gun {
     float cooldown;
     float fireRate;
@@ -69,9 +72,21 @@ typedef struct Bullet {
     Vector2 vel;
     float lifetime;
     bool active;
+    bool isEnemy;
     int damage;
 } Bullet;
 
+// enemy -------------------------------------------------------------------- /
+// we should use this to determine the enemy type
+typedef enum EnemyType {
+    TRI, // triangle
+    RECT, // rectangle add this first
+    PENTA, // pentagon this can come later
+} EnemyType;
+
+// have an array of enemies 
+// but switch on the type enum
+// might need to add more data to this struct for the rectangle
 typedef struct Enemy {
     Vector2 pos;
     Vector2 vel;
@@ -80,9 +95,12 @@ typedef struct Enemy {
     int hp, maxHp;
     bool active;
     float hitFlash;
-    int type;
+    float shootTimer;
+    int contactDamage;
+    EnemyType type;
 } Enemy;
 
+// other -------------------------------------------------------------------- /
 typedef struct Particle {
     Vector2 pos;
     Vector2 vel;
@@ -93,6 +111,7 @@ typedef struct Particle {
     bool active;
 } Particle;
 
+// state -------------------------------------------------------------------- /
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
 typedef struct GameState {
@@ -124,14 +143,19 @@ static GameState g;
 // ========================================================================== /
 // when do start to consider using a header file?
 // right now, we already have a default config header
-void UpdateDrawFrame(void);
+void NextFrame(void);
 static void InitGame(void);
-static void SpawnBullet(Vector2 pos, Vector2 dir, float speed);
+static void SpawnBullet(Vector2 pos, Vector2 dir, float speed, int damage, float lifetime, bool isEnemy);
 static void SpawnEnemy(void);
 static void SpawnParticles(Vector2 pos, Color color, int count);
 static void SpawnParticle(
     Vector2 pos, Vector2 vel, Color color, float size, float lifetime);
 static void DamageEnemy(int idx, int damage);
+
+// refactoring artifact
+static void UpdateGameLong(float dt);
+static void UpdateGame(void);
+
 static void DrawCube2D(Vector2 pos, float size, float rotY, float rotX, float alpha);
 static void DrawWorld(void);
 static void DrawHUD(void);
@@ -173,17 +197,18 @@ static void InitGame(void)
 // ========================================================================== /
 // Spawn Helpers
 // ========================================================================== /
-static void SpawnBullet(Vector2 pos, Vector2 dir, float speed)
+static void SpawnBullet(
+    Vector2 pos, Vector2 dir, 
+    float speed, int damage, float lifetime, bool isEnemy)
 {
-    // need to understand what's actually going on here
-    // max_bullets yes but of what kind? how do we scale this if enemy shoots?
     for (int i = 0; i < MAX_BULLETS; i++) {
         if (!g.bullets[i].active) {
             g.bullets[i].active = true;
             g.bullets[i].pos = pos;
             g.bullets[i].vel = Vector2Scale(dir, speed);
-            g.bullets[i].lifetime = BULLET_LIFETIME;
-            g.bullets[i].damage = BULLET_DAMAGE;
+            g.bullets[i].lifetime = lifetime;
+            g.bullets[i].damage = damage;
+            g.bullets[i].isEnemy = isEnemy;
             return;
         }
     }
@@ -201,13 +226,30 @@ static void SpawnEnemy(void)
         if (!g.enemies[i].active) {
             Enemy *e = &g.enemies[i];
             e->active = true;
-            e->size = ENEMY_SIZE;
-            e->speed = ENEMY_SPEED_MIN 
-                + (float)GetRandomValue(0, ENEMY_SPEED_VAR);
-            e->hp = ENEMY_HP;
-            e->maxHp = ENEMY_HP;
             e->hitFlash = 0;
-            e->type = 0;
+            e->shootTimer = 0;
+
+            // Roll for RECT type after enough kills
+            bool spawnRect = (g.enemiesKilled >= RECT_SPAWN_KILLS)
+                && (GetRandomValue(1, 100) <= RECT_SPAWN_CHANCE);
+
+            if (spawnRect) {
+                e->type = RECT;
+                e->size = RECT_SIZE;
+                e->speed = RECT_SPEED_MIN
+                    + (float)GetRandomValue(0, RECT_SPEED_VAR);
+                e->hp = RECT_HP;
+                e->maxHp = RECT_HP;
+                e->contactDamage = RECT_CONTACT_DAMAGE;
+            } else {
+                e->type = TRI;
+                e->size = TRI_SIZE;
+                e->speed = TRI_SPEED_MIN
+                    + (float)GetRandomValue(0, TRI_SPEED_VAR);
+                e->hp = TRI_HP;
+                e->maxHp = TRI_HP;
+                e->contactDamage = TRI_CONTACT_DAMAGE;
+            }
 
             // Spawn on random map edge, biased toward player vicinity
             int edge = GetRandomValue(0, 3);
@@ -246,8 +288,10 @@ static void SpawnEnemy(void)
     }
 }
 
-// what is particle in this context?
-static void SpawnParticle(Vector2 pos, Vector2 vel, Color color, float size, float lifetime)
+// particles will have diff properties of size, angle and speed eventually
+static void SpawnParticle(
+    Vector2 pos, Vector2 vel, 
+    Color color, float size, float lifetime)
 {
     for (int i = 0; i < MAX_PARTICLES; i++) {
         if (!g.particles[i].active) {
@@ -320,29 +364,8 @@ static bool PointInArc(
 // ========================================================================== /
 // Update
 // ========================================================================== /
-static void UpdateGame(void)
-{
-    float dt = GetFrameTime();
-    // ? why 0.05? if less delta time greater than this we make it that time?
-    // why, is it like a max frame time/hz for each calculation we want to do?
-    // im not sure i intuit this clearly
-    // if the world get's too far ahead, don't let the physics break.
-    if (dt > 0.05f) dt = 0.05f;
-
-    // need to make sure that esc also pauses in native build
-    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) g.paused = !g.paused;
-
-    if (g.gameOver) {
-        if (IsKeyPressed(KEY_R)) InitGame();
-        return;
-    }
-
-    // ok so we could potentially refactor everything above to another void?
-    // like a pause state? hmmm
-    if (g.paused) return;
-
+static Vector2 mouse() {
     Player *p = &g.player;
-
     // ok I see now, this could be out? 
     // we need toMouse as output? so a mouse function?
     // --- Mouse aim ---
@@ -350,6 +373,14 @@ static void UpdateGame(void)
     Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
     p->angle = atan2f(toMouse.y, toMouse.x);
+    return toMouse;
+}
+
+static void UpdateGameLong(float dt)
+{
+    Player *p = &g.player;
+    
+    Vector2 toMouse = mouse();
 
     // --- Movement ---
     // a movement function?
@@ -371,7 +402,10 @@ static void UpdateGame(void)
     p->dash.cooldownTimer -= dt;
     if (p->dash.cooldownTimer < 0) p->dash.cooldownTimer = 0;
 
-    if (IsKeyPressed(KEY_SPACE) && !p->dash.active && p->dash.cooldownTimer <= 0) {
+    if (IsKeyPressed(KEY_SPACE) 
+        && !p->dash.active 
+        && p->dash.cooldownTimer <= 0
+    ) {
         p->dash.active = true;
         p->dash.timer = p->dash.duration;
         p->dash.cooldownTimer = p->dash.cooldown;
@@ -386,10 +420,12 @@ static void UpdateGame(void)
 
     if (p->dash.active) {
         p->dash.timer -= dt;
-        p->pos = Vector2Add(p->pos, Vector2Scale(p->dash.dir, p->dash.speed * dt));
+        p->pos = Vector2Add(
+            p->pos, Vector2Scale(p->dash.dir, p->dash.speed * dt));
 
         float trailAngle = (float)GetRandomValue(0, 360) * DEG2RAD;
-        Vector2 trailVel = { cosf(trailAngle) * 30.0f, sinf(trailAngle) * 30.0f };
+        Vector2 trailVel = 
+            { cosf(trailAngle) * 30.0f, sinf(trailAngle) * 30.0f };
         SpawnParticle(p->pos, trailVel, SKYBLUE, 3.0f, 0.2f);
 
         if (p->dash.timer <= 0) {
@@ -400,31 +436,41 @@ static void UpdateGame(void)
     // or is it an ability?
     // --- Gun (M1) ---
     p->gun.cooldown -= dt;
-    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && p->gun.cooldown <= 0 && p->sword.timer <= 0) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) 
+        && p->gun.cooldown <= 0 
+        && p->sword.timer <= 0
+    ) {
         p->gun.cooldown = 1.0f / p->gun.fireRate;
         Vector2 aimDir = Vector2Normalize(toMouse);
         float spread = ((float)GetRandomValue(-30, 30)) * 0.001f;
         float bulletAngle = p->angle + spread;
         Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
         Vector2 muzzle = Vector2Add(p->pos, Vector2Scale(aimDir, p->size + 4.0f));
-        SpawnBullet(muzzle, bulletDir, BULLET_SPEED);
+        SpawnBullet(muzzle, bulletDir, GUN_BULLET_SPEED, GUN_BULLET_DAMAGE, GUN_BULLET_LIFETIME, false);
         SpawnParticle(muzzle, Vector2Scale(bulletDir, 100.0f), YELLOW, 3.0f, 0.08f);
     }
 
     // i think i see the pattern here
     // --- Sword swing (M2) ---
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && p->sword.timer <= 0 && p->spin.timer <= 0) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) 
+        && p->sword.timer <= 0 
+        && p->spin.timer <= 0
+    ) {
         p->sword.timer = p->sword.duration;
         p->sword.angle = p->angle;
         p->sword.dashSlash = p->dash.active;
         p->sword.hitMask = 0;
 
+        // no probably not using ternary? if its over 80 chars?
         float arc = p->sword.dashSlash ? p->sword.arc * 1.3f : p->sword.arc;
         float radius = p->sword.dashSlash ? p->sword.radius * 1.5f : p->sword.radius;
         Color slashColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
         for (int i = 0; i < 6; i++) {
             float a = p->sword.angle - arc / 2.0f + arc * (float)i / 5.0f;
-            Vector2 particlePos = Vector2Add(p->pos, (Vector2){ cosf(a) * radius * 0.7f, sinf(a) * radius * 0.7f });
+            Vector2 particlePos = Vector2Add(
+                p->pos, 
+                (Vector2){ cosf(a) * radius * 0.7f, sinf(a) * radius * 0.7f }
+            );
             Vector2 particleVel = { cosf(a) * 80.0f, sinf(a) * 80.0f };
             SpawnParticle(particlePos, particleVel, slashColor, 3.0f, 0.2f);
         }
@@ -510,18 +556,42 @@ static void UpdateGame(void)
             continue;
         }
 
-        // Hit enemies
-        for (int j = 0; j < MAX_ENEMIES; j++) {
-            if (!g.enemies[j].active) continue;
-            float dist = Vector2Distance(b->pos, g.enemies[j].pos);
-            if (dist < g.enemies[j].size + 3.0f) {
-                DamageEnemy(j, b->damage);
+        if (b->isEnemy) {
+            // Enemy bullet — hit player
+            float dist = Vector2Distance(b->pos, p->pos);
+            if (dist < p->size + 3.0f && p->iFrames <= 0) {
+                p->hp -= b->damage;
+                p->iFrames = IFRAME_DURATION;
+                SpawnParticles(p->pos, RED, 4);
                 b->active = false;
-                break;
+                if (p->hp <= 0) {
+                    p->hp = 0;
+                    g.gameOver = true;
+                }
+            }
+        } else {
+            // Player bullet — hit enemies
+            for (int j = 0; j < MAX_ENEMIES; j++) {
+                if (!g.enemies[j].active) continue;
+                float dist = Vector2Distance(b->pos, g.enemies[j].pos);
+                if (dist < g.enemies[j].size + 3.0f) {
+                    DamageEnemy(j, b->damage);
+                    b->active = false;
+                    break;
+                }
             }
         }
     }
 
+
+
+}
+// ok so game state. giant function. let's separate this and make it more modular so its not so hard to add features. or is it commonplace to have massive functions like this in the game dev world?
+
+
+static void enemies(float dt) {
+    Player *p = &g.player;
+    
     // --- Enemies ---
     g.spawnTimer -= dt;
     if (g.spawnTimer <= 0) {
@@ -552,12 +622,27 @@ static void UpdateGame(void)
         if (e->pos.y < 0) e->pos.y = 0;
         if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
 
+        // RECT shooting AI
+        if (e->type == RECT) {
+            e->shootTimer -= dt;
+            if (e->shootTimer <= 0 && dist > 1.0f) {
+                e->shootTimer = RECT_SHOOT_INTERVAL;
+                Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
+                Vector2 muzzle = Vector2Add(e->pos,
+                    Vector2Scale(shootDir, e->size + 4.0f));
+                SpawnBullet(muzzle, shootDir, RECT_BULLET_SPEED,
+                    RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME, true);
+                SpawnParticle(muzzle, Vector2Scale(shootDir, 60.0f),
+                    MAGENTA, 3.0f, 0.1f);
+            }
+        }
+
         // Hit flash decay
         if (e->hitFlash > 0) e->hitFlash -= dt;
 
         // Collide with player
         if (dist < p->size + e->size && p->iFrames <= 0) {
-            p->hp -= ENEMY_CONTACT_DAMAGE;
+            p->hp -= e->contactDamage;
             p->iFrames = IFRAME_DURATION;
             SpawnParticles(p->pos, RED, 6);
             // Knockback enemy
@@ -571,7 +656,10 @@ static void UpdateGame(void)
             }
         }
     }
+}
 
+static void particles(float dt) 
+{
     // --- Particles ---
     for (int i = 0; i < MAX_PARTICLES; i++) {
         Particle *pt = &g.particles[i];
@@ -582,11 +670,20 @@ static void UpdateGame(void)
         if (pt->lifetime <= 0) pt->active = false;
     }
 
+}
+
+// the 8.0f could be inside default
+// what is it doing exactly?
+// how much can we fiddle with this value?
+static void camera(float dt) 
+{
     // camera should be it's own thing to
     // --- Camera smooth follow ---
+    Player *p = &g.player;
+    // let's search up Vector2Lerp in raylib.h
     g.camera.target = Vector2Lerp(g.camera.target, p->pos, 8.0f * dt);
 
-    // Update camera offset to current screen size
+    // update camera offset to current browser window size
 #ifdef PLATFORM_WEB
     int sw = EM_ASM_INT({ return window.innerWidth; });
     int sh = EM_ASM_INT({ return window.innerHeight; });
@@ -594,9 +691,51 @@ static void UpdateGame(void)
         SetWindowSize(sw, sh);
     }
 #endif
-    g.camera.offset = (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
+    // native is static size for now
+    // could we add dynamic resize? fullscreen? later
+    g.camera.offset = 
+        (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
 }
-// ok so game state. giant function. let's separate this and make it more modular so its not so hard to add features. or is it commonplace to have massive functions like this in the game dev world?
+
+static void UpdateGame(void) 
+{
+    // frametime clamp
+    float dt = GetFrameTime();
+    // ? why 0.05? if less delta time greater than this we make it that time?
+    // why, is it like a max frame time/hz for each calculation we want to do?
+    // im not sure i intuit this clearly
+    // if the world get's too far ahead, don't let the physics break.
+    if (dt > 0.05f) dt = 0.05f;
+    
+    // need to make sure that esc also pauses in native build
+    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) g.paused = !g.paused;
+
+    if (g.gameOver) {
+        if (IsKeyPressed(KEY_R)) InitGame();
+        return;
+    }
+
+    // ok so we could potentially refactor everything above to another void?
+    // like a pause state? hmmm
+    if (g.paused) return;
+
+    // check keys
+    // check mouse
+    // update player
+    // update movement
+    // update bullets
+    UpdateGameLong(dt);
+    
+    // update enemy
+    // update movement
+    // update bullets
+    enemies(dt);
+    
+    particles(dt);
+   
+    // player camera
+    camera(dt);
+}
 
 
 // ========================================================================== /
@@ -764,10 +903,11 @@ static void DrawWorld(void)
     for (int i = 0; i < MAX_BULLETS; i++) {
         Bullet *b = &g.bullets[i];
         if (!b->active) continue;
-        DrawCircleV(b->pos, 3.0f, YELLOW);
-        // Trail
+        Color bColor = b->isEnemy ? MAGENTA : YELLOW;
+        float bSize = b->isEnemy ? 4.0f : 3.0f;
+        DrawCircleV(b->pos, bSize, bColor);
         Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, 0.02f));
-        DrawLineV(trail, b->pos, Fade(YELLOW, 0.5f));
+        DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
     }
 
     // --- Enemies ---
@@ -775,17 +915,39 @@ static void DrawWorld(void)
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
 
-        // Triangle pointing toward player
         Vector2 toPlayer = Vector2Subtract(p->pos, e->pos);
         float eAngle = atan2f(toPlayer.y, toPlayer.x);
-
-        Vector2 tip = Vector2Add(e->pos, (Vector2){ cosf(eAngle) * e->size, sinf(eAngle) * e->size });
-        Vector2 left = Vector2Add(e->pos, (Vector2){ cosf(eAngle + 2.4f) * e->size, sinf(eAngle + 2.4f) * e->size });
-        Vector2 right = Vector2Add(e->pos, (Vector2){ cosf(eAngle - 2.4f) * e->size, sinf(eAngle - 2.4f) * e->size });
-
         Color eColor = (e->hitFlash > 0) ? WHITE : RED;
-        DrawTriangle(tip, right, left, eColor);
-        DrawTriangleLines(tip, right, left, MAROON);
+
+        switch (e->type) {
+        case TRI: {
+            Vector2 tip = Vector2Add(e->pos, (Vector2){ cosf(eAngle) * e->size, sinf(eAngle) * e->size });
+            Vector2 left = Vector2Add(e->pos, (Vector2){ cosf(eAngle + 2.4f) * e->size, sinf(eAngle + 2.4f) * e->size });
+            Vector2 right = Vector2Add(e->pos, (Vector2){ cosf(eAngle - 2.4f) * e->size, sinf(eAngle - 2.4f) * e->size });
+            DrawTriangle(tip, right, left, eColor);
+            DrawTriangleLines(tip, right, left, MAROON);
+        } break;
+        case RECT: {
+            Color rFill = (e->hitFlash > 0) ? WHITE : MAGENTA;
+            float hw = e->size, hh = e->size * 0.7f;
+            float ca = cosf(eAngle), sa = sinf(eAngle);
+            DrawRectanglePro(
+                (Rectangle){ e->pos.x, e->pos.y, hw * 2.0f, hh * 2.0f },
+                (Vector2){ hw, hh },
+                eAngle * RAD2DEG,
+                rFill);
+            // Corner outline
+            Vector2 corners[4] = {
+                { e->pos.x + (-hw)*ca - (-hh)*sa, e->pos.y + (-hw)*sa + (-hh)*ca },
+                { e->pos.x + ( hw)*ca - (-hh)*sa, e->pos.y + ( hw)*sa + (-hh)*ca },
+                { e->pos.x + ( hw)*ca - ( hh)*sa, e->pos.y + ( hw)*sa + ( hh)*ca },
+                { e->pos.x + (-hw)*ca - ( hh)*sa, e->pos.y + (-hw)*sa + ( hh)*ca },
+            };
+            for (int ci = 0; ci < 4; ci++)
+                DrawLineV(corners[ci], corners[(ci + 1) % 4], DARKPURPLE);
+        } break;
+        default: break;
+        }
 
         // HP bar
         if (e->hp < e->maxHp) {
@@ -894,7 +1056,8 @@ static void DrawHUD(void)
     int cdY = (int)(82 * ui);
     int cdFontSize = (int)(12 * ui);
     int cdLabelX = cdX + cdBarW + (int)(6 * ui);
-
+    
+    // we will want to add a dash charge later
     // Dash
     if (p->dash.cooldownTimer > 0) {
         float cdRatio = p->dash.cooldownTimer / p->dash.cooldown;
@@ -991,7 +1154,7 @@ static void DrawGame(void)
 // ========================================================================== /
 // Main loop callback
 // ========================================================================== /
-void UpdateDrawFrame(void)
+void NextFrame(void)
 {
     UpdateGame();
     DrawGame();
@@ -1006,7 +1169,7 @@ int main(void)
     InitWindow(SCREEN_W, SCREEN_H, "mecha prototype");
     InitGame();
 #ifdef PLATFORM_WEB
-    emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
+    emscripten_set_main_loop(NextFrame, 0, 1);
 #else
     // target should not be 60 but unlimited or max screen refresh rate 
     // minimum 60 even on 30fps screens though? or do we want to do the whole
@@ -1014,7 +1177,7 @@ int main(void)
     //SetTargetFPS(60);
     SetTargetFPS(240);
     while (!WindowShouldClose()) {
-        UpdateDrawFrame();
+        NextFrame();
     }
 #endif
     CloseWindow();
