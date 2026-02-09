@@ -1,7 +1,7 @@
 pack:
   runtime:
     enabled: false
-  meta:
+  metadata:
     title: "Mecha Prototype"
     description: "mecha bullet hell prototype packed by histos"
   css:

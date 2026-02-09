@@ -27,12 +27,12 @@
 // Gun
 #define GUN_FIRE_RATE           12.0f
 #define GUN_BULLET_SPEED        1200.0f
-#define GUN_BULLET_LIFETIME     2.0f
+#define GUN_BULLET_LIFETIME     1.5f
 #define GUN_BULLET_DAMAGE       10
 
 // Sword
-#define SWORD_DURATION          0.2f
-#define SWORD_ARC               (0.9f * 3.14159265f)
+#define SWORD_DURATION          0.25f
+#define SWORD_ARC               (0.8f * 3.14159265f)
 #define SWORD_RADIUS            120.0f
 #define SWORD_DAMAGE            25
 #define SWORD_DASH_DAMAGE       40
@@ -45,9 +45,9 @@
 
 // Spin
 #define SPIN_DURATION           0.7f
-#define SPIN_RADIUS             120.0f
+#define SPIN_RADIUS             100.0f
 #define SPIN_COOLDOWN           2.0f
-#define SPIN_DAMAGE             40
+#define SPIN_DAMAGE             35
 #define SPIN_KNOCKBACK          300.0f
 
 // Enemies ------------------------------------------------------------------ /
@@ -66,39 +66,13 @@
 
 // Enemy — Rectangle (ranged)
 #define RECT_SIZE               22.0f
-#define RECT_HP                 50
+#define RECT_HP                 70
 #define RECT_SPEED_MIN          55.0f
 #define RECT_SPEED_VAR          30
-#define RECT_CONTACT_DAMAGE     18
+#define RECT_CONTACT_DAMAGE     20
 #define RECT_SHOOT_INTERVAL     0.5f
-#define RECT_BULLET_SPEED       320.0f
+#define RECT_BULLET_SPEED       350.0f
 #define RECT_BULLET_DAMAGE      12
-#define RECT_BULLET_LIFETIME    10.0f
+#define RECT_BULLET_LIFETIME    2.0f
 #define RECT_SPAWN_KILLS        5
 #define RECT_SPAWN_CHANCE       20
-
-// Enemy — Rhombus (fast chaser)
-#define RHOM_SIZE               15.0f
-#define RHOM_HP                 40
-#define RHOM_SPEED_MIN          180.0f
-#define RHOM_SPEED_VAR          100
-#define RHOM_CONTACT_DAMAGE     22
-#define RHOM_SPAWN_KILLS        100
-#define RHOM_SPAWN_CHANCE       20
-#define RHOM_COLOR              (Color){ 160, 32, 240, 255 }
-
-// Enemy — Pentagon (elite ranged)
-#define PENTA_SIZE              28.0f
-#define PENTA_HP                120
-#define PENTA_SPEED_MIN         40.0f
-#define PENTA_SPEED_VAR         20
-#define PENTA_CONTACT_DAMAGE    24
-#define PENTA_SHOOT_INTERVAL    2.5f
-#define PENTA_BULLET_SPEED      350.0f
-#define PENTA_BULLET_DAMAGE     8
-#define PENTA_BULLET_LIFETIME   10.0f
-#define PENTA_SPAWN_KILLS       15
-#define PENTA_SPAWN_CHANCE      10
-#define PENTA_ROW_OFFSET        14.0f
-#define PENTA_BULLET_SPACING    18.0f
-#define PENTA_COLOR             (Color){ 57, 255, 20, 255 }

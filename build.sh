@@ -8,5 +8,5 @@ elif [ "$1" = "o" ]; then
     strip game
 else
     emcc game.c -o game.js -Os -I ./raylib/src -L ./lib -l:libraylib.web.a -s USE_GLFW=3 -s SINGLE_FILE=1 -DPLATFORM_WEB
-    histos config.yaml -o mecha.htm
+    histos config.yaml -o mecha.html
 fi

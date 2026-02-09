@@ -43,6 +43,8 @@ update should be updating the game state
 
 the update happens before the draw
 
+there are a lot of extra lines of C code just to fit inside the 80 col limit
+
 ## todo
 - [x] (claude) optimized native build
 - [x] (claude) iframe granted by dash at start. 
@@ -55,7 +57,20 @@ the update happens before the draw
 - [x] (claude) add double dash that recharges (like tracer blinks)
 - [x] (user) refactor update game (design clean approach to separating this like draw world and draw hud)
 - [x] (user) changed crosshair to classic green with gap
-- [] make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
+- [x] (claude) fix dash slash and slash color, add trailing sword arc effect
+- [x] (claude) fix RECT hitbox (added oriented bounding box)
+- [x] (user) added game title text
+- [x] (claude) treat spin to the sword trailing animation treatment
+- [x] (user) added healing to spin attack
+- [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
+- [] add rhombus enemy
+- [] add hexagon enemy
+- [] add octagon enemy
+- [] add trapezoid mini boss
+- [] add circle big boss
+- [] give each enemy their own score
+- [] add green particles on heal (how?)
+- [] (user) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
 - [] (user) refactor anything badly named and organized (LLMisms)
 - [] proceduraly gen textures for debug, enemies, background (grass? diff biomes?) 
 - [] (user) damage system design (not implementation, what is the math behind it)

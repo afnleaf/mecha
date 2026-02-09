@@ -83,7 +83,13 @@ typedef struct Bullet {
 typedef enum EnemyType {
     TRI, // triangle
     RECT, // rectangle add this first
-    PENTA, // pentagon this can come later
+    PENTA, // pentagon this can come later (rename to penta)
+    RHOM, // rhombus faster version of triangle
+    HEXA, // harder version of penta
+    OCTA, // stop sign
+    TRAP, // trapezoid, mini boss
+    CIRC, // big circle boss?
+
 } EnemyType;
 
 // have an array of enemies 
@@ -158,7 +164,7 @@ static void SpawnParticle(
 static void DamageEnemy(int idx, int damage);
 
 // refactoring artifact
-static void UpdateGamePlayer(float dt);
+static void UpdatePlayer(float dt);
 static void UpdateGame(void);
 
 static void DrawCube2D(
@@ -238,13 +244,33 @@ static void SpawnEnemy(void)
             e->hitFlash = 0;
             e->shootTimer = 0;
 
-            // Roll for RECT type after enough kills
-            bool spawnRect = (g.enemiesKilled >= RECT_SPAWN_KILLS)
+            // Roll for enemy type (PENTA, RHOM, RECT, else TRI)
+            bool spawnPenta = (g.enemiesKilled >= PENTA_SPAWN_KILLS)
+                && (GetRandomValue(1, 100) <= PENTA_SPAWN_CHANCE);
+            bool spawnRhom = !spawnPenta
+                && (g.enemiesKilled >= RHOM_SPAWN_KILLS)
+                && (GetRandomValue(1, 100) <= RHOM_SPAWN_CHANCE);
+            bool spawnRect = !spawnPenta && !spawnRhom
+                && (g.enemiesKilled >= RECT_SPAWN_KILLS)
                 && (GetRandomValue(1, 100) <= RECT_SPAWN_CHANCE);
-            // spawn pentagon
-            // spawn boss after a while?
 
-            if (spawnRect) {
+            if (spawnPenta) {
+                e->type = PENTA;
+                e->size = PENTA_SIZE;
+                e->speed = PENTA_SPEED_MIN
+                    + (float)GetRandomValue(0, PENTA_SPEED_VAR);
+                e->hp = PENTA_HP;
+                e->maxHp = PENTA_HP;
+                e->contactDamage = PENTA_CONTACT_DAMAGE;
+            } else if (spawnRhom) {
+                e->type = RHOM;
+                e->size = RHOM_SIZE;
+                e->speed = RHOM_SPEED_MIN
+                    + (float)GetRandomValue(0, RHOM_SPEED_VAR);
+                e->hp = RHOM_HP;
+                e->maxHp = RHOM_HP;
+                e->contactDamage = RHOM_CONTACT_DAMAGE;
+            } else if (spawnRect) {
                 e->type = RECT;
                 e->size = RECT_SIZE;
                 e->speed = RECT_SPEED_MIN
@@ -376,6 +402,44 @@ static bool PointInArc(
 }
 
 // ========================================================================== /
+// OBB collision helpers (for RECT enemy hitbox)
+// ========================================================================== /
+// Get the enemy facing angle (faces player)
+static float EnemyAngle(Enemy *e) {
+    Vector2 toPlayer = Vector2Subtract(g.player.pos, e->pos);
+    return atan2f(toPlayer.y, toPlayer.x);
+}
+
+// Check if a point is inside an oriented bounding box
+static bool PointInOBB(
+    Vector2 point, Vector2 center,
+    float hw, float hh, float angle)
+{
+    float ca = cosf(angle), sa = sinf(angle);
+    Vector2 d = Vector2Subtract(point, center);
+    float localX =  d.x * ca + d.y * sa;
+    float localY = -d.x * sa + d.y * ca;
+    return fabsf(localX) <= hw && fabsf(localY) <= hh;
+}
+
+// Check if a circle overlaps an oriented bounding box
+// refactor this signature to each same type on same line
+static bool CircleOBBOverlap(
+    Vector2 circlePos, float radius,
+    Vector2 center, float hw, float hh, float angle)
+{
+    float ca = cosf(angle), sa = sinf(angle);
+    Vector2 d = Vector2Subtract(circlePos, center);
+    float localX =  d.x * ca + d.y * sa;
+    float localY = -d.x * sa + d.y * ca;
+    // Closest point on the box to the circle center
+    float cx = fmaxf(-hw, fminf(localX, hw));
+    float cy = fmaxf(-hh, fminf(localY, hh));
+    float dx = localX - cx, dy = localY - cy;
+    return (dx * dx + dy * dy) <= radius * radius;
+}
+
+// ========================================================================== /
 // Update
 // ========================================================================== /
 static Vector2 mouse() {
@@ -398,7 +462,7 @@ static Vector2 mouse() {
 // or do we tackle that once we start adding different loadoats?
 // diff base mechas
 // adding abilities, etc
-static void UpdateGamePlayer(float dt)
+static void UpdatePlayer(float dt)
 {
     Player *p = &g.player;
     
@@ -446,6 +510,14 @@ static void UpdateGamePlayer(float dt)
             p->dash.dir = (Vector2){ cosf(p->angle), sinf(p->angle) };
         }
         SpawnParticles(p->pos, SKYBLUE, 5);
+        SpawnParticles(p->pos, WHITE, 5);
+
+        // Retroactive dash slash: if sword is already swinging,
+        // upgrade it so press order (M2 before Space) doesn't matter
+        if (p->sword.timer > 0 && !p->sword.dashSlash) {
+            p->sword.dashSlash = true;
+            p->sword.hitMask = 0;
+        }
     }
 
     if (p->dash.active) {
@@ -482,7 +554,7 @@ static void UpdateGamePlayer(float dt)
         // we should make the bullet, actually bullet coloured
         // like a golden brassy, u know
         SpawnParticle(muzzle, 
-                      Vector2Scale(bulletDir, 100.0f), YELLOW, 3.0f, 0.08f);
+                      Vector2Scale(bulletDir, 100.0f), WHITE, 3.0f, 0.08f);
     }
 
     // i think i see the pattern here
@@ -525,14 +597,29 @@ static void UpdateGamePlayer(float dt)
     // this belongs to sword
     // Lingering sword damage — check every frame while swinging
     if (p->sword.timer > 0) {
-        float radius = p->sword.dashSlash ? p->sword.radius * 1.5f : p->sword.radius;
+        float radius = 
+            p->sword.dashSlash ? 
+            p->sword.radius * 1.5f : 
+            p->sword.radius;
         float arc = p->sword.dashSlash ? p->sword.arc * 1.3f : p->sword.arc;
         int dmg = p->sword.dashSlash ? SWORD_DASH_DAMAGE : SWORD_DAMAGE;
 
         for (int i = 0; i < MAX_ENEMIES; i++) {
-            if (!g.enemies[i].active) continue;
+            Enemy *ei = &g.enemies[i];
+            if (!ei->active) continue;
             if (p->sword.hitMask & ((uint64_t)1 << i)) continue;
-            if (PointInArc(p->pos, g.enemies[i].pos, p->sword.angle, arc, radius)) {
+            bool swordHit;
+            if (ei->type == RECT) {
+                // For RECT: check if the arc overlaps the OBB
+                swordHit = CircleOBBOverlap(p->pos, radius, ei->pos,
+                    ei->size, ei->size * 0.7f, EnemyAngle(ei))
+                    && PointInArc(p->pos, ei->pos, p->sword.angle, 
+                                  arc, radius + ei->size);
+            } else {
+                swordHit = PointInArc(p->pos, ei->pos, p->sword.angle, 
+                                      arc, radius);
+            }
+            if (swordHit) {
                 DamageEnemy(i, dmg);
                 p->sword.hitMask |= ((uint64_t)1 << i);
             }
@@ -545,14 +632,22 @@ static void UpdateGamePlayer(float dt)
     p->spin.cooldownTimer -= dt;
     if (p->spin.cooldownTimer < 0) p->spin.cooldownTimer = 0;
 
-    if (IsKeyPressed(KEY_LEFT_SHIFT) && p->spin.timer <= 0 && p->spin.cooldownTimer <= 0) {
+    if (IsKeyPressed(KEY_LEFT_SHIFT)
+        && p->spin.timer <= 0 
+        && p->spin.cooldownTimer <= 0
+    ) {
         p->spin.timer = p->spin.duration;
         p->spin.cooldownTimer = p->spin.cooldown;
         p->spin.hitMask = 0;
 
         for (int i = 0; i < 16; i++) {
             float a = (float)i / 16.0f * 2.0f * PI;
-            Vector2 particlePos = Vector2Add(p->pos, (Vector2){ cosf(a) * p->spin.radius * 0.5f, sinf(a) * p->spin.radius * 0.5f });
+            Vector2 particlePos = Vector2Add(
+                p->pos, 
+                (Vector2){ 
+                    cosf(a) * p->spin.radius * 0.5f, 
+                    sinf(a) * p->spin.radius * 0.5f 
+                });
             Vector2 particleVel = { cosf(a) * 150.0f, sinf(a) * 150.0f };
             SpawnParticle(particlePos, particleVel, YELLOW, 4.0f, 0.3f);
         }
@@ -562,14 +657,25 @@ static void UpdateGamePlayer(float dt)
     // Lingering spin damage — check every frame while spinning
     if (p->spin.timer > 0) {
         for (int i = 0; i < MAX_ENEMIES; i++) {
-            if (!g.enemies[i].active) continue;
+            Enemy *ei = &g.enemies[i];
+            if (!ei->active) continue;
             if (p->spin.hitMask & ((uint64_t)1 << i)) continue;
-            float dist = Vector2Distance(p->pos, g.enemies[i].pos);
-            if (dist <= p->spin.radius) {
+            bool spinHit;
+            if (ei->type == RECT) {
+                spinHit = CircleOBBOverlap(p->pos, p->spin.radius,
+                    ei->pos, ei->size, ei->size * 0.7f, EnemyAngle(ei));
+            } else {
+                float dist = Vector2Distance(p->pos, ei->pos);
+                spinHit = dist <= p->spin.radius;
+            }
+            if (spinHit) {
                 DamageEnemy(i, SPIN_DAMAGE);
+                // player heals on spin attack
+                p->hp = p->hp + (SPIN_DAMAGE * 0.1f);
+                if (p->hp > p->maxHp) p->hp = p->maxHp;
                 p->spin.hitMask |= ((uint64_t)1 << i);
-                Vector2 kb = Vector2Normalize(Vector2Subtract(g.enemies[i].pos, p->pos));
-                g.enemies[i].vel = Vector2Scale(kb, SPIN_KNOCKBACK);
+                Vector2 kb = Vector2Normalize(Vector2Subtract(ei->pos, p->pos));
+                ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
             }
         }
         p->spin.timer -= dt;
@@ -619,8 +725,17 @@ static void UpdateGamePlayer(float dt)
             // Player bullet — hit enemies
             for (int j = 0; j < MAX_ENEMIES; j++) {
                 if (!g.enemies[j].active) continue;
-                float dist = Vector2Distance(b->pos, g.enemies[j].pos);
-                if (dist < g.enemies[j].size + 3.0f) {
+                Enemy *ej = &g.enemies[j];
+                bool hit;
+                if (ej->type == RECT) {
+                    float hw = ej->size + 3.0f;
+                    float hh = ej->size * 0.7f + 3.0f;
+                    hit = PointInOBB(b->pos, ej->pos, hw, hh, EnemyAngle(ej));
+                } else {
+                    float dist = Vector2Distance(b->pos, ej->pos);
+                    hit = dist < ej->size + 3.0f;
+                }
+                if (hit) {
                     DamageEnemy(j, b->damage);
                     b->active = false;
                     break;
@@ -683,11 +798,51 @@ static void enemies(float dt) {
             }
         }
 
+        // PENTA shooting AI — two parallel rows of 5 bullets
+        if (e->type == PENTA) {
+            e->shootTimer -= dt;
+            if (e->shootTimer <= 0 && dist > 1.0f) {
+                e->shootTimer = PENTA_SHOOT_INTERVAL;
+                Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
+                Vector2 perp = { -shootDir.y, shootDir.x };
+
+                for (int r = -1; r <= 1; r += 2) {
+                    Vector2 rowOff = Vector2Scale(perp,
+                        PENTA_ROW_OFFSET * r);
+                    for (int b = 0; b < 5; b++) {
+                        Vector2 bpos = Vector2Add(e->pos, rowOff);
+                        bpos = Vector2Add(bpos,
+                            Vector2Scale(shootDir,
+                                e->size + 4.0f
+                                + b * PENTA_BULLET_SPACING));
+                        SpawnBullet(bpos, shootDir,
+                            PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
+                            PENTA_BULLET_LIFETIME, true);
+                    }
+                }
+                Vector2 muzzle = Vector2Add(e->pos,
+                    Vector2Scale(shootDir, e->size + 4.0f));
+                SpawnParticle(muzzle,
+                    Vector2Scale(shootDir, 60.0f),
+                    PENTA_COLOR, 4.0f, 0.15f);
+                SpawnParticle(muzzle,
+                    Vector2Scale(perp, 40.0f),
+                    PENTA_COLOR, 3.0f, 0.1f);
+                SpawnParticle(muzzle,
+                    Vector2Scale(perp, -40.0f),
+                    PENTA_COLOR, 3.0f, 0.1f);
+            }
+        }
+
         // Hit flash decay
         if (e->hitFlash > 0) e->hitFlash -= dt;
 
         // Collide with player
-        if (dist < p->size + e->size && p->iFrames <= 0) {
+        bool contact = (e->type == RECT)
+            ? CircleOBBOverlap(p->pos, p->size, e->pos,
+                e->size, e->size * 0.7f, EnemyAngle(e))
+            : dist < p->size + e->size;
+        if (contact && p->iFrames <= 0) {
             p->hp -= e->contactDamage;
             p->iFrames = IFRAME_DURATION;
             SpawnParticles(p->pos, RED, 6);
@@ -777,7 +932,7 @@ static void UpdateGame(void)
     // update player
     // update movement
     // update bullets
-    UpdateGamePlayer(dt);
+    UpdatePlayer(dt);
     
     // update enemy
     // update movement
@@ -1043,6 +1198,39 @@ static void DrawWorld(void)
             for (int ci = 0; ci < 4; ci++)
                 DrawLineV(corners[ci], corners[(ci + 1) % 4], DARKPURPLE);
         } break;
+        case PENTA: {
+            Color pFill = (e->hitFlash > 0) ? WHITE : PENTA_COLOR;
+            DrawPoly(e->pos, 5, e->size, eAngle * RAD2DEG, pFill);
+            DrawPolyLines(e->pos, 5, e->size,
+                eAngle * RAD2DEG, DARKGREEN);
+        } break;
+        case RHOM: {
+            Color rFill = (e->hitFlash > 0) ? WHITE : RHOM_COLOR;
+            // Elongated diamond pointing at player
+            float s = e->size;
+            Vector2 tip = Vector2Add(e->pos,
+                (Vector2){ cosf(eAngle) * s * 1.2f,
+                           sinf(eAngle) * s * 1.2f });
+            Vector2 back = Vector2Add(e->pos,
+                (Vector2){ cosf(eAngle + PI) * s * 0.8f,
+                           sinf(eAngle + PI) * s * 0.8f });
+            float perpAngle = eAngle + PI * 0.5f;
+            Vector2 left = Vector2Add(e->pos,
+                (Vector2){ cosf(perpAngle) * s * 0.5f,
+                           sinf(perpAngle) * s * 0.5f });
+            Vector2 right = Vector2Add(e->pos,
+                (Vector2){ cosf(perpAngle) * s * -0.5f,
+                           sinf(perpAngle) * s * -0.5f });
+            // Draw as two triangles (tip-left-right, back-right-left)
+            DrawTriangle(tip, right, left, rFill);
+            DrawTriangle(back, left, right, rFill);
+            // Outline
+            Color rOutline = (Color){ 80, 16, 120, 255 };
+            DrawLineV(tip, left, rOutline);
+            DrawLineV(left, back, rOutline);
+            DrawLineV(back, right, rOutline);
+            DrawLineV(right, tip, rOutline);
+        } break;
         default: break;
         }
 
@@ -1109,28 +1297,26 @@ static void DrawWorld(void)
             p->sword.angle - p->sword.arc / 2.0f + p->sword.arc * progress;
         int numSegments = 12;
         float arcHalf = p->sword.arc / 2.0f;
-        for (int i = 0; i <= numSegments; i++) {
-            float a = 
-                p->sword.angle - arcHalf 
+        Color arcColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
+        for (int i = 1; i <= numSegments; i++) {
+            float segPos = (float)i / numSegments;
+            if (segPos > progress) break;
+
+            float t = segPos / progress;
+            float alpha = t * t * 0.9f;
+            float thick = 2.0f + t * 6.0f;
+
+            float a0 = p->sword.angle - arcHalf
+                + p->sword.arc * (float)(i - 1) / numSegments;
+            float a1 = p->sword.angle - arcHalf
                 + p->sword.arc * (float)i / numSegments;
-            Vector2 pt = Vector2Add(
-                p->pos, 
-                (Vector2){ 
-                    cosf(a) * p->sword.radius, 
-                    sinf(a) * p->sword.radius 
-                });
-            if (i > 0) {
-                float aPrev = 
-                    p->sword.angle - arcHalf 
-                    + p->sword.arc * (float)(i - 1) / numSegments;
-                Vector2 ptPrev = Vector2Add(
-                    p->pos, 
-                    (Vector2){ 
-                        cosf(aPrev) * p->sword.radius, 
-                        sinf(aPrev) * p->sword.radius 
-                    });
-                DrawLineEx(ptPrev, pt, 2.0f, Fade(ORANGE, 0.7f));
-            }
+            Vector2 pt0 = Vector2Add(p->pos,
+                (Vector2){ cosf(a0) * p->sword.radius,
+                           sinf(a0) * p->sword.radius });
+            Vector2 pt1 = Vector2Add(p->pos,
+                (Vector2){ cosf(a1) * p->sword.radius,
+                           sinf(a1) * p->sword.radius });
+            DrawLineEx(pt0, pt1, thick, Fade(arcColor, alpha));
         }
         Vector2 sweepEnd = Vector2Add(
             p->pos, 
@@ -1141,28 +1327,64 @@ static void DrawWorld(void)
         DrawLineEx(p->pos, sweepEnd, 3.0f, WHITE);
     }
 
-    // --- Spin attack circle ---
+    // --- Spin attack trailing arc ---
     if (p->spin.timer > 0) {
-        float alpha = p->spin.timer / p->spin.duration;
-        DrawCircleLinesV(
-            p->pos, 
-            p->spin.radius, 
-            Fade(YELLOW, alpha));
-        DrawCircleLinesV(
-            p->pos, 
-            p->spin.radius * 0.7f, 
-            Fade(ORANGE, alpha * 0.5f));
-        float spinAngle = (1.0f - alpha) * PI * 4.0f;
-        for (int i = 0; i < 4; i++) {
-            float a = spinAngle + (float)i * PI / 2.0f;
-            Vector2 end = Vector2Add(
-                p->pos, 
-                (Vector2){ 
-                    cosf(a) * p->spin.radius, 
-                    sinf(a) * p->spin.radius 
-                });
-            DrawLineEx(p->pos, end, 2.0f, Fade(YELLOW, alpha * 0.6f));
+        float progress = 1.0f - (p->spin.timer / p->spin.duration);
+        float fadeOut = p->spin.timer / p->spin.duration;
+
+        // 2 full rotations over the spin duration
+        float totalSweep = PI * 4.0f;
+        float sweepAngle = totalSweep * progress;
+
+        int numSegments = 24;
+        float trailLength = PI * 1.5f;
+        float actualTrail = fminf(trailLength, sweepAngle);
+
+        // Outer trailing arc (YELLOW)
+        for (int i = 0; i < numSegments; i++) {
+            float t = (float)(i + 1) / numSegments;
+            float segAlpha = t * t * fadeOut * 0.9f;
+            float thick = 2.0f + t * 5.0f;
+
+            float a0 = sweepAngle
+                - actualTrail * (1.0f - (float)i / numSegments);
+            float a1 = sweepAngle
+                - actualTrail * (1.0f - (float)(i + 1) / numSegments);
+
+            Vector2 pt0 = Vector2Add(p->pos,
+                (Vector2){ cosf(a0) * p->spin.radius,
+                           sinf(a0) * p->spin.radius });
+            Vector2 pt1 = Vector2Add(p->pos,
+                (Vector2){ cosf(a1) * p->spin.radius,
+                           sinf(a1) * p->spin.radius });
+            DrawLineEx(pt0, pt1, thick, Fade(YELLOW, segAlpha));
         }
+
+        // Inner trailing arc (ORANGE, smaller radius)
+        for (int i = 0; i < numSegments; i++) {
+            float t = (float)(i + 1) / numSegments;
+            float segAlpha = t * t * fadeOut * 0.4f;
+            float thick = 1.0f + t * 3.0f;
+
+            float a0 = sweepAngle
+                - actualTrail * (1.0f - (float)i / numSegments);
+            float a1 = sweepAngle
+                - actualTrail * (1.0f - (float)(i + 1) / numSegments);
+
+            Vector2 pt0 = Vector2Add(p->pos,
+                (Vector2){ cosf(a0) * p->spin.radius * 0.65f,
+                           sinf(a0) * p->spin.radius * 0.65f });
+            Vector2 pt1 = Vector2Add(p->pos,
+                (Vector2){ cosf(a1) * p->spin.radius * 0.65f,
+                           sinf(a1) * p->spin.radius * 0.65f });
+            DrawLineEx(pt0, pt1, thick, Fade(ORANGE, segAlpha));
+        }
+
+        // White leading edge line
+        Vector2 sweepEnd = Vector2Add(p->pos,
+            (Vector2){ cosf(sweepAngle) * p->spin.radius,
+                       sinf(sweepAngle) * p->spin.radius });
+        DrawLineEx(p->pos, sweepEnd, 3.0f, Fade(WHITE, fadeOut));
     }
 }
 
@@ -1303,6 +1525,14 @@ static void DrawHUD(void)
         chThick, chColor
     );
     //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
+    
+    // bottom right, game title text
+    int titleFont = (int)(12 * ui);
+    DrawText("Untitled Mecha Game - Version 0.0.1",
+             sw - (int)(210 * ui), 
+             sh - (int)(22 * ui), 
+             titleFont, 
+             Fade(WHITE, 0.8f));
 
     // Pause overlay
     if (g.paused && !g.gameOver) {

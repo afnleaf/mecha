@@ -120,6 +120,36 @@ more tools:
 - enter the gungeon
 - into the breach
 
+---
+
+# fuller game idea
+
+what I really like:
+
+the world is a simulation, you are up against an ASI (artificial super intelligence) that is basically the god of the simulation. this can't be stated explicitly only shown through gameplay and art. diagetic style. meta narrative, fourth wall thing. you are playing a game that is itself a simulation and the AI is the game logic that the player doesn't control. True ending from beating the game with all the different classes is a good idea.
+
+Mecha is all about customization and upgrades. The randomness of roguelikes feels like a bad step. Whereas it works for a game like Hades because it's very room based, and you completely reset on each run. 
+
+You want your mech to feel like its yours. I prefer more a more deterministic shop style that is closer to moba. You could have slight randomness of some item/ability drops you find. They shouldn't be massively run altering, more like a cool bonus. This would have almost an extraction shooter feel to the game when youre going back to your mechanic's shop/garage.
+
+MOBA Roguelike, Cores = Genre
+- Gunner (Shoot em up)
+- Sword (Rhythm, parry, dodge, hit)
+- Mastermind (deckbuilder is yawn imo, but strategy/tactics are cool)
+- ???
+
+The reuse of assets is clever.
+
+But a tough proposition because it becomes 3/4 games. That means a lot of overlapping logic that could become wonky without literally designing them each from the ground up. That's spreading design and development across 4 different gameplay loops rather than refining one really well. (For a first game.) 
+
+The 3 proposed classes have me thinking about roles in moba like tank, damage and support. When you play overwatch or deadlock or league/dota those roles exist and you play quite differently, but all the systems are the same.
+
+When you play souls-like 
+
+
+
+
+
 
 
 
