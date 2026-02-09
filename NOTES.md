@@ -63,14 +63,17 @@ there are a lot of extra lines of C code just to fit inside the 80 col limit
 - [x] (claude) treat spin to the sword trailing animation treatment
 - [x] (user) added healing to spin attack
 - [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
-- [] add rhombus enemy
+- [x] (claude) add rhombus enemy
 - [] add hexagon enemy
 - [] add octagon enemy
 - [] add trapezoid mini boss
 - [] add circle big boss
+- [] figure out how to separate particle/weapon animation from game logic update?
+- [x] (user) add green particles on heal 
+- [x] (user) separate update camera and window resize logic
 - [] give each enemy their own score
-- [] add green particles on heal (how?)
 - [] (user) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
+- [] big refactor of all hardcoded numbers
 - [] (user) refactor anything badly named and organized (LLMisms)
 - [] proceduraly gen textures for debug, enemies, background (grass? diff biomes?) 
 - [] (user) damage system design (not implementation, what is the math behind it)

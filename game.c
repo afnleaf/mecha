@@ -83,13 +83,13 @@ typedef struct Bullet {
 typedef enum EnemyType {
     TRI, // triangle
     RECT, // rectangle add this first
-    PENTA, // pentagon this can come later (rename to penta)
+    PENTA, // pentagon this can come later (rename to pent)
     RHOM, // rhombus faster version of triangle
     HEXA, // harder version of penta
     OCTA, // stop sign
     TRAP, // trapezoid, mini boss
     CIRC, // big circle boss?
-
+    // one more enemy?
 } EnemyType;
 
 // have an array of enemies 
@@ -442,6 +442,8 @@ static bool CircleOBBOverlap(
 // ========================================================================== /
 // Update
 // ========================================================================== /
+
+// 
 static Vector2 mouse() {
     Player *p = &g.player;
     // ok I see now, this could be out? 
@@ -458,6 +460,7 @@ static Vector2 mouse() {
     return toMouse;
 }
 
+// player inputs and mechanics
 // should we refactor this further?
 // or do we tackle that once we start adding different loadoats?
 // diff base mechas
@@ -557,7 +560,6 @@ static void UpdatePlayer(float dt)
                       Vector2Scale(bulletDir, 100.0f), WHITE, 3.0f, 0.08f);
     }
 
-    // i think i see the pattern here
     // --- Sword swing (M2) ---
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) 
         && p->sword.timer <= 0 
@@ -570,6 +572,7 @@ static void UpdatePlayer(float dt)
 
         // no probably not using ternary? if its over 80 chars?
         // nvm its fine with multiline
+        // dash slash makes the sword attack bigger
         float arc = 
             p->sword.dashSlash ? 
             p->sword.arc * 1.3f : 
@@ -578,11 +581,8 @@ static void UpdatePlayer(float dt)
             p->sword.dashSlash ? 
             p->sword.radius * 1.5f : 
             p->sword.radius;
-        // hmm when does this trigger?
-        Color slashColor = 
-            p->sword.dashSlash ? 
-            SKYBLUE : 
-            ORANGE;
+        Color slashColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
+        // what the 6 doin?
         for (int i = 0; i < 6; i++) {
             float a = p->sword.angle - arc / 2.0f + arc * (float)i / 5.0f;
             Vector2 particlePos = Vector2Add(
@@ -671,8 +671,12 @@ static void UpdatePlayer(float dt)
             if (spinHit) {
                 DamageEnemy(i, SPIN_DAMAGE);
                 // player heals on spin attack
-                p->hp = p->hp + (SPIN_DAMAGE * 0.1f);
+                // 5% lifesteal
+                float heal = SPIN_DAMAGE * 0.05;
+                p->hp = p->hp + (int)heal;
                 if (p->hp > p->maxHp) p->hp = p->maxHp;
+                // spawn particle for how much the player healed
+                SpawnParticles(p->pos, GREEN, 64);
                 p->spin.hitMask |= ((uint64_t)1 << i);
                 Vector2 kb = Vector2Normalize(Vector2Subtract(ei->pos, p->pos));
                 ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
@@ -688,69 +692,14 @@ static void UpdatePlayer(float dt)
     if (p->pos.y > MAP_SIZE - p->size) p->pos.y = MAP_SIZE - p->size;
 
     // ok this is an important piece of gamefeel we need to get right
-    // currently, the iframes don't feel right?
-    // how is it supposed to work? I take damage dashing through enemies.
+    // iframe duration longer than dash
     // --- iFrames ---
     if (p->iFrames > 0) p->iFrames -= dt;
 
-    // does this belong to gun or to an all bullets thing?
-    // --- Bullets ---
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &g.bullets[i];
-        if (!b->active) continue;
-
-        b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
-        b->lifetime -= dt;
-
-        if (b->lifetime <= 0 || b->pos.x < 0 || b->pos.x > MAP_SIZE ||
-            b->pos.y < 0 || b->pos.y > MAP_SIZE) {
-            b->active = false;
-            continue;
-        }
-
-        if (b->isEnemy) {
-            // Enemy bullet — hit player
-            float dist = Vector2Distance(b->pos, p->pos);
-            if (dist < p->size + 3.0f && p->iFrames <= 0) {
-                p->hp -= b->damage;
-                p->iFrames = IFRAME_DURATION;
-                SpawnParticles(p->pos, RED, 4);
-                b->active = false;
-                if (p->hp <= 0) {
-                    p->hp = 0;
-                    g.gameOver = true;
-                }
-            }
-        } else {
-            // Player bullet — hit enemies
-            for (int j = 0; j < MAX_ENEMIES; j++) {
-                if (!g.enemies[j].active) continue;
-                Enemy *ej = &g.enemies[j];
-                bool hit;
-                if (ej->type == RECT) {
-                    float hw = ej->size + 3.0f;
-                    float hh = ej->size * 0.7f + 3.0f;
-                    hit = PointInOBB(b->pos, ej->pos, hw, hh, EnemyAngle(ej));
-                } else {
-                    float dist = Vector2Distance(b->pos, ej->pos);
-                    hit = dist < ej->size + 3.0f;
-                }
-                if (hit) {
-                    DamageEnemy(j, b->damage);
-                    b->active = false;
-                    break;
-                }
-            }
-        }
-    }
-
-
-
 }
-// ok so game state. giant function. let's separate this and make it more modular so its not so hard to add features. or is it commonplace to have massive functions like this in the game dev world?
 
-
-static void enemies(float dt) {
+// enemy AI
+static void UpdateEnemies(float dt) {
     Player *p = &g.player;
     
     // --- Enemies ---
@@ -834,6 +783,11 @@ static void enemies(float dt) {
             }
         }
 
+        // hexa 
+        if (e->type == HEXA) {
+            
+        }
+
         // Hit flash decay
         if (e->hitFlash > 0) e->hitFlash -= dt;
 
@@ -859,7 +813,64 @@ static void enemies(float dt) {
     }
 }
 
-static void particles(float dt) 
+// Bullets are one big bool with a flag for player or enemy
+static void UpdateBullets(float dt) {
+    Player *p = &g.player;
+    // does this belong to gun or to an all bullets thing?
+    // --- Bullets ---
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        Bullet *b = &g.bullets[i];
+        if (!b->active) continue;
+
+        b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
+        b->lifetime -= dt;
+
+        if (b->lifetime <= 0 || b->pos.x < 0 || b->pos.x > MAP_SIZE ||
+            b->pos.y < 0 || b->pos.y > MAP_SIZE) {
+            b->active = false;
+            continue;
+        }
+
+        if (b->isEnemy) {
+            // Enemy bullet — hit player
+            float dist = Vector2Distance(b->pos, p->pos);
+            if (dist < p->size + 3.0f && p->iFrames <= 0) {
+                p->hp -= b->damage;
+                p->iFrames = IFRAME_DURATION;
+                SpawnParticles(p->pos, RED, 4);
+                b->active = false;
+                if (p->hp <= 0) {
+                    p->hp = 0;
+                    g.gameOver = true;
+                }
+            }
+        } else {
+            // Player bullet — hit enemies
+            for (int j = 0; j < MAX_ENEMIES; j++) {
+                if (!g.enemies[j].active) continue;
+                Enemy *ej = &g.enemies[j];
+                bool hit;
+                if (ej->type == RECT) {
+                    float hw = ej->size + 3.0f;
+                    float hh = ej->size * 0.7f + 3.0f;
+                    hit = PointInOBB(b->pos, ej->pos, hw, hh, EnemyAngle(ej));
+                } else {
+                    float dist = Vector2Distance(b->pos, ej->pos);
+                    hit = dist < ej->size + 3.0f;
+                }
+                if (hit) {
+                    DamageEnemy(j, b->damage);
+                    b->active = false;
+                    break;
+                }
+            }
+        }
+    }
+
+}
+
+// one pool of particles belonging, spawned wherever
+static void UpdateParticles(float dt) 
 {
     // --- Particles ---
     for (int i = 0; i < MAX_PARTICLES; i++) {
@@ -873,10 +884,27 @@ static void particles(float dt)
 
 }
 
+// update camera offset to current browser window size
+// how to make it resize while game is paused?
+// separate window resize and camera
+// native is static size for now
+// could we add dynamic resize? fullscreen? later
+static void WindowResize(void) 
+{
+#ifdef PLATFORM_WEB
+    int sw = EM_ASM_INT({ return window.innerWidth; });
+    int sh = EM_ASM_INT({ return window.innerHeight; });
+    if (sw != GetScreenWidth() || sh != GetScreenHeight()) {
+        SetWindowSize(sw, sh);
+    }
+#endif
+// add native resize
+}
+
 // the 8.0f could be inside default
 // what is it doing exactly?
 // how much can we fiddle with this value?
-static void camera(float dt) 
+static void MoveCamera(float dt) 
 {
     // camera should be it's own thing to
     // --- Camera smooth follow ---
@@ -891,20 +919,15 @@ static void camera(float dt)
     // game feel thing for sure
     g.camera.target = Vector2Lerp(g.camera.target, p->pos, 8.0f * dt);
 
-    // update camera offset to current browser window size
-#ifdef PLATFORM_WEB
-    int sw = EM_ASM_INT({ return window.innerWidth; });
-    int sh = EM_ASM_INT({ return window.innerHeight; });
-    if (sw != GetScreenWidth() || sh != GetScreenHeight()) {
-        SetWindowSize(sw, sh);
-    }
-#endif
-    // native is static size for now
-    // could we add dynamic resize? fullscreen? later
     g.camera.offset = 
         (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
 }
 
+
+// ok so game state. giant function.
+// let's separate this and make it more modular
+// so its not so hard to add features. 
+// or is it commonplace to have massive functions in the game dev world?
 static void UpdateGame(void) 
 {
     // frametime clamp
@@ -914,6 +937,8 @@ static void UpdateGame(void)
     // if the world get's too far ahead, don't let the physics break.
     float dt = GetFrameTime();
     if (dt > 0.05f) dt = 0.05f;
+
+    WindowResize();
     
     // need to make sure that esc also pauses in native build
     if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) g.paused = !g.paused;
@@ -927,22 +952,23 @@ static void UpdateGame(void)
     // early return on pause, make sure nothing in the game world is updating
     if (g.paused) return;
 
-    // check keys
     // check mouse
+    // check keys
     // update player
     // update movement
-    // update bullets
     UpdatePlayer(dt);
     
     // update enemy
     // update movement
+    UpdateEnemies(dt);
+
     // update bullets
-    enemies(dt);
+    UpdateBullets(dt);
     
-    particles(dt);
+    UpdateParticles(dt);
    
     // player camera
-    camera(dt);
+    MoveCamera(dt);
 }
 
 
@@ -1201,8 +1227,7 @@ static void DrawWorld(void)
         case PENTA: {
             Color pFill = (e->hitFlash > 0) ? WHITE : PENTA_COLOR;
             DrawPoly(e->pos, 5, e->size, eAngle * RAD2DEG, pFill);
-            DrawPolyLines(e->pos, 5, e->size,
-                eAngle * RAD2DEG, DARKGREEN);
+            DrawPolyLines(e->pos, 5, e->size, eAngle * RAD2DEG, DARKGREEN);
         } break;
         case RHOM: {
             Color rFill = (e->hitFlash > 0) ? WHITE : RHOM_COLOR;
@@ -1230,6 +1255,18 @@ static void DrawWorld(void)
             DrawLineV(left, back, rOutline);
             DrawLineV(back, right, rOutline);
             DrawLineV(right, tip, rOutline);
+        } break;
+        case HEXA: {
+            break;
+        } break;
+        case OCTA: {
+            break;
+        } break;
+        case TRAP: {
+            break;
+        } break;
+        case CIRC: {
+            break;
         } break;
         default: break;
         }

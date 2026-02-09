@@ -7,9 +7,9 @@
 // Window / Pools
 #define SCREEN_W                1443
 #define SCREEN_H                1000
-#define MAX_BULLETS             256
+#define MAX_BULLETS             1024
 #define MAX_ENEMIES             1024
-#define MAX_PARTICLES           256
+#define MAX_PARTICLES           1024
 
 // Map
 #define MAP_SIZE                1600.0f
