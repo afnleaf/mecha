@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include "rtypes.h"
 #include "default.h"
 
 // ========================================================================== /
@@ -31,7 +32,7 @@ typedef struct Sword {
     float arc;
     float radius;
     bool dashSlash;
-    uint64_t hitMask;
+    u64 hitMask;
 } Sword;
 
 typedef struct Dash {
@@ -52,7 +53,7 @@ typedef struct Spin {
     float radius;
     float cooldown;
     float cooldownTimer;
-    uint64_t hitMask;
+    u64 hitMask;
 } Spin;
 
 typedef struct Player {
@@ -607,7 +608,7 @@ static void UpdatePlayer(float dt)
         for (int i = 0; i < MAX_ENEMIES; i++) {
             Enemy *ei = &g.enemies[i];
             if (!ei->active) continue;
-            if (p->sword.hitMask & ((uint64_t)1 << i)) continue;
+            if (p->sword.hitMask & ((u64)1 << i)) continue;
             bool swordHit;
             if (ei->type == RECT) {
                 // For RECT: check if the arc overlaps the OBB
@@ -621,7 +622,7 @@ static void UpdatePlayer(float dt)
             }
             if (swordHit) {
                 DamageEnemy(i, dmg);
-                p->sword.hitMask |= ((uint64_t)1 << i);
+                p->sword.hitMask |= ((u64)1 << i);
             }
         }
         p->sword.timer -= dt;
@@ -659,7 +660,7 @@ static void UpdatePlayer(float dt)
         for (int i = 0; i < MAX_ENEMIES; i++) {
             Enemy *ei = &g.enemies[i];
             if (!ei->active) continue;
-            if (p->spin.hitMask & ((uint64_t)1 << i)) continue;
+            if (p->spin.hitMask & ((u64)1 << i)) continue;
             bool spinHit;
             if (ei->type == RECT) {
                 spinHit = CircleOBBOverlap(p->pos, p->spin.radius,
@@ -677,7 +678,7 @@ static void UpdatePlayer(float dt)
                 if (p->hp > p->maxHp) p->hp = p->maxHp;
                 // spawn particle for how much the player healed
                 SpawnParticles(p->pos, GREEN, 64);
-                p->spin.hitMask |= ((uint64_t)1 << i);
+                p->spin.hitMask |= ((u64)1 << i);
                 Vector2 kb = Vector2Normalize(Vector2Subtract(ei->pos, p->pos));
                 ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
             }

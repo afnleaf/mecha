@@ -2,6 +2,7 @@
 
 feel free to use these urls to explore
 - [Cheatsheet](https://www.raylib.com/cheatsheet/cheatsheet.html)
+- [Math Sheet](https://www.raylib.com/cheatsheet/raymath_cheatsheet.html)
 - [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h) inside ./raylib/src/raylib.h
 - [FAQ Technical](https://github.com/raysan5/raylib/wiki/Frequently-Asked-Questions)
 - [FAQ Generic](https://github.com/raysan5/raylib/blob/master/FAQ.md
@@ -62,6 +63,7 @@ there are a lot of extra lines of C code just to fit inside the 80 col limit
 - [x] (user) added game title text
 - [x] (claude) treat spin to the sword trailing animation treatment
 - [x] (user) added healing to spin attack
+- [] fix hitmask
 - [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
 - [x] (claude) add rhombus enemy
 - [] add hexagon enemy
@@ -159,6 +161,40 @@ Taking a lesson from the ethernet frame, Header + Payload. The header will tell 
 Pulling back. I am a stack enjoyer, so we want to pre allocate an array for the assets? Meaning we have a maximum number of assets? We should also have a max asset size.
 
 Is it worth creating a type alias header so that I don't have to do uint8_t and can do u8?
+
+### Table of Contents (ToC)
+A way to store the position of the assets inside the blob.
+
+Blob
+    - Header (fixed size) same as info
+    - Table of Contents
+    - String table
+    - Payload
+
+See asset_blob/blobbert.c for details
+
+## Claude thoughts
+
+### Bug: hitMask only covers 64 enemies
+`uint64_t hitMask` on Sword and Spin only tracks enemies at index 0-63 via bit shifts. MAX_ENEMIES is 1024. Any enemy at index 64+ gets hit every frame of a swing instead of once. Doesn't manifest at current spawn rates but will once the arena fills up. Options: a second parallel bool array `bool hitThisSwing[MAX_ENEMIES]` inside GameState (reset on swing start), or a generation counter per-enemy that gets stamped when hit.
+
+### Enemy-enemy separation
+Enemies stack into the same pixel chasing the player. A simple repulsion pass in UpdateEnemies (for each pair within overlap distance, push apart along the delta vector) would make the swarm look way better and give the player readable silhouettes to aim at. Doesn't need to be a full physics solve — just a nudge.
+
+### Spawn position hardcoded +-500
+Line 297 etc. The random offset from player position is a magic number independent of map size or screen size. Tying it to SPAWN_MARGIN or a fraction of MAP_SIZE would be more robust as the map scales.
+
+### Pool scanning is linear
+SpawnBullet/SpawnEnemy/SpawnParticle all do O(n) scans for a free slot. Fine at 1024. If pools ever grow, a free-list (track `int nextFree` and chain free slots) is a cheap upgrade. Also relevant to the bullet pool separation todo — when you split player/enemy bullets, each pool gets its own free-list.
+
+### OBB collision duplication
+The RECT oriented bounding box check appears in 4 places: sword hit, spin hit, bullet hit, contact damage. Each new enemy shape (hexa, octa, trap) will multiply this. A single `bool EnemyHitTest(Enemy *e, Vector2 point, float radius)` that switches on `e->type` would centralize the collision logic. The data is the same — it's just the shape test that varies per type.
+
+### Spin lifesteal scaling
+`SPIN_DAMAGE * 0.05` = 2hp per hit, cast to int. Works now, but as damage numbers grow this will always round down. Consider storing heal as float accumulator and only applying integer part, or just bumping the percentage. Minor, but worth knowing the truncation is there.
+
+### Gameplay depth vs code ratio
+The ratio of mechanical depth to lines of code is high right now — 4 enemy types, 4 player abilities with meaningful interactions (dash-slash combo, retroactive upgrade, spin lifesteal), charge systems, and a progression ramp in ~1700 lines. This is the sweet spot to be in before the skeleton prototype. The instinct to stop feature creep and understand the data transformation is correct.
 
 
 
