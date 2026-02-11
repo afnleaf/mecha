@@ -31,7 +31,7 @@
 #define GUN_BULLET_DAMAGE       10
 
 // Sword
-#define SWORD_DURATION          0.2f
+#define SWORD_DURATION          0.16f
 #define SWORD_ARC               (0.9f * 3.14159265f)
 #define SWORD_RADIUS            120.0f
 #define SWORD_DAMAGE            25
@@ -44,15 +44,26 @@
 #define DASH_MAX_CHARGES        2
 
 // Spin
-#define SPIN_DURATION           0.7f
+#define SPIN_DURATION           0.32f
 #define SPIN_RADIUS             120.0f
 #define SPIN_COOLDOWN           2.0f
-#define SPIN_DAMAGE             40
-#define SPIN_KNOCKBACK          300.0f
+#define SPIN_DAMAGE             25
+#define SPIN_KNOCKBACK          250.0f
+#define SPIN_LIFESTEAL          0.1f
+
+// Shotgun
+#define SHOTGUN_PELLETS         10
+#define SHOTGUN_SPREAD          0.72f
+#define SHOTGUN_BULLET_SPEED    1400.0f
+#define SHOTGUN_BULLET_LIFETIME 0.20f
+#define SHOTGUN_DAMAGE          10
+#define SHOTGUN_KNOCKBACK       350.0f
+#define SHOTGUN_BLASTS          2
+#define SHOTGUN_COOLDOWN        1.5f
 
 // Enemies ------------------------------------------------------------------ /
 // Spawning
-#define SPAWN_INTERVAL          1.6f
+#define SPAWN_INTERVAL          2.0f
 #define SPAWN_RAMP              0.98f
 #define SPAWN_MIN_INTERVAL      0.4f
 #define SPAWN_MARGIN            400.0f
@@ -102,3 +113,20 @@
 #define PENTA_ROW_OFFSET        14.0f
 #define PENTA_BULLET_SPACING    18.0f
 #define PENTA_COLOR             (Color){ 57, 255, 20, 255 }
+
+// Enemy — Hexagon (strafing shooter, fan pattern)
+#define HEXA_SIZE               20.0f
+#define HEXA_HP                 70
+#define HEXA_SPEED_MIN          90.0f
+#define HEXA_SPEED_VAR          30
+#define HEXA_CONTACT_DAMAGE     18
+#define HEXA_SHOOT_INTERVAL     2.0f
+#define HEXA_BULLET_SPEED       300.0f
+#define HEXA_BULLET_DAMAGE      7
+#define HEXA_BULLET_LIFETIME    8.0f
+#define HEXA_SPAWN_KILLS        25
+#define HEXA_SPAWN_CHANCE       12
+#define HEXA_FAN_COUNT          5
+#define HEXA_FAN_SPREAD         0.7854f
+#define HEXA_ORBIT_DIST         280.0f
+#define HEXA_COLOR              (Color){ 255, 160, 30, 255 }

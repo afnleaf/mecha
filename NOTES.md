@@ -46,6 +46,25 @@ the update happens before the draw
 
 there are a lot of extra lines of C code just to fit inside the 80 col limit
 
+## v(-2)
+add all the weapons and enemies
+
+## v(-1)
+a room with the first 4 enemies, defeat them
+
+game pauses you pick an extra weapon out of some options
+
+same room with more enemies, defeat them
+
+game pauses and you pick another weapon
+
+mini boss fight
+
+game end
+
+## v(0)
+pick a chassis type to start with
+
 ## todo
 - [x] (claude) optimized native build
 - [x] (claude) iframe granted by dash at start. 
@@ -63,35 +82,44 @@ there are a lot of extra lines of C code just to fit inside the 80 col limit
 - [x] (user) added game title text
 - [x] (claude) treat spin to the sword trailing animation treatment
 - [x] (user) added healing to spin attack
-- [] fix hitmask
+- [x] (claude) fix hitmask — replaced with sweep line + lastHitAngle
 - [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
 - [x] (claude) add rhombus enemy
-- [] add hexagon enemy
+- [x] (claude) add hexagon enemy
 - [] add octagon enemy
 - [] add trapezoid mini boss
 - [] add circle big boss
-- [] figure out how to separate particle/weapon animation from game logic update?
+- [x] (user) clamp enemies to map size rather than -500, 500
 - [x] (user) add green particles on heal 
 - [x] (user) separate update camera and window resize logic
+- [x] (claude) make the sword flash with particles
 - [] give each enemy their own score
 - [] (user) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
 - [] big refactor of all hardcoded numbers
+- [] figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
-- [] proceduraly gen textures for debug, enemies, background (grass? diff biomes?) 
+- [] proceduraly gen textures for debug, background (grass? biomes?) 
 - [] (user) damage system design (not implementation, what is the math behind it)
 - [] (user) asset blob data design, how to parse? how to create?
 - [] physics as deterministic for multiplayer future? (FPS TARGET)
 - [] shadows under entity
 - [] understand particles better (this is an art thing...)
-- [] make the sword flash with particles
 - [] linger effect refactor
 - [] shaders GLSL
 - [] bullet pool scaling separation player and enemy, also ownership
 - [] ~~~fix what dash follows, mouse or wasd? what takes prio?~~~
 
+- [] rocket launcher (explosion)
+- [] laser (hitscan)
+- [x] shotgun (knockback)
+- [] grenade launcher (delayed explosion)
+- [] railgun (histcan big damage)
+- [] big gun wip (BFG10k)
+
+
 ## Research
 - [x] read many parts of raylib.h
-- [] study vector 2 implementation (raymath.h)
+- [x] study vector 2 implementation (raymath.h)
 - [x] Vector2Lerp: what is it doing exactly? how much can we fiddle with the lerp constant (8.0f)? (game.c:696-705)
 - [] GetScreenToWorld2D / GetMousePosition: understand the screen-to-world coordinate conversion pipeline (game.c:381-382)
 - [x] GetFrameTime: why clamp at 0.05? is it a max frame time for physics stability? (game.c:724-728)
@@ -124,7 +152,7 @@ What are the implications of input parameters received by value only?
 
 ## Build system
 Highkey the wasm target with histos in the pipeline is just goated.
-- [x] linux (eassss)
+- [x] linux
 - [] macos
     - emcc
     - clang
@@ -175,14 +203,11 @@ See asset_blob/blobbert.c for details
 
 ## Claude thoughts
 
-### Bug: hitMask only covers 64 enemies
-`uint64_t hitMask` on Sword and Spin only tracks enemies at index 0-63 via bit shifts. MAX_ENEMIES is 1024. Any enemy at index 64+ gets hit every frame of a swing instead of once. Doesn't manifest at current spawn rates but will once the arena fills up. Options: a second parallel bool array `bool hitThisSwing[MAX_ENEMIES]` inside GameState (reset on swing start), or a generation counter per-enemy that gets stamped when hit.
+### Fixed: hitMask replaced with sweep line collision
+Old `uint64_t hitMask` only covered 64 enemies and used arc collision. Replaced with `LineSegCircle`/`LineSegOBB` sweep line collision + `float lastHitAngle[MAX_ENEMIES]` stamping. Enemies can only be re-hit after the sweep line has rotated PI radians past them. Sword (arc < PI) hits once per swing. Spin (2 full rotations) hits once per pass, so up to 2 hits total.
 
 ### Enemy-enemy separation
 Enemies stack into the same pixel chasing the player. A simple repulsion pass in UpdateEnemies (for each pair within overlap distance, push apart along the delta vector) would make the swarm look way better and give the player readable silhouettes to aim at. Doesn't need to be a full physics solve — just a nudge.
-
-### Spawn position hardcoded +-500
-Line 297 etc. The random offset from player position is a magic number independent of map size or screen size. Tying it to SPAWN_MARGIN or a fraction of MAP_SIZE would be more robust as the map scales.
 
 ### Pool scanning is linear
 SpawnBullet/SpawnEnemy/SpawnParticle all do O(n) scans for a free slot. Fine at 1024. If pools ever grow, a free-list (track `int nextFree` and chain free slots) is a cheap upgrade. Also relevant to the bullet pool separation todo — when you split player/enemy bullets, each pool gets its own free-list.
