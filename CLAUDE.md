@@ -1,68 +1,43 @@
 # Mecha Bullet Hell Prototype
 
-## What This Is
-A playable mecha prototype: player square with machine gun, sword, dash, and spin attack against chaser triangle enemies on a bounded map. Built with raylib, compiled to WASM via emscripten, packed into a single HTML file with Histos.
+Single-file C game built with raylib, compiled to WASM via emscripten, packed into a single HTML file with Histos. Data-oriented design — read PHILOSOPHY.md.
 
 ## Project Structure
 ```
-GDD.md          - the game design document, still barebones
-PHILOSOPHY.md   - the software philosophy to follow
-NOTES.md        - todo list and design thinking space
-game.c          - all game logic (single file)
-default.h       - all tunable gameplay values (defines)
-config.yaml     - histos packing config
-setup.js        - emscripten Module pre-config (canvas binding)
-style.css       - canvas styling + cursor hide
-build.sh        - compile + pack in one command
-index.html      - output (single self-contained HTML)
-raylib/         - raylib source (git clone, built for PLATFORM_WEB)
+game.c            - all game logic (single file, ~2200 lines)
+default.h         - all tunable gameplay values (defines)
+rtypes.h          - Rust-style type aliases (u8, u16, u32, u64, etc.)
+claude_review.md  - persistent code review state (read before modifying game.c)
+NOTES.md          - todo list and design thinking space
+GDD.md            - game design document
+PHILOSOPHY.md     - software philosophy (must follow)
+build.sh          - compile + pack
+config.yaml       - histos packing config
+setup.js          - emscripten Module pre-config
+style.css         - canvas styling + cursor hide
+index.html        - output (single self-contained HTML)
+raylib/           - raylib source (git clone, built for PLATFORM_WEB)
 ```
 
 ## Build
 ```bash
-./build.sh
-```
-This runs emcc then histos. Output: `index.html`.
-
-The full compile command (inside build.sh):
-```bash
-emcc game.c -o game.js -Os -I ./raylib/src -L ./raylib/src -l:libraylib.web.a -s USE_GLFW=3 -s SINGLE_FILE=1 -DPLATFORM_WEB
-histos config.yaml
-```
-
-## Native Build
-game.c supports native compilation via `#ifdef PLATFORM_WEB` guards. The emscripten-specific code (EM_ASM_INT, emscripten_set_main_loop) is guarded; the else branch uses a standard raylib game loop.
-
-```bash
-./build.sh n    # debug native build (no optimization)
-./build.sh o    # optimized native build (-O2 -march=native -flto -ffast-math, stripped)
+./build.sh        # WASM build (emcc + histos -> index.html)
+./build.sh n      # debug native build
+./build.sh o      # optimized native build (-O2 -march=native -flto -ffast-math, stripped)
 ```
 
 ## Architecture
-- Single global `GameState g` struct — required because emscripten_set_main_loop takes void(*)(void) with no userdata
-- Player abilities are separate structs: `Gun`, `Sword`, `Dash`, `Spin` — composed into `Player`
-- All gameplay constants live in `default.h`
-- HUD auto-scales based on screen height (`ui = screenHeight / 450.0f`)
-- Camera smooth-follows player with Vector2Lerp
-- OS cursor hidden via CSS, replaced with in-game crosshair
-- Histos runtime DISABLED — emscripten SINGLE_FILE embeds WASM as base64 in JS
-- No canvas.html needed — emscripten spawns its own canvas
+- Single global `GameState g` struct (emscripten requires void(*)(void) callback)
+- Player weapons: `Gun`, `Sword`, `Dash`, `Spin`, `Shotgun`, `Rocket` composed into `Player`
+- Enemy types: `EnemyDef` data table indexed by `EnemyType` enum, table-driven spawning
+- Collision: `EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle` dispatchers (switch on type)
+- Update: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateBullets` -> `UpdateParticles` -> `MoveCamera`
+- Draw: `DrawWorld` (camera space) -> `DrawHUD` (screen space)
+- Player models: `DrawShape2D` (tetrahedron), `DrawCube2D` (cube) — plan is all 5 platonic solids as selectable characters. Do not delete any Draw*2D functions.
+- All gameplay constants in `default.h`. HUD scales via `ui = screenHeight / 450.0f`
 
 ## Controls
-- WASD: move
-- Mouse: aim
-- M1 (left click): machine gun
-- M2 (right click): sword swing (arc toward cursor)
-- Space: dash (movement dir or aim dir)
-- Space + M2: dash slash (wider arc, more damage)
-- Shift: spin attack (360 AoE, cooldown)
-- P / Esc: pause
-- R: restart (on game over)
+WASD: move | Mouse: aim | M1: gun | M2: sword | E: shotgun | Q: rocket | Space: dash (2 charges) | Space+M2: dash slash | Shift: spin (lifesteal) | P/Esc: pause | R: restart
 
-## Prerequisites
-```bash
-cd /home/ironhands/Code/raylib_test
-git clone https://github.com/raysan5/raylib.git
-cd raylib/src
-make PLATFORM=PLATFORM_WEB
-```
+## Code Review
+**Read `claude_review.md` before modifying game.c. Update it after significant changes.** It tracks resolved items, current stats, refactoring priorities, and architectural assessment.

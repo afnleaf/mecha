@@ -233,50 +233,7 @@ rooms = zones = objectives, a level to challenge your mechanics against
 
 like a song, the addition of elements to the music, through loops simple combinations of instruments together (enemies) the absence and removal of a sound is just as artful. this can be programmatic. the enemies and music go together. that is techno. phylyps trak - basic channel. that is that music programming language.
 
-## Claude thoughts
+## Claude review
+Moved to `claude_review.md`.
 
-### What's been resolved since last review
-- **OBB collision centralized.** Three dispatchers (`EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle`) now switch on enemy type. Sword, spin, bullet, and contact damage all go through these. Adding a new hitbox shape (TRAP, CIRC) means adding one `case` per dispatcher instead of touching 4 call sites. This was the biggest structural concern last time — it's handled.
-- **Per-enemy scores wired up.** `DamageEnemy` uses `e->score` now, not a hardcoded 100. Each enemy type sets its own score in SpawnEnemy from the `_SCORE` defines.
-- **Linger effect refactored.** Checked off.
-- **Player model is now a tetrahedron.** `DrawShape2D` renders a proper regular tetrahedron with rainbow HSV gradient, backface culling, painter's sort. The old `DrawCube2D` function still exists (lines 1472-1597) but is dead code — nothing calls it anymore. Can be deleted.
-- **Rocket launcher added.** Rockets fly to cursor target, explode on arrival or on hitting an enemy. Explosion has area damage, knockback, and a visual ring (Explosive pool). Reuses the bullet pool with `isRocket` flag.
-- **Octagon (OCTA) enemy added.** Fast chaser (300+ speed), red stop sign, 33 contact damage. Pure melee, no shooting AI.
-- **rtypes.h added.** Rust-style type aliases (u8/u16/u32/u64, i8-i64). Currently only used in `HsvToRgb` for the `(u8)` casts.
-
-### What's still standing (persistent issues)
-
-**SpawnEnemy cascading-bool chain.** This is now *worse* — 6 enemy types, 6 nested `bool spawnX` conditionals, each filling the same struct fields with different constants. 80 lines doing the same thing 6 times. This remains the #1 refactor target. An `EnemyDef` data table would collapse it.
-
-**Bullet struct is overloaded.** The Bullet struct now carries `isRocket`, `target`, `knockback` as type-specific fields. This is the same problem as SpawnEnemy but for projectiles. When laser (hitscan) and grenade (delayed explosion) arrive, bolting more bools onto Bullet won't scale. The "bullet to projectile" refactor in the todo list is becoming urgent. A `ProjectileType` enum + union or separate pools would be cleaner.
-
-**Enemy-enemy separation still missing.** Enemies still stack into a single pixel when chasing. The swarm is a blob rather than a readable crowd. O(n^2) pairwise nudge in UpdateEnemies, or spatial hash if enemy count grows. This is a game feel issue, not a correctness bug.
-
-**Spin lifesteal is now 10%.** `SPIN_LIFESTEAL` bumped to 0.1f (was 0.05f in the define, but the code says `SPIN_DAMAGE * SPIN_LIFESTEAL` = 25 * 0.1 = 2.5, cast to int = 2hp). The truncation is still there. Not critical but worth noting if damage numbers change.
-
-**DrawCube2D is dead code.** 125 lines (1472-1597) that nothing calls. `DrawShape2D` (tetrahedron) is what's actually used. Safe to delete.
-
-### Current stats
-- **game.c**: 2226 lines (up from ~1900 last review)
-- **default.h**: 166 lines, 6 enemy type configs + 6 weapon configs
-- **Enemy types**: 6 implemented (TRI, RECT, PENTA, RHOM, HEXA, OCTA), 2 stubbed (TRAP, CIRC)
-- **Player weapons**: 6 (gun, sword, dash, spin, shotgun, rocket)
-- **Pools**: bullets[1024], enemies[1024], particles[1024], explosives[8]
-
-### Architecture assessment
-
-The code is organized well for where it is. The separation into UpdatePlayer/UpdateEnemies/UpdateBullets/UpdateParticles and DrawWorld/DrawHUD is clean. The collision dispatchers are the right abstraction. The data layout (flat GameState, arrays of structs) is correct per the philosophy doc.
-
-The two pressure points are both data table problems:
-1. **Enemy definitions** — SpawnEnemy needs an `EnemyDef` table. Each enemy type is the same struct with different numbers. Make the numbers a table, make the spawn logic table-driven.
-2. **Projectile types** — Bullet needs to become Projectile with a type enum. Rockets, shotgun pellets, enemy bullets, and (future) lasers/grenades are different data shapes sharing one struct. When you add hitscan, the current struct won't work at all since hitscan has no position/velocity.
-
-These are the two refactors that would make the v(-2) phase (add all weapons and enemies) actually feasible without the code becoming unmaintainable.
-
-### What's next (make-it-right checklist)
-1. **EnemyDef data table** — collapse SpawnEnemy from 80 lines to 20
-2. **Delete DrawCube2D** — dead code cleanup
-3. **Projectile type refactor** — Bullet -> Projectile with type enum, before adding laser/grenade/railgun
-4. **Enemy-enemy separation** — nudge pass for game feel
-5. Then: add remaining weapons (laser, grenade, railgun, BFG) and enemies (TRAP mini boss, CIRC big boss) on top of clean foundations
 

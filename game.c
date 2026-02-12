@@ -2053,10 +2053,6 @@ static void DrawHUD(void)
         }
     }
 
-    // Controls reminder (bottom-left)
-    int ctrlFont = (int)(14 * ui);
-    DrawText("WASD: Move  |  M1: Shoot  |  M2: Sword  |  E: Shotgun  |  Space: Dash  |  Shift: Spin  | Q: Rocket | R: Restart | 0: Quit",
-        (int)(10 * ui), sh - (int)(24 * ui), ctrlFont, Fade(WHITE, 0.5f));
 
     // FPS (top-right)
     int fpsFont = (int)(16 * ui);
@@ -2108,11 +2104,16 @@ static void DrawHUD(void)
     );
     //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
     
+    // Controls reminder (bottom-left)
+    int ctrlFont = (int)(12 * ui);
+    DrawText("WASD: Move | Space: Dash | M1: Shoot | M2: Sword | E: Shotgun | Q: Rocket | Shift: Spin | R: Restart | 0: Quit",
+        (int)(10 * ui), sh - (int)(20 * ui), ctrlFont, Fade(WHITE, 0.5f));
+    
     // bottom right, game title text
     int titleFont = (int)(12 * ui);
     DrawText("Untitled Mecha Game - Version 0.0.1",
              sw - (int)(210 * ui), 
-             sh - (int)(22 * ui), 
+             sh - (int)(20 * ui), 
              titleFont, 
              Fade(WHITE, 0.8f));
 
