@@ -83,39 +83,65 @@ pick a chassis type to start with
 - [x] (claude) treat spin to the sword trailing animation treatment
 - [x] (user) added healing to spin attack
 - [x] (claude) fix hitmask — replaced with sweep line + lastHitAngle
-- [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
-- [x] (claude) add rhombus enemy
-- [x] (claude) add hexagon enemy
-- [] add octagon enemy
-- [] add trapezoid mini boss
-- [] add circle big boss
 - [x] (user) clamp enemies to map size rather than -500, 500
 - [x] (user) add green particles on heal 
 - [x] (user) separate update camera and window resize logic
 - [x] (claude) make the sword flash with particles
-- [] give each enemy their own score
-- [] (user) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close
+- [x] (user) fix esc quit on native
+- [x] (user) dynamic resize in native
+- [x] (user) give each enemy their own score
+- [x] (claude) redesign and refactor collision logic
+- [x] (claude) make the character model a tetrahedron pyramid
+- [x] (gemini + gpt5.2 + claude) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close.
+
+refactor
+- [] refactorin time
+- [] bullet to projectile or base struct
+- [] figure out how to do hitscan, what are the other weapon types?
 - [] big refactor of all hardcoded numbers
-- [] figure out how to separate particle/weapon animation from game logic update?
-- [] (user) refactor anything badly named and organized (LLMisms)
-- [] proceduraly gen textures for debug, background (grass? biomes?) 
-- [] (user) damage system design (not implementation, what is the math behind it)
-- [] (user) asset blob data design, how to parse? how to create?
-- [] physics as deterministic for multiplayer future? (FPS TARGET)
-- [] shadows under entity
 - [] understand particles better (this is an art thing...)
-- [] linger effect refactor
-- [] shaders GLSL
-- [] bullet pool scaling separation player and enemy, also ownership
+- [] (user) figure out how to separate particle/weapon animation from game logic update?
+- [] (user) refactor anything badly named and organized (LLMisms)
+- [] (user) proceduraly gen textures for debug, background (grass? biomes?) 
+- [] physics as deterministic for multiplayer future? (FPS TARGET)
+- [x] (claude) linger effect refactor
+- [] make it easy to adjust game feel
+- [] ~~~bullet pool scaling separation player and enemy, also ownership~~~
 - [] ~~~fix what dash follows, mouse or wasd? what takes prio?~~~
 
-- [] rocket launcher (explosion)
+other features
+- [] (user) damage system design (not implementation, what is the math behind it)
+- [] (user) asset blob data design, how to parse? how to create?
+- [] shaders GLSL
+- [] shadows under entity
+
+enemy types
+- [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
+- [x] (claude) add rhombus enemy (chase)
+- [x] (claude) add hexagon enemy (fan shooter)
+- [x] (user) add octagon enemy (stopper)
+- [] add mini boss (shape?) multiple attacks
+- [] add big boss circle
+
+weapons
+- [x] (claude) shotgun (knockback)
+- [x] (user + claude) rocket launcher (explosion)
 - [] laser (hitscan)
-- [x] shotgun (knockback)
 - [] grenade launcher (delayed explosion)
 - [] railgun (histcan big damage)
 - [] big gun wip (BFG10k)
 
+abilities
+- [x] dash
+- [x] spin
+- [] grenades?
+- are weapons just abilities in a mecha? buttons
+
+levels
+- [] rounds/rooms
+- [] pick new item between rounds]
+
+idea: two characters? the cube and the tetrahedron? rest of platonic solids: octahedron, dodecahedron, icosahedron. Make the animation it rolling on each side? (I like this). 2d shapes vs 3d shape, you leave your shadow in this 2d world.
 
 ## Research
 - [x] read many parts of raylib.h
@@ -201,30 +227,56 @@ Blob
 
 See asset_blob/blobbert.c for details
 
+## Music Flow
+
+rooms = zones = objectives, a level to challenge your mechanics against
+
+like a song, the addition of elements to the music, through loops simple combinations of instruments together (enemies) the absence and removal of a sound is just as artful. this can be programmatic. the enemies and music go together. that is techno. phylyps trak - basic channel. that is that music programming language.
+
 ## Claude thoughts
 
-### Fixed: hitMask replaced with sweep line collision
-Old `uint64_t hitMask` only covered 64 enemies and used arc collision. Replaced with `LineSegCircle`/`LineSegOBB` sweep line collision + `float lastHitAngle[MAX_ENEMIES]` stamping. Enemies can only be re-hit after the sweep line has rotated PI radians past them. Sword (arc < PI) hits once per swing. Spin (2 full rotations) hits once per pass, so up to 2 hits total.
+### What's been resolved since last review
+- **OBB collision centralized.** Three dispatchers (`EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle`) now switch on enemy type. Sword, spin, bullet, and contact damage all go through these. Adding a new hitbox shape (TRAP, CIRC) means adding one `case` per dispatcher instead of touching 4 call sites. This was the biggest structural concern last time — it's handled.
+- **Per-enemy scores wired up.** `DamageEnemy` uses `e->score` now, not a hardcoded 100. Each enemy type sets its own score in SpawnEnemy from the `_SCORE` defines.
+- **Linger effect refactored.** Checked off.
+- **Player model is now a tetrahedron.** `DrawShape2D` renders a proper regular tetrahedron with rainbow HSV gradient, backface culling, painter's sort. The old `DrawCube2D` function still exists (lines 1472-1597) but is dead code — nothing calls it anymore. Can be deleted.
+- **Rocket launcher added.** Rockets fly to cursor target, explode on arrival or on hitting an enemy. Explosion has area damage, knockback, and a visual ring (Explosive pool). Reuses the bullet pool with `isRocket` flag.
+- **Octagon (OCTA) enemy added.** Fast chaser (300+ speed), red stop sign, 33 contact damage. Pure melee, no shooting AI.
+- **rtypes.h added.** Rust-style type aliases (u8/u16/u32/u64, i8-i64). Currently only used in `HsvToRgb` for the `(u8)` casts.
 
-### Enemy-enemy separation
-Enemies stack into the same pixel chasing the player. A simple repulsion pass in UpdateEnemies (for each pair within overlap distance, push apart along the delta vector) would make the swarm look way better and give the player readable silhouettes to aim at. Doesn't need to be a full physics solve — just a nudge.
+### What's still standing (persistent issues)
 
-### Pool scanning is linear
-SpawnBullet/SpawnEnemy/SpawnParticle all do O(n) scans for a free slot. Fine at 1024. If pools ever grow, a free-list (track `int nextFree` and chain free slots) is a cheap upgrade. Also relevant to the bullet pool separation todo — when you split player/enemy bullets, each pool gets its own free-list.
+**SpawnEnemy cascading-bool chain.** This is now *worse* — 6 enemy types, 6 nested `bool spawnX` conditionals, each filling the same struct fields with different constants. 80 lines doing the same thing 6 times. This remains the #1 refactor target. An `EnemyDef` data table would collapse it.
 
-### OBB collision duplication
-The RECT oriented bounding box check appears in 4 places: sword hit, spin hit, bullet hit, contact damage. Each new enemy shape (hexa, octa, trap) will multiply this. A single `bool EnemyHitTest(Enemy *e, Vector2 point, float radius)` that switches on `e->type` would centralize the collision logic. The data is the same — it's just the shape test that varies per type.
+**Bullet struct is overloaded.** The Bullet struct now carries `isRocket`, `target`, `knockback` as type-specific fields. This is the same problem as SpawnEnemy but for projectiles. When laser (hitscan) and grenade (delayed explosion) arrive, bolting more bools onto Bullet won't scale. The "bullet to projectile" refactor in the todo list is becoming urgent. A `ProjectileType` enum + union or separate pools would be cleaner.
 
-### Spin lifesteal scaling
-`SPIN_DAMAGE * 0.05` = 2hp per hit, cast to int. Works now, but as damage numbers grow this will always round down. Consider storing heal as float accumulator and only applying integer part, or just bumping the percentage. Minor, but worth knowing the truncation is there.
+**Enemy-enemy separation still missing.** Enemies still stack into a single pixel when chasing. The swarm is a blob rather than a readable crowd. O(n^2) pairwise nudge in UpdateEnemies, or spatial hash if enemy count grows. This is a game feel issue, not a correctness bug.
 
-### Gameplay depth vs code ratio
-The ratio of mechanical depth to lines of code is high right now — 4 enemy types, 4 player abilities with meaningful interactions (dash-slash combo, retroactive upgrade, spin lifesteal), charge systems, and a progression ramp in ~1700 lines. This is the sweet spot to be in before the skeleton prototype. The instinct to stop feature creep and understand the data transformation is correct.
+**Spin lifesteal is now 10%.** `SPIN_LIFESTEAL` bumped to 0.1f (was 0.05f in the define, but the code says `SPIN_DAMAGE * SPIN_LIFESTEAL` = 25 * 0.1 = 2.5, cast to int = 2hp). The truncation is still there. Not critical but worth noting if damage numbers change.
 
+**DrawCube2D is dead code.** 125 lines (1472-1597) that nothing calls. `DrawShape2D` (tetrahedron) is what's actually used. Safe to delete.
 
+### Current stats
+- **game.c**: 2226 lines (up from ~1900 last review)
+- **default.h**: 166 lines, 6 enemy type configs + 6 weapon configs
+- **Enemy types**: 6 implemented (TRI, RECT, PENTA, RHOM, HEXA, OCTA), 2 stubbed (TRAP, CIRC)
+- **Player weapons**: 6 (gun, sword, dash, spin, shotgun, rocket)
+- **Pools**: bullets[1024], enemies[1024], particles[1024], explosives[8]
 
+### Architecture assessment
 
+The code is organized well for where it is. The separation into UpdatePlayer/UpdateEnemies/UpdateBullets/UpdateParticles and DrawWorld/DrawHUD is clean. The collision dispatchers are the right abstraction. The data layout (flat GameState, arrays of structs) is correct per the philosophy doc.
 
+The two pressure points are both data table problems:
+1. **Enemy definitions** — SpawnEnemy needs an `EnemyDef` table. Each enemy type is the same struct with different numbers. Make the numbers a table, make the spawn logic table-driven.
+2. **Projectile types** — Bullet needs to become Projectile with a type enum. Rockets, shotgun pellets, enemy bullets, and (future) lasers/grenades are different data shapes sharing one struct. When you add hitscan, the current struct won't work at all since hitscan has no position/velocity.
 
+These are the two refactors that would make the v(-2) phase (add all weapons and enemies) actually feasible without the code becoming unmaintainable.
 
+### What's next (make-it-right checklist)
+1. **EnemyDef data table** — collapse SpawnEnemy from 80 lines to 20
+2. **Delete DrawCube2D** — dead code cleanup
+3. **Projectile type refactor** — Bullet -> Projectile with type enum, before adding laser/grenade/railgun
+4. **Enemy-enemy separation** — nudge pass for game feel
+5. Then: add remaining weapons (laser, grenade, railgun, BFG) and enemies (TRAP mini boss, CIRC big boss) on top of clean foundations
 
