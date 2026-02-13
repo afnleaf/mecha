@@ -83,25 +83,59 @@ typedef struct Player {
     Rocket rocket;
 } Player;
 
-// what is the correct name? cause a projectile != hitscan
-typedef enum ProjectileType {
-    BULLET,
-    EXPLOSIVE,
-    HITSCAN,
-} ProjectileType;
+// damage hit and type ------------------------------------------------------ /
+typedef enum HitMethod {
+    HIT_PROJ,       // travel time
+    HIT_SCAN,       // instant
+    HIT_MELEE,      // sweep arc
+    HIT_AOE,        // radius from center point
+    // maybe aoe + melee are similar? just an arc amount
+} HitMethod;
 
-typedef struct Projectile {
-    Vector2 pos;
-    Vector2 vel;
-    Vector2 target;
-    float lifetime;
-    float size;
-    ProjectileType type;
-    bool active;
-    bool isEnemy;
-    int damage;
-    bool knockback;
-} Projectile;
+typedef enum DamageType {
+    DMG_BALLISTIC,
+    DMG_EXPLOSIVE,
+    DMG_SLASH,      // there are a few types of melee damage
+    DMG_PIERCE,
+    DMG_BLUNT,
+    DMG_ABILITY,    // spirit/special
+    DMG_PURE,       //
+} DamageType;
+
+// or Attack?
+// I like having one base struct for this
+typedef struct Damage {
+    HitMethod   hit;
+    DamageType  dmg;
+    int         baseDamage;
+
+    bool        isEnemy;
+    bool        active;
+
+    Vector2     pos;
+    Vector2     vel;
+    float       lifetime;
+    float       size; // not sure how vel, life and size are shared everywhere
+    
+    // does this all have to be inside here or can it be outside?
+    // sharing the same memory is good
+    // union {  }
+
+} Damage;
+//not true that projectiles only knockback, a melee attack could to, same with AOE, even hitscan. DamageType;
+
+//typedef struct Projectile {
+//    Vector2 pos;
+//    Vector2 vel;
+//    Vector2 target;
+//    float lifetime;
+//    float size;
+//    ProjectileType type;
+//    bool active;
+//    bool isEnemy;
+//    int damage;
+//    bool knockback;
+//} Projectile;
 
 // maybe we refactor bullet to projectile?
 // then have a substruct type?
@@ -297,7 +331,7 @@ static void InitGame(void)
     g.camera.zoom     = 1.0f;
 
     g.spawnInterval   = SPAWN_INTERVAL;
-    g.spawnTimer      = 1.0f;
+    g.spawnTimer      = SPAWN_INITIAL_DELAY;
 }
 
 // ========================================================================== /
@@ -334,23 +368,24 @@ static void FireShotgunBlast(Player *p, Vector2 toMouse) {
         float angle = baseAngle - halfSpread + step * i;
         Vector2 dir = { cosf(angle), sinf(angle) };
         Vector2 muzzle = Vector2Add(p->pos,
-            Vector2Scale(dir, p->size + 4.0f));
+            Vector2Scale(dir, p->size + MUZZLE_OFFSET));
         SpawnBullet(muzzle, dir,
             SHOTGUN_BULLET_SPEED, SHOTGUN_DAMAGE,
             SHOTGUN_BULLET_LIFETIME, SHOTGUN_PROJECTILE_SIZE, false, true);
     }
 
     Vector2 muzzle = Vector2Add(p->pos,
-        Vector2Scale(aimDir, p->size + 4.0f));
+        Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
     SpawnParticle(muzzle,
-        Vector2Scale(aimDir, 150.0f), ORANGE, 5.0f, 0.12f);
-    SpawnParticles(muzzle, YELLOW, 3);
+        Vector2Scale(aimDir, SHOTGUN_MUZZLE_SPEED), ORANGE,
+        SHOTGUN_MUZZLE_SIZE, SHOTGUN_MUZZLE_LIFETIME);
+    SpawnParticles(muzzle, YELLOW, HIT_PARTICLES);
 }
 
 static void SpawnRocket(Player *p, Vector2 toMouse) {
     Vector2 aimDir = Vector2Normalize(toMouse);
     Vector2 muzzle = Vector2Add(p->pos,
-        Vector2Scale(aimDir, p->size + 4.0f));
+        Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
     Vector2 worldTarget = Vector2Add(p->pos, toMouse);
     // find a free bullet slot and set rocket fields
     for (int i = 0; i < MAX_BULLETS; i++) {
@@ -370,12 +405,13 @@ static void SpawnRocket(Player *p, Vector2 toMouse) {
         }
     }
     // muzzle flash
-    SpawnParticles(muzzle, RED, 10);
+    SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
     SpawnParticle(muzzle,
-        Vector2Scale(aimDir, 150.0f), ORANGE, 5.0f, 0.12f);
-    SpawnParticles(muzzle, YELLOW, 3);
+        Vector2Scale(aimDir, ROCKET_MUZZLE_SPEED), ORANGE,
+        ROCKET_MUZZLE_SIZE, ROCKET_MUZZLE_LIFETIME);
+    SpawnParticles(muzzle, YELLOW, HIT_PARTICLES);
     // backblast
-    SpawnParticles(p->pos, GRAY, 10);
+    SpawnParticles(p->pos, GRAY, ROCKET_BACKBLAST_PARTICLES);
 }
 
 // this of course will need a lot of work
@@ -478,10 +514,12 @@ static void SpawnParticles(Vector2 pos, Color color, int count)
 {
     for (int i = 0; i < count; i++) {
         float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(50, 200);
+        float speed = (float)GetRandomValue(
+            PARTICLE_BURST_SPEED_MIN, PARTICLE_BURST_SPEED_MAX);
         Vector2 vel = { cosf(angle) * speed, sinf(angle) * speed };
-        float size = (float)GetRandomValue(2, 5);
-        SpawnParticle(pos, vel, color, size, 0.4f);
+        float size = (float)GetRandomValue(
+            PARTICLE_BURST_SIZE_MIN, PARTICLE_BURST_SIZE_MAX);
+        SpawnParticle(pos, vel, color, size, PARTICLE_BURST_LIFETIME);
     }
 }
 
@@ -496,17 +534,17 @@ static void DamageEnemy(int idx, int damage)
 {
     Enemy *e = &g.enemies[idx];
     e->hp -= damage;
-    e->hitFlash = 0.1f;
-    SpawnParticles(e->pos, WHITE, 3);
+    e->hitFlash = HIT_FLASH_DURATION;
+    SpawnParticles(e->pos, WHITE, HIT_PARTICLES);
 
     if (e->hp <= 0) {
         e->active = false;
         g.score += e->score;
         g.enemiesKilled++;
         // fire/explosion
-        SpawnParticles(e->pos, RED, 8);
-        SpawnParticles(e->pos, ORANGE, 8);
-        SpawnParticles(e->pos, YELLOW, 8);
+        SpawnParticles(e->pos, RED, DEATH_PARTICLES);
+        SpawnParticles(e->pos, ORANGE, DEATH_PARTICLES);
+        SpawnParticles(e->pos, YELLOW, DEATH_PARTICLES);
     }
 }
 
@@ -717,8 +755,8 @@ static void UpdatePlayer(float dt)
         } else {
             p->dash.dir = (Vector2){ cosf(p->angle), sinf(p->angle) };
         }
-        SpawnParticles(p->pos, SKYBLUE, 5);
-        SpawnParticles(p->pos, WHITE, 5);
+        SpawnParticles(p->pos, SKYBLUE, DASH_BURST_PARTICLES);
+        SpawnParticles(p->pos, WHITE, DASH_BURST_PARTICLES);
 
         // Retroactive dash slash: if sword is already swinging,
         // upgrade it so press order (M2 before Space) doesn't matter
@@ -735,9 +773,10 @@ static void UpdatePlayer(float dt)
             p->pos, Vector2Scale(p->dash.dir, p->dash.speed * dt));
 
         float trailAngle = (float)GetRandomValue(0, 360) * DEG2RAD;
-        Vector2 trailVel = 
-            { cosf(trailAngle) * 30.0f, sinf(trailAngle) * 30.0f };
-        SpawnParticle(p->pos, trailVel, SKYBLUE, 3.0f, 0.2f);
+        Vector2 trailVel = { cosf(trailAngle) * DASH_TRAIL_SPEED,
+                             sinf(trailAngle) * DASH_TRAIL_SPEED };
+        SpawnParticle(p->pos, trailVel, SKYBLUE,
+            DASH_TRAIL_SIZE, DASH_TRAIL_LIFETIME);
 
         if (p->dash.timer <= 0) {
             p->dash.active = false;
@@ -753,18 +792,19 @@ static void UpdatePlayer(float dt)
     ) {
         p->gun.cooldown = 1.0f / p->gun.fireRate;
         Vector2 aimDir = Vector2Normalize(toMouse);
-        float spread = ((float)GetRandomValue(-30, 30)) * 0.001f;
+        float spread = ((float)GetRandomValue(-GUN_SPREAD, GUN_SPREAD)) * 0.001f;
         float bulletAngle = p->angle + spread;
         Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
         Vector2 muzzle = 
-            Vector2Add(p->pos, Vector2Scale(aimDir, p->size + 4.0f));
+            Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
         SpawnBullet(muzzle, bulletDir,
             GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
             GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false);
         // we should make the bullet, actually bullet coloured
         // like a golden brassy, u know
-        SpawnParticle(muzzle, 
-                      Vector2Scale(bulletDir, 100.0f), WHITE, 3.0f, 0.08f);
+        SpawnParticle(muzzle,
+                      Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                      GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
     }
 
     // --- Sword swing (M2) ---
@@ -781,24 +821,27 @@ static void UpdatePlayer(float dt)
         // no probably not using ternary? if its over 80 chars?
         // nvm its fine with multiline
         // dash slash makes the sword attack bigger
-        float arc = 
-            p->sword.dashSlash ? 
-            p->sword.arc * 1.3f : 
+        float arc =
+            p->sword.dashSlash ?
+            p->sword.arc * DASH_SLASH_ARC_MULT :
             p->sword.arc;
-        float radius = 
-            p->sword.dashSlash ? 
-            p->sword.radius * 1.5f : 
+        float radius =
+            p->sword.dashSlash ?
+            p->sword.radius * DASH_SLASH_RADIUS_MULT :
             p->sword.radius;
         Color slashColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
-        // what the 6 doin?
-        for (int i = 0; i < 6; i++) {
-            float a = p->sword.angle - arc / 2.0f + arc * (float)i / 5.0f;
+        for (int i = 0; i < SWORD_SPARK_COUNT; i++) {
+            float a = p->sword.angle - arc / 2.0f
+                + arc * (float)i / (SWORD_SPARK_COUNT - 1);
             Vector2 particlePos = Vector2Add(
-                p->pos, 
-                (Vector2){ cosf(a) * radius * 0.7f, sinf(a) * radius * 0.7f }
+                p->pos,
+                (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
+                           sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC }
             );
-            Vector2 particleVel = { cosf(a) * 80.0f, sinf(a) * 80.0f };
-            SpawnParticle(particlePos, particleVel, slashColor, 3.0f, 0.2f);
+            Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
+                                    sinf(a) * SWORD_SPARK_SPEED };
+            SpawnParticle(particlePos, particleVel, slashColor,
+                SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
         }
     }
     
@@ -806,9 +849,10 @@ static void UpdatePlayer(float dt)
     if (p->sword.timer > 0) {
         float radius =
             p->sword.dashSlash ?
-            p->sword.radius * 1.5f :
+            p->sword.radius * DASH_SLASH_RADIUS_MULT :
             p->sword.radius;
-        float arc = p->sword.dashSlash ? p->sword.arc * 1.3f : p->sword.arc;
+        float arc = p->sword.dashSlash ?
+            p->sword.arc * DASH_SLASH_ARC_MULT : p->sword.arc;
         int dmg = p->sword.dashSlash ? SWORD_DASH_DAMAGE : SWORD_DAMAGE;
         float progress = 1.0f - (p->sword.timer / p->sword.duration);
         float sweepAngle =
@@ -832,6 +876,7 @@ static void UpdatePlayer(float dt)
 
     // special
     // --- Spin attack (Shift) ---
+    // activation of ability
     p->spin.cooldownTimer -= dt;
     if (p->spin.cooldownTimer < 0) p->spin.cooldownTimer = 0;
 
@@ -844,19 +889,23 @@ static void UpdatePlayer(float dt)
         for (int i = 0; i < MAX_ENEMIES; i++)
             p->spin.lastHitAngle[i] = -1000.0f;
 
-        for (int i = 0; i < 16; i++) {
-            float a = (float)i / 16.0f * 2.0f * PI;
+        // animation of the ability at start
+        for (int i = 0; i < SPIN_BURST_COUNT; i++) {
+            float a = (float)i / (float)SPIN_BURST_COUNT * 2.0f * PI;
             Vector2 particlePos = Vector2Add(
-                p->pos, 
-                (Vector2){ 
-                    cosf(a) * p->spin.radius * 0.5f, 
-                    sinf(a) * p->spin.radius * 0.5f 
+                p->pos,
+                (Vector2){
+                    cosf(a) * p->spin.radius * SPIN_BURST_INNER_FRAC,
+                    sinf(a) * p->spin.radius * SPIN_BURST_INNER_FRAC
                 });
-            Vector2 particleVel = { cosf(a) * 150.0f, sinf(a) * 150.0f };
-            SpawnParticle(particlePos, particleVel, YELLOW, 4.0f, 0.3f);
+            Vector2 particleVel = { cosf(a) * SPIN_BURST_SPEED,
+                                    sinf(a) * SPIN_BURST_SPEED };
+            SpawnParticle(particlePos, particleVel, YELLOW,
+                SPIN_BURST_SIZE, SPIN_BURST_LIFETIME);
         }
     }
     
+    // duration of the ability
     // Spin damage — sweep line hits enemies as it passes over them
     if (p->spin.timer > 0) {
         float progress = 1.0f - (p->spin.timer / p->spin.duration);
@@ -878,8 +927,10 @@ static void UpdatePlayer(float dt)
                 float heal = SPIN_DAMAGE * SPIN_LIFESTEAL;
                 p->hp = p->hp + (int)heal;
                 if (p->hp > p->maxHp) p->hp = p->maxHp;
+                // animation of ability throughout
                 //SpawnParticles(p->pos, GREEN, 64);
-                SpawnParticles(ei->pos, GREEN, (int)heal * 6.0);
+                SpawnParticles(ei->pos, GREEN,
+                    (int)(heal * SPIN_HEAL_PARTICLE_MULT));
                 Vector2 kb = Vector2Normalize(
                     Vector2Subtract(ei->pos, p->pos));
                 ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
@@ -965,7 +1016,7 @@ static void UpdateEnemies(float dt) {
             } else {
                 desired = Vector2Scale(chaseDir, e->speed);
             }
-            e->vel = Vector2Lerp(e->vel, desired, 3.0f * dt);
+            e->vel = Vector2Lerp(e->vel, desired, ENEMY_VEL_LERP_RATE * dt);
         }
         e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
 
@@ -982,12 +1033,13 @@ static void UpdateEnemies(float dt) {
                 e->shootTimer = RECT_SHOOT_INTERVAL;
                 Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
                 Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + 4.0f));
+                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
                 SpawnBullet(muzzle, shootDir, RECT_BULLET_SPEED,
                     RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME, 
                     RECT_PROJECTILE_SIZE, true, false);
-                SpawnParticle(muzzle, Vector2Scale(shootDir, 60.0f),
-                    MAGENTA, 3.0f, 0.1f);
+                SpawnParticle(muzzle,
+                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+                    MAGENTA, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
             }
         }
 
@@ -1002,11 +1054,11 @@ static void UpdateEnemies(float dt) {
                 for (int r = -1; r <= 1; r += 2) {
                     Vector2 rowOff = Vector2Scale(perp,
                         PENTA_ROW_OFFSET * r);
-                    for (int b = 0; b < 5; b++) {
+                    for (int b = 0; b < PENTA_BULLETS_PER_ROW; b++) {
                         Vector2 bpos = Vector2Add(e->pos, rowOff);
                         bpos = Vector2Add(bpos,
                             Vector2Scale(shootDir,
-                                e->size + 4.0f
+                                e->size + MUZZLE_OFFSET
                                 + b * PENTA_BULLET_SPACING));
                         SpawnBullet(bpos, shootDir,
                             PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
@@ -1015,16 +1067,16 @@ static void UpdateEnemies(float dt) {
                     }
                 }
                 Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + 4.0f));
+                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
                 SpawnParticle(muzzle,
-                    Vector2Scale(shootDir, 60.0f),
-                    PENTA_COLOR, 4.0f, 0.15f);
+                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+                    PENTA_COLOR, PENTA_MUZZLE_SIZE, PENTA_MUZZLE_LIFETIME);
                 SpawnParticle(muzzle,
-                    Vector2Scale(perp, 40.0f),
-                    PENTA_COLOR, 3.0f, 0.1f);
+                    Vector2Scale(perp, PENTA_SIDE_SPEED),
+                    PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
                 SpawnParticle(muzzle,
-                    Vector2Scale(perp, -40.0f),
-                    PENTA_COLOR, 3.0f, 0.1f);
+                    Vector2Scale(perp, -PENTA_SIDE_SPEED),
+                    PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
             }
         }
 
@@ -1042,16 +1094,16 @@ static void UpdateEnemies(float dt) {
                     float angle = baseAngle - halfSpread + step * b;
                     Vector2 dir = { cosf(angle), sinf(angle) };
                     Vector2 muzzle = Vector2Add(e->pos,
-                        Vector2Scale(dir, e->size + 4.0f));
+                        Vector2Scale(dir, e->size + MUZZLE_OFFSET));
                     SpawnBullet(muzzle, dir, HEXA_BULLET_SPEED,
                         HEXA_BULLET_DAMAGE, HEXA_BULLET_LIFETIME,
                         HEXA_PROJECTILE_SIZE, true, false);
                 }
                 Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + 4.0f));
+                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
                 SpawnParticle(muzzle,
-                    Vector2Scale(shootDir, 60.0f),
-                    HEXA_COLOR, 4.0f, 0.15f);
+                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+                    HEXA_COLOR, HEXA_MUZZLE_SIZE, HEXA_MUZZLE_LIFETIME);
             }
         }
 
@@ -1063,10 +1115,10 @@ static void UpdateEnemies(float dt) {
         if (contact && p->iFrames <= 0) {
             p->hp -= e->contactDamage;
             p->iFrames = IFRAME_DURATION;
-            SpawnParticles(p->pos, RED, 6);
+            SpawnParticles(p->pos, RED, CONTACT_HIT_PARTICLES);
             // Knockback enemy
             if (dist > 1.0f) {
-                Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), 200.0f);
+                Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), ENEMY_CONTACT_KNOCKBACK);
                 e->vel = kb;
             }
             if (p->hp <= 0) {
@@ -1091,34 +1143,40 @@ static void RocketExplode(Vector2 pos) {
         }
     }
     // explosion ring — fast outward burst
-    for (int i = 0; i < 24; i++) {
-        float a = (float)i / 24.0f * 2.0f * PI;
-        float speed = (float)GetRandomValue(300, 500);
+    for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
+        float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_RING_SPEED_MIN, EXPLOSION_RING_SPEED_MAX);
         Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
         Color c = (i % 3 == 0) ? RED : (i % 3 == 1) ? ORANGE : YELLOW;
-        SpawnParticle(pos, vel, c, 6.0f, 0.35f);
+        SpawnParticle(pos, vel, c, EXPLOSION_RING_SIZE,
+            EXPLOSION_RING_LIFETIME);
     }
     // inner fireball — slower, bigger
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < EXPLOSION_FIRE_COUNT; i++) {
         float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(40, 120);
+        float speed = (float)GetRandomValue(
+            EXPLOSION_FIRE_SPEED_MIN, EXPLOSION_FIRE_SPEED_MAX);
         Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, ORANGE, 8.0f, 0.5f);
+        SpawnParticle(pos, vel, ORANGE, EXPLOSION_FIRE_SIZE,
+            EXPLOSION_FIRE_LIFETIME);
     }
     // smoke — slow drift outward
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < EXPLOSION_SMOKE_COUNT; i++) {
         float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(20, 60);
+        float speed = (float)GetRandomValue(
+            EXPLOSION_SMOKE_SPEED_MIN, EXPLOSION_SMOKE_SPEED_MAX);
         Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, GRAY, 5.0f, 0.7f);
+        SpawnParticle(pos, vel, GRAY, EXPLOSION_SMOKE_SIZE,
+            EXPLOSION_SMOKE_LIFETIME);
     }
     // spawn radius ring
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
         if (!g.explosives[i].active) {
             g.explosives[i].active = true;
             g.explosives[i].pos = pos;
-            g.explosives[i].timer = 0.4f;
-            g.explosives[i].duration = 0.4f;
+            g.explosives[i].timer = EXPLOSION_VFX_DURATION;
+            g.explosives[i].duration = EXPLOSION_VFX_DURATION;
             break;
         }
     }
@@ -1159,7 +1217,7 @@ static void UpdateBullets(float dt) {
             if (dist < p->size + b->size && p->iFrames <= 0) {
                 p->hp -= b->damage;
                 p->iFrames = IFRAME_DURATION;
-                SpawnParticles(p->pos, RED, 4);
+                SpawnParticles(p->pos, RED, BULLET_HIT_PARTICLES);
                 b->active = false;
                 if (p->hp <= 0) {
                     p->hp = 0;
@@ -1197,7 +1255,7 @@ static void UpdateParticles(float dt)
         Particle *pt = &g.particles[i];
         if (!pt->active) continue;
         pt->pos = Vector2Add(pt->pos, Vector2Scale(pt->vel, dt));
-        pt->vel = Vector2Scale(pt->vel, 1.0f - 3.0f * dt); // drag
+        pt->vel = Vector2Scale(pt->vel, 1.0f - PARTICLE_DRAG * dt);
         pt->lifetime -= dt;
         if (pt->lifetime <= 0) pt->active = false;
     }
@@ -1237,7 +1295,7 @@ static void MoveCamera(float dt)
     // so its like how much the camera lags behind the player?
     // should be normed between 0 and 1 or capped?
     // game feel thing for sure
-    g.camera.target = Vector2Lerp(g.camera.target, p->pos, 8.0f * dt);
+    g.camera.target = Vector2Lerp(g.camera.target, p->pos, CAMERA_LERP_RATE * dt);
 
     g.camera.offset = 
         (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
@@ -1256,7 +1314,7 @@ static void UpdateGame(void)
     // why, is it like a max frame time/hz for each calculation we want to do?
     // if the world get's too far ahead, don't let the physics break.
     float dt = GetFrameTime();
-    if (dt > 0.05f) dt = 0.05f;
+    if (dt > DT_MAX) dt = DT_MAX;
 
     WindowResize();
     
@@ -1358,7 +1416,7 @@ static void DrawShape2D(
         pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
         pz[i] = z2;
         // Hue based on Z depth — smooth across rotation, no jumps on face swap
-        hues[i] = time * 60.0f + pz[i] * (90.0f / s);
+        hues[i] = time * SHAPE_HUE_SPEED + pz[i] * (SHAPE_HUE_DEPTH_SCALE / s);
     }
 
     // 4 triangular faces of tetrahedron
@@ -1507,7 +1565,7 @@ static void DrawCube2D(
         pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
         pz[i] = z2;
         // Generate hue offset for "rainbow" look
-        hues[i] = time * 60.0f + (float)i * 45.0f;
+        hues[i] = time * SHAPE_HUE_SPEED + (float)i * CUBE_HUE_VERTEX_STEP;
     }
 
     // 6 faces: {0,3,2,1} is Front, {4,5,6,7} is Back
@@ -1614,7 +1672,8 @@ static void DrawWorld(void)
     }
 
     // Map boundary
-    DrawRectangleLinesEx((Rectangle){ 0, 0, MAP_SIZE, MAP_SIZE }, 3.0f, RED);
+    DrawRectangleLinesEx((Rectangle){ 0, 0, MAP_SIZE, MAP_SIZE },
+        MAP_BORDER_THICKNESS, RED);
 
     // --- Particles (behind entities) ---
     for (int i = 0; i < MAX_PARTICLES; i++) {
@@ -1633,7 +1692,7 @@ static void DrawWorld(void)
         //float bSize = b->isEnemy ? 4.0f : 3.0f;
         float bSize = b->size;
         DrawCircleV(b->pos, bSize, bColor);
-        Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, 0.02f));
+        Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
         DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
     }
 
@@ -1669,15 +1728,15 @@ static void DrawWorld(void)
             Vector2 left = Vector2Add(
                     e->pos, 
                     (Vector2){ 
-                        cosf(eAngle + 2.4f) * e->size, 
-                        sinf(eAngle + 2.4f) * e->size 
+                        cosf(eAngle + TRI_WING_ANGLE) * e->size,
+                        sinf(eAngle + TRI_WING_ANGLE) * e->size 
                     }
                 );
             Vector2 right = Vector2Add(
                     e->pos, 
                     (Vector2){ 
-                        cosf(eAngle - 2.4f) * e->size, 
-                        sinf(eAngle - 2.4f) * e->size 
+                        cosf(eAngle - TRI_WING_ANGLE) * e->size,
+                        sinf(eAngle - TRI_WING_ANGLE) * e->size 
                     }
                 );
             DrawTriangle(tip, right, left, eColor);
@@ -1724,23 +1783,23 @@ static void DrawWorld(void)
             // Elongated diamond pointing at player
             float s = e->size;
             Vector2 tip = Vector2Add(e->pos,
-                (Vector2){ cosf(eAngle) * s * 1.2f,
-                           sinf(eAngle) * s * 1.2f });
+                (Vector2){ cosf(eAngle) * s * RHOM_TIP_MULT,
+                           sinf(eAngle) * s * RHOM_TIP_MULT });
             Vector2 back = Vector2Add(e->pos,
-                (Vector2){ cosf(eAngle + PI) * s * 0.8f,
-                           sinf(eAngle + PI) * s * 0.8f });
+                (Vector2){ cosf(eAngle + PI) * s * RHOM_BACK_MULT,
+                           sinf(eAngle + PI) * s * RHOM_BACK_MULT });
             float perpAngle = eAngle + PI * 0.5f;
             Vector2 left = Vector2Add(e->pos,
-                (Vector2){ cosf(perpAngle) * s * 0.5f,
-                           sinf(perpAngle) * s * 0.5f });
+                (Vector2){ cosf(perpAngle) * s * RHOM_SIDE_MULT,
+                           sinf(perpAngle) * s * RHOM_SIDE_MULT });
             Vector2 right = Vector2Add(e->pos,
-                (Vector2){ cosf(perpAngle) * s * -0.5f,
-                           sinf(perpAngle) * s * -0.5f });
+                (Vector2){ cosf(perpAngle) * s * -RHOM_SIDE_MULT,
+                           sinf(perpAngle) * s * -RHOM_SIDE_MULT });
             // Draw as two triangles (tip-left-right, back-right-left)
             DrawTriangle(tip, right, left, rFill);
             DrawTriangle(back, left, right, rFill);
             // Outline
-            Color rOutline = (Color){ 80, 16, 120, 255 };
+            Color rOutline = RHOM_OUTLINE_COLOR;
             DrawLineV(tip, left, rOutline);
             DrawLineV(left, back, rOutline);
             DrawLineV(back, right, rOutline);
@@ -1749,14 +1808,12 @@ static void DrawWorld(void)
         case HEXA: {
             Color hFill = (e->hitFlash > 0) ? WHITE : HEXA_COLOR;
             DrawPoly(e->pos, 6, e->size, eAngle * RAD2DEG, hFill);
-            Color hOutline = (Color){ 180, 100, 10, 255 };
-            DrawPolyLines(e->pos, 6, e->size, eAngle * RAD2DEG, hOutline);
+            DrawPolyLines(e->pos, 6, e->size, eAngle * RAD2DEG, HEXA_OUTLINE_COLOR);
         } break;
         case OCTA: {
             Color hFill = (e->hitFlash > 0) ? WHITE : OCTA_COLOR;
             DrawPoly(e->pos, 8, e->size, eAngle * RAD2DEG, hFill);
-            Color hOutline = (Color){ 180, 100, 10, 255 };
-            DrawPolyLines(e->pos, 8, e->size, eAngle * RAD2DEG, hOutline);
+            DrawPolyLines(e->pos, 8, e->size, eAngle * RAD2DEG, OCTA_OUTLINE_COLOR);
         } break;
         case TRAP: {
             break;
@@ -1770,17 +1827,17 @@ static void DrawWorld(void)
         // HP bar
         if (e->hp < e->maxHp) {
             float barW = e->size * 2.0f;
-            float barH = 3.0f;
+            float barH = ENEMY_HPBAR_HEIGHT;
             float hpRatio = (float)e->hp / e->maxHp;
             DrawRectangle(
-                (int)(e->pos.x - barW / 2), 
-                (int)(e->pos.y - e->size - 8), 
-                (int)barW, 
+                (int)(e->pos.x - barW / 2),
+                (int)(e->pos.y - e->size - ENEMY_HPBAR_YOFFSET),
+                (int)barW,
                 (int)barH,
                 DARKGRAY);
             DrawRectangle(
-                (int)(e->pos.x - barW / 2), 
-                (int)(e->pos.y - e->size - 8), 
+                (int)(e->pos.x - barW / 2),
+                (int)(e->pos.y - e->size - ENEMY_HPBAR_YOFFSET), 
                 (int)(barW * hpRatio), 
                 (int)barH, 
                 RED);
@@ -1790,26 +1847,26 @@ static void DrawWorld(void)
     // --- Player — RGB color cube ---
     bool visible = true;
     if (p->iFrames > 0) {
-        visible = ((int)(p->iFrames * 20) % 2 == 0);
+        visible = ((int)(p->iFrames * PLAYER_BLINK_RATE) % 2 == 0);
     }
 
     if (visible) {
         float t = (float)GetTime();
-        float rotY = t * 2.0f;
-        float rotX = 0.45f;
+        float rotY = t * PLAYER_ROT_SPEED;
+        float rotX = PLAYER_ROT_TILT;
 
         // Ghost trail during dash
         if (p->dash.active) {
-            for (int gi = 5; gi >= 1; gi--) {
-                float offset = (float)gi * 14.0f;
+            for (int gi = DASH_GHOST_COUNT; gi >= 1; gi--) {
+                float offset = (float)gi * DASH_GHOST_SPACING;
                 Vector2 ghostPos = Vector2Subtract(p->pos,
                     Vector2Scale(p->dash.dir, offset));
-                float ga = 0.5f * (1.0f - (float)gi / 6.0f);
+                float ga = 0.5f * (1.0f - (float)gi / (DASH_GHOST_COUNT + 1.0f));
                 DrawShape2D(
-                    ghostPos, 
-                    p->size, 
-                    rotY - (float)gi * 0.15f, 
-                    rotX, 
+                    ghostPos,
+                    p->size,
+                    rotY - (float)gi * DASH_GHOST_ROT_STEP,
+                    rotX,
                     ga);
             }
         }
@@ -1819,8 +1876,9 @@ static void DrawWorld(void)
         // Gun barrel
         float ca = cosf(p->angle), sa = sinf(p->angle);
         Vector2 gunTip = Vector2Add(p->pos,
-            (Vector2){ ca * (p->size + 12.0f), sa * (p->size + 12.0f) });
-        DrawLineEx(p->pos, gunTip, 3.0f, DARKGRAY);
+            (Vector2){ ca * (p->size + GUN_TIP_OFFSET),
+                       sa * (p->size + GUN_TIP_OFFSET) });
+        DrawLineEx(p->pos, gunTip, GUN_BARREL_THICKNESS, DARKGRAY);
     }
 
     // --- Sword swing arc ---
@@ -1828,7 +1886,7 @@ static void DrawWorld(void)
         float progress = 1.0f - (p->sword.timer / p->sword.duration);
         float sweepAngle = 
             p->sword.angle - p->sword.arc / 2.0f + p->sword.arc * progress;
-        int numSegments = 12;
+        int numSegments = SWORD_DRAW_SEGMENTS;
         float arcHalf = p->sword.arc / 2.0f;
         Color arcColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
         for (int i = 1; i <= numSegments; i++) {
@@ -1869,8 +1927,8 @@ static void DrawWorld(void)
         float totalSweep = PI * 4.0f;
         float sweepAngle = totalSweep * progress;
 
-        int numSegments = 24;
-        float trailLength = PI * 1.5f;
+        int numSegments = SPIN_DRAW_SEGMENTS;
+        float trailLength = SPIN_TRAIL_LENGTH;
         float actualTrail = fminf(trailLength, sweepAngle);
 
         // Outer trailing arc (YELLOW)
@@ -1905,11 +1963,11 @@ static void DrawWorld(void)
                 - actualTrail * (1.0f - (float)(i + 1) / numSegments);
 
             Vector2 pt0 = Vector2Add(p->pos,
-                (Vector2){ cosf(a0) * p->spin.radius * 0.65f,
-                           sinf(a0) * p->spin.radius * 0.65f });
+                (Vector2){ cosf(a0) * p->spin.radius * SPIN_INNER_RADIUS_FRAC,
+                           sinf(a0) * p->spin.radius * SPIN_INNER_RADIUS_FRAC });
             Vector2 pt1 = Vector2Add(p->pos,
-                (Vector2){ cosf(a1) * p->spin.radius * 0.65f,
-                           sinf(a1) * p->spin.radius * 0.65f });
+                (Vector2){ cosf(a1) * p->spin.radius * SPIN_INNER_RADIUS_FRAC,
+                           sinf(a1) * p->spin.radius * SPIN_INNER_RADIUS_FRAC });
             DrawLineEx(pt0, pt1, thick, Fade(ORANGE, segAlpha));
         }
 
@@ -1929,13 +1987,13 @@ static void DrawHUD(void)
     Player *p = &g.player;
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
-    float ui = (float)sh / 450.0f;
+    float ui = (float)sh / HUD_SCALE_REF;
 
     // HP bar
-    int hpBarW = (int)(200 * ui);
-    int hpBarH = (int)(18 * ui);
-    int hpBarX = (int)(10 * ui);
-    int hpBarY = (int)(10 * ui);
+    int hpBarW = (int)(HUD_HP_W * ui);
+    int hpBarH = (int)(HUD_HP_H * ui);
+    int hpBarX = (int)(HUD_MARGIN * ui);
+    int hpBarY = (int)(HUD_MARGIN * ui);
     float hpRatio = (float)p->hp / p->maxHp;
     DrawRectangle(hpBarX, hpBarY, hpBarW, hpBarH, DARKGRAY);
     Color hpColor = (hpRatio > 0.5f) ? GREEN : (hpRatio > 0.25f) ? ORANGE : RED;
@@ -1943,15 +2001,15 @@ static void DrawHUD(void)
     DrawRectangleLines(hpBarX, hpBarY, hpBarW, hpBarH, WHITE);
     DrawText(
         TextFormat("HP: %d/%d", p->hp, p->maxHp), 
-        hpBarX + (int)(4 * ui), hpBarY + (int)(1 * ui), (int)(14 * ui), WHITE);
+        hpBarX + (int)(HUD_HP_TEXT_PAD_X * ui), hpBarY + (int)(HUD_HP_TEXT_PAD_Y * ui), (int)(HUD_HP_FONT * ui), WHITE);
 
     // Score
     DrawText(
         TextFormat("Score: %d", g.score), 
-        (int)(10 * ui), (int)(34 * ui), (int)(20 * ui), WHITE);
+        (int)(HUD_MARGIN * ui), (int)(HUD_SCORE_Y * ui), (int)(HUD_SCORE_FONT * ui), WHITE);
     DrawText(
-        TextFormat("Kills: %d", g.enemiesKilled), 
-        (int)(10 * ui), (int)(58 * ui), (int)(16 * ui), LIGHTGRAY);
+        TextFormat("Kills: %d", g.enemiesKilled),
+        (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
 
     // Cooldown indicators
     // this needs to be refactored
@@ -1959,17 +2017,17 @@ static void DrawHUD(void)
     // also its a UI thing that will be redesigned eventually
     // spin??
     // spin bar?
-    int cdBarW = (int)(28 * ui);
-    int cdBarH = (int)(10 * ui);
-    int cdX = (int)(10 * ui);
-    int cdY = (int)(82 * ui);
-    int cdFontSize = (int)(12 * ui);
-    int cdLabelX = cdX + cdBarW + (int)(6 * ui);
+    int cdBarW = (int)(HUD_CD_W * ui);
+    int cdBarH = (int)(HUD_CD_H * ui);
+    int cdX = (int)(HUD_MARGIN * ui);
+    int cdY = (int)(HUD_CD_Y * ui);
+    int cdFontSize = (int)(HUD_CD_FONT * ui);
+    int cdLabelX = cdX + cdBarW + (int)(HUD_CD_LABEL_GAP * ui);
     
     // Dash charges
     {
-        int pipW = (int)(12 * ui);
-        int pipGap = (int)(4 * ui);
+        int pipW = (int)(HUD_PIP_W * ui);
+        int pipGap = (int)(HUD_PIP_GAP * ui);
         for (int i = 0; i < p->dash.maxCharges; i++) {
             int pipX = cdX + i * (pipW + pipGap);
             if (i < p->dash.charges) {
@@ -1993,7 +2051,7 @@ static void DrawHUD(void)
     }
 
     // Spin
-    cdY += (int)(16 * ui); 
+    cdY += (int)(HUD_ROW_SPACING * ui); 
     {
         if (p->spin.cooldownTimer > 0) {
             float cdRatio = p->spin.cooldownTimer / p->spin.cooldown;
@@ -2010,10 +2068,10 @@ static void DrawHUD(void)
     }
 
     // Shotgun blasts (pip display like dash)
-    cdY += (int)(16 * ui);
+    cdY += (int)(HUD_ROW_SPACING * ui);
     {
-        int pipW = (int)(12 * ui);
-        int pipGap = (int)(4 * ui);
+        int pipW = (int)(HUD_PIP_W * ui);
+        int pipGap = (int)(HUD_PIP_GAP * ui);
         for (int i = 0; i < SHOTGUN_BLASTS; i++) {
             int pipX = cdX + i * (pipW + pipGap);
             if (i < p->shotgun.blastsLeft) {
@@ -2038,7 +2096,7 @@ static void DrawHUD(void)
 
 
     // rockets
-    cdY += (int)(16 * ui);
+    cdY += (int)(HUD_ROW_SPACING * ui);
     {
         if (p->rocket.cooldownTimer > 0) {
             float cdRatio = p->rocket.cooldownTimer / p->rocket.cooldown;
@@ -2055,17 +2113,17 @@ static void DrawHUD(void)
 
 
     // FPS (top-right)
-    int fpsFont = (int)(16 * ui);
-    DrawText(TextFormat("%d FPS", 
-        GetFPS()), sw - (int)(80 * ui), (int)(10 * ui), fpsFont, GREEN);
+    int fpsFont = (int)(HUD_FPS_FONT * ui);
+    DrawText(TextFormat("%d FPS",
+        GetFPS()), sw - (int)(HUD_FPS_X * ui), (int)(HUD_MARGIN * ui), fpsFont, GREEN);
 
     // Crosshair cursor
     Vector2 mouse = GetMousePosition();
     // we can refactor this crosshair to default
     // eventually make it editable
-    float ch = 4.0f * ui;
-    float chThick = 1.0f * ui;
-    float chGap = 2.0f * ui;
+    float ch = HUD_CROSSHAIR_SIZE * ui;
+    float chThick = HUD_CROSSHAIR_THICKNESS * ui;
+    float chGap = HUD_CROSSHAIR_GAP * ui;
     //Color chColor = Fade(WHITE, 0.8f);
     Color chColor = Fade(GREEN, 1.0f);
     // we're going to create a gap between in the middle of the cross hair
@@ -2105,73 +2163,73 @@ static void DrawHUD(void)
     //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
     
     // Controls reminder (bottom-left)
-    int ctrlFont = (int)(12 * ui);
+    int ctrlFont = (int)(HUD_CTRL_FONT * ui);
     DrawText("WASD: Move | Space: Dash | M1: Shoot | M2: Sword | E: Shotgun | Q: Rocket | Shift: Spin | R: Restart | 0: Quit",
-        (int)(10 * ui), sh - (int)(20 * ui), ctrlFont, Fade(WHITE, 0.5f));
-    
+        (int)(HUD_MARGIN * ui), sh - (int)(HUD_BOTTOM_Y * ui), ctrlFont, Fade(WHITE, 0.5f));
+
     // bottom right, game title text
-    int titleFont = (int)(12 * ui);
+    int titleFont = (int)(HUD_TITLE_FONT * ui);
     DrawText("Untitled Mecha Game - Version 0.0.1",
-             sw - (int)(210 * ui), 
-             sh - (int)(20 * ui), 
-             titleFont, 
+             sw - (int)(HUD_TITLE_X * ui),
+             sh - (int)(HUD_BOTTOM_Y * ui),
+             titleFont,
              Fade(WHITE, 0.8f));
 
     // Pause overlay
     if (g.paused && !g.gameOver) {
         DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.5f));
-        int pauseFont = (int)(60 * ui);
+        int pauseFont = (int)(HUD_PAUSE_FONT * ui);
         const char *pauseText = "PAUSED";
         int pW = MeasureText(pauseText, pauseFont);
         DrawText(
-            pauseText, 
+            pauseText,
             sw / 2 - pW / 2,
-            sh / 2 - (int)(40 * ui), 
-            pauseFont, 
+            sh / 2 - (int)(HUD_PAUSE_Y * ui),
+            pauseFont,
             WHITE);
-        int resumeFont = (int)(20 * ui);
+        int resumeFont = (int)(HUD_RESUME_FONT * ui);
         const char *resumeText = "P or Esc to resume";
         int rW = MeasureText(resumeText, resumeFont);
         DrawText(
-            resumeText, 
-            sw / 2 - rW / 2, 
-            sh / 2 + (int)(30 * ui), 
-            resumeFont, 
+            resumeText,
+            sw / 2 - rW / 2,
+            sh / 2 + (int)(HUD_RESUME_Y * ui),
+            resumeFont,
             LIGHTGRAY);
     }
 
     // Game Over overlay
     if (g.gameOver) {
         DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.7f));
-        int goFont = (int)(70 * ui);
+        int goFont = (int)(HUD_GO_FONT * ui);
         const char *goText = "GAME OVER";
         int goW = MeasureText(goText, goFont);
         DrawText(
-            goText, 
-            sw / 2 - goW / 2, 
-            sh / 2 - (int)(60 * ui), 
-            goFont, 
+            goText,
+            sw / 2 - goW / 2,
+            sh / 2 - (int)(HUD_GO_Y * ui),
+            goFont,
             RED);
 
-        int scFont = (int)(28 * ui);
-        const char *scoreText = 
+        int scFont = (int)(HUD_GO_SCORE_FONT * ui);
+        const char *scoreText =
             TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
         int sW = MeasureText(scoreText, scFont);
         DrawText(
-            scoreText, 
-            sw / 2 - sW / 2, 
-            sh / 2 + (int)(20 * ui), 
-            scFont, 
+            scoreText,
+            sw / 2 - sW / 2,
+            sh / 2 + (int)(HUD_GO_SCORE_Y * ui),
+            scFont,
             WHITE);
 
-        int rsFont = (int)(20 * ui);
+        int rsFont = (int)(HUD_GO_RESTART_FONT * ui);
         const char *restartText = "Press R to restart";
         int rW = MeasureText(restartText, rsFont);
         DrawText(
-            restartText, 
-            sw / 2 - rW / 2, 
-            sh / 2 + (int)(60 * ui), 
-            rsFont, 
+            restartText,
+            sw / 2 - rW / 2,
+            sh / 2 + (int)(HUD_GO_RESTART_Y * ui),
+            rsFont,
             LIGHTGRAY);
     }
 }

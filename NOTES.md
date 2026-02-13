@@ -98,7 +98,7 @@ refactor
 - [] refactorin time
 - [] bullet to projectile or base struct
 - [] figure out how to do hitscan, what are the other weapon types?
-- [] big refactor of all hardcoded numbers
+- [x] (claude) big refactor of all hardcoded numbers
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
@@ -126,22 +126,46 @@ enemy types
 weapons
 - [x] (claude) shotgun (knockback)
 - [x] (user + claude) rocket launcher (explosion)
+- [] revolver
+- [] sniper
 - [] laser (hitscan)
-- [] grenade launcher (delayed explosion)
 - [] railgun (histcan big damage)
-- [] big gun wip (BFG10k)
+- [] big gun (BFG10k)
+- [] grenade launcher (delayed explosion)
+- [] minigun
+- [] "reloading"
 
 abilities
 - [x] dash
 - [x] spin
+- [] spin that
 - [] grenades?
-- are weapons just abilities in a mecha? buttons
+- [] summons (npcs who take aggro for you) 
+- [] decoy (you leave your shadow on the ground, and the enemies aggro it)
+- are weapons just abilities in a mecha? buttons?
 
 levels
 - [] rounds/rooms
 - [] pick new item between rounds]
 
 idea: two characters? the cube and the tetrahedron? rest of platonic solids: octahedron, dodecahedron, icosahedron. Make the animation it rolling on each side? (I like this). 2d shapes vs 3d shape, you leave your shadow in this 2d world.
+
+the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
+
+
+what can you customize? all your buttons, its a mecha game... some remain for basics. 
+
+- WASD
+- m1
+- m2
+- space
+- shift
+- ctrl
+- qerfcxz1234
+- esc
+- tab
+- alt
+
 
 ## Research
 - [x] read many parts of raylib.h
@@ -176,6 +200,20 @@ Row major vs Column major math? Why is it cache friendly?
 
 What are the implications of input parameters received by value only? 
 
+## Damage/Delivery System
+The core question to figuring out the weapons is designing some kind of damage calculating system. what types of damage are there, gun, explosive, pierce melee, ability (ap), true/pure damage what does it scale with (deadlock style). Is there bullet/spirit resist on enemies, do you want to build shred. 
+
+Types of damage: Explosive, Balistic, Hitscan, Melee(Pierce/Blunt/Sharp), Ability, Pure
+
+Types of damaging entities: Sword, Bullets, Lasers, Rockets
+
+Armor is Bullet Resist, mecha games you fight enemies that are robots? they have armor?
+
+What matters most is building the abstraction of DeliveryType(needs a better name) and a DamageType
+
+
+
+
 ## Build system
 Highkey the wasm target with histos in the pipeline is just goated.
 - [x] linux
@@ -192,6 +230,11 @@ idea: a docker image for dev environment
 - nvim, tmux
 - all build tools auto installed
 - ???
+
+## Music Flow
+rooms = zones = objectives, a level to challenge your mechanics against
+
+like a song, the addition of elements to the music, through loops simple combinations of instruments together (enemies) the absence and removal of a sound is just as artful. this can be programmatic. the enemies and music go together. that is techno. phylyps trak - basic channel. that is that music programming language.
 
 ## Damage interaction design
 The game is clearly borrowing from the moba genre, where there are tons of different damage types.
@@ -226,14 +269,4 @@ Blob
     - Payload
 
 See asset_blob/blobbert.c for details
-
-## Music Flow
-
-rooms = zones = objectives, a level to challenge your mechanics against
-
-like a song, the addition of elements to the music, through loops simple combinations of instruments together (enemies) the absence and removal of a sound is just as artful. this can be programmatic. the enemies and music go together. that is techno. phylyps trak - basic channel. that is that music programming language.
-
-## Claude review
-Moved to `claude_review.md`.
-
 
