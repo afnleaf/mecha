@@ -96,7 +96,7 @@ pick a chassis type to start with
 
 refactor
 - [] refactorin time
-- [] bullet to projectile or base struct
+- [x] (user + claude) bullet to projectile or base struct
 - [] figure out how to do hitscan, what are the other weapon types?
 - [x] (claude) big refactor of all hardcoded numbers
 - [] understand particles better (this is an art thing...)
@@ -129,6 +129,7 @@ weapons
 - [] revolver
 - [] sniper
 - [] laser (hitscan)
+- [] shotgun bullets ricochet?
 - [] railgun (histcan big damage)
 - [] big gun (BFG10k)
 - [] grenade launcher (delayed explosion)

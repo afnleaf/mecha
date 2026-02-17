@@ -9,7 +9,7 @@
 #define SCREEN_H                1080
 
 // Entities
-#define MAX_BULLETS             1024
+#define MAX_PROJECTILES         1024
 #define MAX_ENEMIES             1024
 #define MAX_PARTICLES           1024
 #define MAX_ENTITIES // of a type, just seeing that this is all the same

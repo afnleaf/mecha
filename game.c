@@ -83,14 +83,14 @@ typedef struct Player {
     Rocket rocket;
 } Player;
 
-// damage hit and type ------------------------------------------------------ /
-typedef enum HitMethod {
+// damage method and type ------------------------------------------------------ /
+typedef enum DamageMethod {
     HIT_PROJ,       // travel time
     HIT_SCAN,       // instant
     HIT_MELEE,      // sweep arc
     HIT_AOE,        // radius from center point
     // maybe aoe + melee are similar? just an arc amount
-} HitMethod;
+} DamageMethod;
 
 typedef enum DamageType {
     DMG_BALLISTIC,
@@ -102,56 +102,37 @@ typedef enum DamageType {
     DMG_PURE,       //
 } DamageType;
 
-// or Attack?
-// I like having one base struct for this
-typedef struct Damage {
-    HitMethod   hit;
-    DamageType  dmg;
-    int         baseDamage;
+// Damage struct — preserved for future event system redesign
+//typedef struct Damage {
+//    DamageMethod hit;
+//    DamageType   dmg;
+//    int          baseDamage;
+//    bool         isEnemy;
+//    bool         active;
+//    Vector2      pos;
+//    Vector2      vel;
+//    float        lifetime;
+//    float        size;
+//} Damage;
 
-    bool        isEnemy;
-    bool        active;
+typedef enum ProjectileType {
+    PROJ_BULLET,
+    PROJ_ROCKET,
+} ProjectileType;
 
-    Vector2     pos;
-    Vector2     vel;
-    float       lifetime;
-    float       size; // not sure how vel, life and size are shared everywhere
-    
-    // does this all have to be inside here or can it be outside?
-    // sharing the same memory is good
-    // union {  }
-
-} Damage;
-//not true that projectiles only knockback, a melee attack could to, same with AOE, even hitscan. DamageType;
-
-//typedef struct Projectile {
-//    Vector2 pos;
-//    Vector2 vel;
-//    Vector2 target;
-//    float lifetime;
-//    float size;
-//    ProjectileType type;
-//    bool active;
-//    bool isEnemy;
-//    int damage;
-//    bool knockback;
-//} Projectile;
-
-// maybe we refactor bullet to projectile?
-// then have a substruct type?
-typedef struct Bullet {
+typedef struct Projectile {
     Vector2 pos;
     Vector2 vel;
-    Vector2 target;
+    Vector2 target;       // rocket target position
     float lifetime;
     float size;
-    int type;
+    ProjectileType type;
+    DamageType dmgType;
+    int damage;
     bool active;
     bool isEnemy;
-    bool isRocket;
-    int damage;
     bool knockback;
-} Bullet;
+} Projectile;
 
 #define MAX_EXPLOSIVES 8
 typedef struct Explosive {
@@ -245,7 +226,7 @@ typedef struct Particle {
 typedef struct GameState {
     // the player entity
     Player player;
-    Bullet bullets[MAX_BULLETS];
+    Projectile projectiles[MAX_PROJECTILES];
     // separate enemy bullets?
     Enemy enemies[MAX_ENEMIES];
     //
@@ -274,17 +255,19 @@ static GameState g;
 // right now, we already have a default config header
 void NextFrame(void);
 static void InitGame(void);
-static void SpawnBullet(
+static Projectile* SpawnProjectile(
     Vector2 pos, Vector2 dir,
     float speed, int damage, float lifetime, float size,
-    bool isEnemy, bool knockback);
+    bool isEnemy, bool knockback,
+    ProjectileType type, DamageType dmgType);
 static void FireShotgunBlast(Player *p, Vector2 toMouse);
 static void SpawnEnemy(void);
 static void SpawnParticles(Vector2 pos, Color color, int count);
 static void SpawnParticle(
-    Vector2 pos, Vector2 vel, 
+    Vector2 pos, Vector2 vel,
     Color color, float size, float lifetime);
-static void DamageEnemy(int idx, int damage);
+static void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method);
+static void DamagePlayer(int damage, DamageType dmgType, DamageMethod method);
 
 // refactoring artifact
 static void UpdatePlayer(float dt);
@@ -337,25 +320,29 @@ static void InitGame(void)
 // ========================================================================== /
 // Spawn Helpers
 // ========================================================================== /
-static void SpawnBullet(
+static Projectile* SpawnProjectile(
     Vector2 pos, Vector2 dir,
     float speed, int damage, float lifetime, float size,
-    bool isEnemy, bool knockback)
+    bool isEnemy, bool knockback,
+    ProjectileType type, DamageType dmgType)
 {
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        if (!g.bullets[i].active) {
-            g.bullets[i].active = true;
-            g.bullets[i].pos = pos;
-            g.bullets[i].vel = Vector2Scale(dir, speed);
-            g.bullets[i].lifetime = lifetime;
-            g.bullets[i].size = size;
-            g.bullets[i].damage = damage;
-            g.bullets[i].isEnemy = isEnemy;
-            g.bullets[i].knockback = knockback;
-            g.bullets[i].isRocket = false;
-            return;
+    for (int i = 0; i < MAX_PROJECTILES; i++) {
+        if (!g.projectiles[i].active) {
+            Projectile *b = &g.projectiles[i];
+            b->active = true;
+            b->pos = pos;
+            b->vel = Vector2Scale(dir, speed);
+            b->lifetime = lifetime;
+            b->size = size;
+            b->damage = damage;
+            b->isEnemy = isEnemy;
+            b->knockback = knockback;
+            b->type = type;
+            b->dmgType = dmgType;
+            return b;
         }
     }
+    return NULL;
 }
 
 static void FireShotgunBlast(Player *p, Vector2 toMouse) {
@@ -369,9 +356,10 @@ static void FireShotgunBlast(Player *p, Vector2 toMouse) {
         Vector2 dir = { cosf(angle), sinf(angle) };
         Vector2 muzzle = Vector2Add(p->pos,
             Vector2Scale(dir, p->size + MUZZLE_OFFSET));
-        SpawnBullet(muzzle, dir,
+        SpawnProjectile(muzzle, dir,
             SHOTGUN_BULLET_SPEED, SHOTGUN_DAMAGE,
-            SHOTGUN_BULLET_LIFETIME, SHOTGUN_PROJECTILE_SIZE, false, true);
+            SHOTGUN_BULLET_LIFETIME, SHOTGUN_PROJECTILE_SIZE, false, true,
+            PROJ_BULLET, DMG_BALLISTIC);
     }
 
     Vector2 muzzle = Vector2Add(p->pos,
@@ -387,23 +375,11 @@ static void SpawnRocket(Player *p, Vector2 toMouse) {
     Vector2 muzzle = Vector2Add(p->pos,
         Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
     Vector2 worldTarget = Vector2Add(p->pos, toMouse);
-    // find a free bullet slot and set rocket fields
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        if (!g.bullets[i].active) {
-            Bullet *b = &g.bullets[i];
-            b->active = true;
-            b->pos = muzzle;
-            b->vel = Vector2Scale(aimDir, ROCKET_SPEED);
-            b->lifetime = ROCKET_LIFETIME;
-            b->size = ROCKET_PROJECTILE_SIZE;
-            b->damage = ROCKET_DIRECT_DAMAGE;
-            b->isEnemy = false;
-            b->knockback = true;
-            b->isRocket = true;
-            b->target = worldTarget;
-            break;
-        }
-    }
+    Projectile *r = SpawnProjectile(muzzle, aimDir,
+        ROCKET_SPEED, ROCKET_DIRECT_DAMAGE,
+        ROCKET_LIFETIME, ROCKET_PROJECTILE_SIZE, false, true,
+        PROJ_ROCKET, DMG_EXPLOSIVE);
+    if (r) r->target = worldTarget;
     // muzzle flash
     SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
     SpawnParticle(muzzle,
@@ -530,8 +506,9 @@ static void SpawnParticles(Vector2 pos, Color color, int count)
 // diff weapons, diff damage! damage comes in as a raw number though?
 // also needs its type? and context?
 // getting ahead of ourselves here
-static void DamageEnemy(int idx, int damage)
+static void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method)
 {
+    (void)dmgType; (void)method; // threaded through for future resistances
     Enemy *e = &g.enemies[idx];
     e->hp -= damage;
     e->hitFlash = HIT_FLASH_DURATION;
@@ -545,6 +522,20 @@ static void DamageEnemy(int idx, int damage)
         SpawnParticles(e->pos, RED, DEATH_PARTICLES);
         SpawnParticles(e->pos, ORANGE, DEATH_PARTICLES);
         SpawnParticles(e->pos, YELLOW, DEATH_PARTICLES);
+    }
+}
+
+static void DamagePlayer(int damage, DamageType dmgType, DamageMethod method)
+{
+    (void)dmgType; (void)method; // threaded through for future resistances
+    Player *p = &g.player;
+    if (p->iFrames > 0) return;
+    p->hp -= damage;
+    p->iFrames = IFRAME_DURATION;
+    SpawnParticles(p->pos, RED, CONTACT_HIT_PARTICLES);
+    if (p->hp <= 0) {
+        p->hp = 0;
+        g.gameOver = true;
     }
 }
 
@@ -797,9 +788,10 @@ static void UpdatePlayer(float dt)
         Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
         Vector2 muzzle = 
             Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-        SpawnBullet(muzzle, bulletDir,
+        SpawnProjectile(muzzle, bulletDir,
             GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
-            GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false);
+            GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false,
+            PROJ_BULLET, DMG_BALLISTIC);
         // we should make the bullet, actually bullet coloured
         // like a golden brassy, u know
         SpawnParticle(muzzle,
@@ -867,7 +859,7 @@ static void UpdatePlayer(float dt)
             if (sweepAngle - p->sword.lastHitAngle[i] < PI) continue;
             bool swordHit = EnemyHitSweep(ei, p->pos, sweepEnd);
             if (swordHit) {
-                DamageEnemy(i, dmg);
+                DamageEnemy(i, dmg, DMG_SLASH, HIT_MELEE);
                 p->sword.lastHitAngle[i] = sweepAngle;
             }
         }
@@ -920,7 +912,7 @@ static void UpdatePlayer(float dt)
             if (sweepAngle - p->spin.lastHitAngle[i] < PI) continue;
             bool spinHit = EnemyHitSweep(ei, p->pos, sweepEnd);
             if (spinHit) {
-                DamageEnemy(i, SPIN_DAMAGE);
+                DamageEnemy(i, SPIN_DAMAGE, DMG_SLASH, HIT_MELEE);
                 p->spin.lastHitAngle[i] = sweepAngle;
                 // player heals on spin attack
                 // 5% lifesteal
@@ -1034,9 +1026,10 @@ static void UpdateEnemies(float dt) {
                 Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
                 Vector2 muzzle = Vector2Add(e->pos,
                     Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-                SpawnBullet(muzzle, shootDir, RECT_BULLET_SPEED,
-                    RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME, 
-                    RECT_PROJECTILE_SIZE, true, false);
+                SpawnProjectile(muzzle, shootDir, RECT_BULLET_SPEED,
+                    RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME,
+                    RECT_PROJECTILE_SIZE, true, false,
+                    PROJ_BULLET, DMG_BALLISTIC);
                 SpawnParticle(muzzle,
                     Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
                     MAGENTA, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
@@ -1060,10 +1053,10 @@ static void UpdateEnemies(float dt) {
                             Vector2Scale(shootDir,
                                 e->size + MUZZLE_OFFSET
                                 + b * PENTA_BULLET_SPACING));
-                        SpawnBullet(bpos, shootDir,
+                        SpawnProjectile(bpos, shootDir,
                             PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
                             PENTA_BULLET_LIFETIME, PENTA_PROJECTILE_SIZE,
-                            true, false);
+                            true, false, PROJ_BULLET, DMG_BALLISTIC);
                     }
                 }
                 Vector2 muzzle = Vector2Add(e->pos,
@@ -1095,9 +1088,10 @@ static void UpdateEnemies(float dt) {
                     Vector2 dir = { cosf(angle), sinf(angle) };
                     Vector2 muzzle = Vector2Add(e->pos,
                         Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                    SpawnBullet(muzzle, dir, HEXA_BULLET_SPEED,
+                    SpawnProjectile(muzzle, dir, HEXA_BULLET_SPEED,
                         HEXA_BULLET_DAMAGE, HEXA_BULLET_LIFETIME,
-                        HEXA_PROJECTILE_SIZE, true, false);
+                        HEXA_PROJECTILE_SIZE, true, false,
+                        PROJ_BULLET, DMG_BALLISTIC);
                 }
                 Vector2 muzzle = Vector2Add(e->pos,
                     Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
@@ -1113,17 +1107,11 @@ static void UpdateEnemies(float dt) {
         // Collide with player
         bool contact = EnemyHitCircle(e, p->pos, p->size);
         if (contact && p->iFrames <= 0) {
-            p->hp -= e->contactDamage;
-            p->iFrames = IFRAME_DURATION;
-            SpawnParticles(p->pos, RED, CONTACT_HIT_PARTICLES);
+            DamagePlayer(e->contactDamage, DMG_BLUNT, HIT_MELEE);
             // Knockback enemy
             if (dist > 1.0f) {
                 Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), ENEMY_CONTACT_KNOCKBACK);
                 e->vel = kb;
-            }
-            if (p->hp <= 0) {
-                p->hp = 0;
-                g.gameOver = true;
             }
         }
     }
@@ -1135,7 +1123,7 @@ static void RocketExplode(Vector2 pos) {
         Enemy *ej = &g.enemies[j];
         float dist = Vector2Distance(pos, ej->pos);
         if (dist < ROCKET_EXPLOSION_RADIUS + ej->size) {
-            DamageEnemy(j, ROCKET_EXPLOSION_DAMAGE);
+            DamageEnemy(j, ROCKET_EXPLOSION_DAMAGE, DMG_EXPLOSIVE, HIT_AOE);
             Vector2 away = Vector2Subtract(ej->pos, pos);
             if (Vector2Length(away) > 1.0f)
                 ej->vel = Vector2Scale(
@@ -1182,13 +1170,10 @@ static void RocketExplode(Vector2 pos) {
     }
 }
 
-// Bullets are one big bool with a flag for player or enemy
-static void UpdateBullets(float dt) {
+static void UpdateProjectiles(float dt) {
     Player *p = &g.player;
-    // does this belong to gun or to an all bullets thing?
-    // --- Bullets ---
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &g.bullets[i];
+    for (int i = 0; i < MAX_PROJECTILES; i++) {
+        Projectile *b = &g.projectiles[i];
         if (!b->active) continue;
 
         b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
@@ -1196,13 +1181,13 @@ static void UpdateBullets(float dt) {
 
         if (b->lifetime <= 0 || b->pos.x < 0 || b->pos.x > MAP_SIZE ||
             b->pos.y < 0 || b->pos.y > MAP_SIZE) {
-            if (b->isRocket) RocketExplode(b->pos);
+            if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
             b->active = false;
             continue;
         }
 
         // rocket reached target — explode
-        if (b->isRocket) {
+        if (b->type == PROJ_ROCKET) {
             float toTarget = Vector2Distance(b->pos, b->target);
             if (toTarget < ROCKET_SPEED * dt) {
                 RocketExplode(b->target);
@@ -1212,27 +1197,21 @@ static void UpdateBullets(float dt) {
         }
 
         if (b->isEnemy) {
-            // Enemy bullet — hit player
+            // Enemy projectile — hit player
             float dist = Vector2Distance(b->pos, p->pos);
             if (dist < p->size + b->size && p->iFrames <= 0) {
-                p->hp -= b->damage;
-                p->iFrames = IFRAME_DURATION;
-                SpawnParticles(p->pos, RED, BULLET_HIT_PARTICLES);
+                DamagePlayer(b->damage, b->dmgType, HIT_PROJ);
                 b->active = false;
-                if (p->hp <= 0) {
-                    p->hp = 0;
-                    g.gameOver = true;
-                }
             }
         } else {
-            // Player bullet — hit enemies
+            // Player projectile — hit enemies
             for (int j = 0; j < MAX_ENEMIES; j++) {
                 if (!g.enemies[j].active) continue;
                 Enemy *ej = &g.enemies[j];
                 bool hit = EnemyHitPoint(ej, b->pos, b->size);
                 if (hit) {
-                    DamageEnemy(j, b->damage);
-                    if (b->isRocket) {
+                    DamageEnemy(j, b->damage, b->dmgType, HIT_PROJ);
+                    if (b->type == PROJ_ROCKET) {
                         RocketExplode(b->pos);
                     } else if (b->knockback) {
                         Vector2 kb = Vector2Normalize(b->vel);
@@ -1244,7 +1223,6 @@ static void UpdateBullets(float dt) {
             }
         }
     }
-
 }
 
 // one pool of particles belonging, spawned wherever
@@ -1340,8 +1318,8 @@ static void UpdateGame(void)
     // update movement
     UpdateEnemies(dt);
 
-    // update bullets
-    UpdateBullets(dt);
+    // update projectiles
+    UpdateProjectiles(dt);
     
     UpdateParticles(dt);
 
@@ -1684,12 +1662,11 @@ static void DrawWorld(void)
         DrawCircleV(pt->pos, pt->size * alpha, c);
     }
 
-    // --- Bullets ---
-    for (int i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &g.bullets[i];
+    // --- Projectiles ---
+    for (int i = 0; i < MAX_PROJECTILES; i++) {
+        Projectile *b = &g.projectiles[i];
         if (!b->active) continue;
         Color bColor = b->isEnemy ? MAGENTA : YELLOW;
-        //float bSize = b->isEnemy ? 4.0f : 3.0f;
         float bSize = b->size;
         DrawCircleV(b->pos, bSize, bColor);
         Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
