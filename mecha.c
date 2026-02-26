@@ -599,10 +599,38 @@ static void DrawSelect(void)
     int titleFont = (int)(SELECT_TITLE_FONT * ui);
     const char *title = "CHOOSE YOUR WEAPON";
     int titleW = MeasureText(title, titleFont);
-    DrawText(title, sw / 2 - titleW / 2,
-        (int)(sh * SELECT_TITLE_Y), titleFont, WHITE);
+    int titleY = (int)(sh * SELECT_TITLE_Y);
+    DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
 
-    // Options
+    // Hint (below title)
+    int hintFont = (int)(SELECT_HINT_FONT * ui);
+    const char *hint = "W/S to navigate — Enter or M1 to confirm";
+    int hintW = MeasureText(hint, hintFont);
+    DrawText(hint, sw / 2 - hintW / 2,
+        titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
+
+    // Keybinds (left column)
+    const char *keyLabels[] = {
+        "WASD", "Space", "M1", "M2", "E", "Q", "C", "X", "Z", "Shift", "R", "P / Esc"
+    };
+    const char *keyDescs[] = {
+        "Move", "Dash", "Primary Weapon", "Fan / Dash Slash", "Shotgun",
+        "Rocket", "Grenade", "Sniper", "Railgun", "Spin", "Restart", "Pause"
+    };
+    int keyCount = 12;
+    int keyFont = (int)(SELECT_KEYS_FONT * ui);
+    int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
+    int keyX = (int)(sw * SELECT_KEYS_X);
+    int keyBaseY = (int)(sh * SELECT_KEYS_Y);
+    int keyDescX = keyX + (int)(70 * ui);
+
+    for (int i = 0; i < keyCount; i++) {
+        int ky = keyBaseY + i * keySpacing;
+        DrawText(keyLabels[i], keyX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
+        DrawText(keyDescs[i], keyDescX, ky, keyFont, Fade(WHITE, 0.6f));
+    }
+
+    // Weapons (right column)
     const char *names[] = { "MACHINE GUN", "LASER", "SWORD", "REVOLVER", "MINIGUN" };
     const char *descs[] = {
         "Hold to fire — rapid ballistic rounds",
@@ -615,6 +643,7 @@ static void DrawSelect(void)
     int descFont = (int)(SELECT_DESC_FONT * ui);
     int spacing = (int)(SELECT_OPTION_SPACING * ui);
     int baseY = (int)(sh * SELECT_OPTIONS_Y);
+    int weaponRightX = (int)(sw * SELECT_WEAPONS_X);
 
     for (int i = 0; i < 5; i++) {
         int y = baseY + i * spacing;
@@ -622,7 +651,7 @@ static void DrawSelect(void)
         Color descColor = (i == g.selectIndex) ? WHITE : DARKGRAY;
 
         int nameW = MeasureText(names[i], optFont);
-        int nameX = sw / 2 - nameW / 2;
+        int nameX = weaponRightX - nameW;
         DrawText(names[i], nameX, y, optFont, nameColor);
 
         // Selection highlight box
@@ -635,16 +664,9 @@ static void DrawSelect(void)
         }
 
         int descW = MeasureText(descs[i], descFont);
-        DrawText(descs[i], sw / 2 - descW / 2,
+        DrawText(descs[i], weaponRightX - descW,
             y + optFont + (int)(SELECT_DESC_GAP * ui), descFont, descColor);
     }
-
-    // Hint
-    int hintFont = (int)(SELECT_HINT_FONT * ui);
-    const char *hint = "W/S to navigate — Enter or M1 to confirm";
-    int hintW = MeasureText(hint, hintFont);
-    DrawText(hint, sw / 2 - hintW / 2,
-        sh - (int)(SELECT_HINT_Y * ui), hintFont, Fade(WHITE, 0.5f));
 
     EndDrawing();
 }
@@ -2684,11 +2706,6 @@ static void DrawHUD(void)
     );
     //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
     
-    // Controls reminder (bottom-left)
-    int ctrlFont = (int)(HUD_CTRL_FONT * ui);
-    DrawText("WASD: Move | Space: Dash | M1: Weapon | E: Shotgun | Q: Rocket | C: Grenade | X: Sniper | Shift: Spin | Z: Railgun | R: Restart | 0: Quit",
-        (int)(HUD_MARGIN * ui), sh - (int)(HUD_BOTTOM_Y * ui), ctrlFont, Fade(WHITE, 0.5f));
-
     // bottom right, game title text
     int titleFont = (int)(HUD_TITLE_FONT * ui);
     DrawText("Untitled Mecha Game - Version 0.0.1",
@@ -2718,6 +2735,37 @@ static void DrawHUD(void)
             sh / 2 + (int)(HUD_RESUME_Y * ui),
             resumeFont,
             LIGHTGRAY);
+
+        // Keybinds — two columns
+        int pkFont = (int)(HUD_PAUSE_KEYS_FONT * ui);
+        int pkSpacing = (int)(HUD_PAUSE_KEYS_SPACING * ui);
+        int pkColW = (int)(HUD_PAUSE_KEYS_COL_W * ui);
+        int pkY = sh / 2 + (int)(HUD_PAUSE_KEYS_Y * ui);
+        int pkTabW = (int)(70 * ui);
+
+        // Left column: movement/combat basics
+        const char *lKeys[] = { "WASD", "Space", "M1", "M2", "Shift" };
+        const char *lDescs[] = { "Move", "Dash", "Weapon", "Fan/Slash", "Spin" };
+        int lCount = 5;
+
+        // Right column: secondary weapons/utility
+        const char *rKeys[] = { "E", "Q", "C", "X", "Z", "R" };
+        const char *rDescs[] = { "Shotgun", "Rocket", "Grenade", "Sniper", "Railgun", "Restart" };
+        int rCount = 6;
+
+        int lColX = sw / 2 - pkColW;
+        int rColX = sw / 2 + (int)(20 * ui);
+
+        for (int i = 0; i < lCount; i++) {
+            int ky = pkY + i * pkSpacing;
+            DrawText(lKeys[i], lColX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+            DrawText(lDescs[i], lColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
+        }
+        for (int i = 0; i < rCount; i++) {
+            int ky = pkY + i * pkSpacing;
+            DrawText(rKeys[i], rColX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+            DrawText(rDescs[i], rColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
+        }
     }
 
     // Game Over overlay

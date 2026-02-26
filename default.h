@@ -454,7 +454,6 @@
 #define HUD_CROSSHAIR_THICKNESS 1.0f
 #define HUD_CROSSHAIR_GAP       2.0f
 // Info text
-#define HUD_CTRL_FONT           12
 #define HUD_BOTTOM_Y            20
 #define HUD_TITLE_FONT          12
 #define HUD_TITLE_X             210
@@ -463,6 +462,10 @@
 #define HUD_PAUSE_Y             40
 #define HUD_RESUME_FONT         20
 #define HUD_RESUME_Y            30
+#define HUD_PAUSE_KEYS_Y        80
+#define HUD_PAUSE_KEYS_FONT     16
+#define HUD_PAUSE_KEYS_SPACING  24
+#define HUD_PAUSE_KEYS_COL_W    200
 // Game Over
 #define HUD_GO_FONT             70
 #define HUD_GO_Y                60
@@ -473,16 +476,21 @@
 
 // Weapon Select Screen ----------------------------------------------------- /
 #define SELECT_TITLE_FONT       40
-#define SELECT_TITLE_Y          0.25f
+#define SELECT_TITLE_Y          0.08f
 #define SELECT_OPTION_FONT      24
 #define SELECT_DESC_FONT        14
 #define SELECT_OPTION_SPACING   60
-#define SELECT_OPTIONS_Y        0.42f
+#define SELECT_OPTIONS_Y        0.25f
 #define SELECT_DESC_GAP         6
 #define SELECT_CURSOR_PAD       8
 #define SELECT_CURSOR_THICK     2.0f
 #define SELECT_HINT_FONT        14
-#define SELECT_HINT_Y           40
+#define SELECT_HINT_GAP         10
 #define SELECT_BG_COLOR         (Color){ 15, 15, 25, 255 }
 #define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
+#define SELECT_KEYS_X           0.05f
+#define SELECT_KEYS_Y           0.25f
+#define SELECT_KEYS_FONT        14
+#define SELECT_KEYS_SPACING     22
+#define SELECT_WEAPONS_X        0.95f
 
