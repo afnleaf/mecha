@@ -21,6 +21,19 @@
 // Data Structures
 // ========================================================================== /
 
+// weapon / screen types ---------------------------------------------------- /
+typedef enum WeaponType {
+    WPN_GUN,
+    WPN_LASER,
+    WPN_SWORD,
+    WPN_REVOLVER,
+} WeaponType;
+
+typedef enum GameScreen {
+    SCREEN_SELECT,
+    SCREEN_PLAYING,
+} GameScreen;
+
 // player ------------------------------------------------------------------- /
 // declare abilities above player
 typedef struct Gun {
@@ -65,10 +78,41 @@ typedef struct Shotgun {
 } Shotgun;
 
 typedef struct Rocket {
+    // this isn't getting used?
+    // maybe thats ok?
     int rocketsLeft;
     float cooldown;
+    // wht does Rocket have a cooldown
     float cooldownTimer;
 } Rocket;
+
+typedef struct Revolver {
+    int rounds;
+    float cooldownTimer;
+    float reloadTimer;
+    bool fanning;
+} Revolver;
+
+typedef struct Laser {
+    float   damageAccum;
+    bool    active;
+    Vector2 beamTip;
+} Laser;
+
+typedef struct Railgun {
+    // but Railgun does not?
+    float cooldownTimer;
+} Railgun;
+
+typedef struct Beam {
+    Vector2 origin;
+    Vector2 tip;
+    float   timer;
+    float   duration;
+    Color   color;
+    float   width;
+    bool    active;
+} Beam;
 
 typedef struct Player {
     Vector2 pos;
@@ -84,6 +128,10 @@ typedef struct Player {
     Spin spin;
     Shotgun shotgun;
     Rocket rocket;
+    Revolver revolver;
+    Laser   laser;
+    Railgun railgun;
+    WeaponType primary;
 } Player;
 
 // damage method and type ------------------------------------------------------ /
@@ -209,6 +257,7 @@ typedef struct GameState {
     //
     Particle particles[MAX_PARTICLES];
     Explosive explosives[MAX_EXPLOSIVES];
+    Beam beams[MAX_BEAMS];
     //
     Camera2D camera;
     int score;
@@ -219,6 +268,46 @@ typedef struct GameState {
     int enemiesKilled;
     bool gameOver;
     bool paused;
+    GameScreen screen;
+    int selectIndex;
 } GameState;
+
+// ========================================================================== /
+// Forward Declarations
+// ========================================================================== /
+// we should put this in the header file
+void NextFrame(void);
+static void InitGame(void);
+static Projectile* SpawnProjectile(
+    Vector2 pos, Vector2 dir,
+    float speed, int damage, float lifetime, float size,
+    bool isEnemy, bool knockback,
+    ProjectileType type, DamageType dmgType);
+static void FireShotgunBlast(Player *p, Vector2 toMouse);
+static void SpawnEnemy(void);
+static void SpawnParticles(Vector2 pos, Color color, int count);
+static void SpawnParticle(
+    Vector2 pos, Vector2 vel,
+    Color color, float size, float lifetime);
+static void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method);
+static void DamagePlayer(int damage, DamageType dmgType, DamageMethod method);
+static void SpawnBeam(Vector2 origin, Vector2 tip,
+    float duration, Color color, float width);
+static void UpdateBeams(float dt);
+static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
+    float range, int damage, DamageType dmgType, int maxPierces);
+static void UpdateRailgun(Player *p, Vector2 toMouse, float dt);
+
+// refactoring artifact
+static void UpdatePlayer(float dt);
+static void UpdateSelect(void);
+static void DrawSelect(void);
+static void UpdateGame(void);
+
+static void DrawShape2D(
+    Vector2 pos, 
+    float size, float rotY, float rotX, float alpha);
+static void DrawWorld(void);
+static void DrawHUD(void);
 
 #endif // MECHA_H

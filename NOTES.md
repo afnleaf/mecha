@@ -95,9 +95,10 @@ pick a chassis type to start with
 - [x] (gemini + gpt5.2 + claude) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close.
 
 refactorin time
-- [] ok let's do a header file and remake the build
+- [x] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
 - [] figure out how to do hitscan, what are the other weapon types?
+- [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [x] (claude) big refactor of all hardcoded numbers
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
@@ -126,20 +127,26 @@ enemy types
 weapons
 - [x] (claude) shotgun (knockback)
 - [x] (user + claude) rocket launcher (explosion)
-- [] revolver
-- [] sniper
-- [] laser (hitscan)
+- [x] laser (hitscan)
+- [x] railgun (histcan big damage with pierce)
+- [x] choose your weapon screen, you get 5 options (machine gun, laser, revolver, sword, ???)
+- [x] revolver (6 shooter) (m1, m2 fan the hammer)
+- [x] railgun (histcan big damage)
+- [] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
 - [] shotgun bullets ricochet?
-- [] railgun (histcan big damage)
 - [] big gun (BFG10k)
 - [] grenade launcher (delayed explosion)
 - [] minigun
-- [] "reloading"
+- [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
+- [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
+
+if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
 abilities
 - [x] dash
 - [x] spin
-- [] spin that
+- [] parry
+- [] spin that?? what did i forget
 - [] grenades?
 - [] summons (npcs who take aggro for you) 
 - [] decoy (you leave your shadow on the ground, and the enemies aggro it)
@@ -153,20 +160,24 @@ idea: two characters? the cube and the tetrahedron? rest of platonic solids: oct
 
 the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
 
-
 what can you customize? all your buttons, its a mecha game... some remain for basics. 
 
-- WASD
-- m1
-- m2
-- space
-- shift
-- ctrl
-- qerfcxz1234
-- esc
-- tab
-- alt
-
+- WASD — move
+- m1 — gun
+- m2 — sword (dash slash if dashing)
+- space — dash (2 charges)
+- shift — spin (lifesteal)
+- E — shotgun (2 blasts)
+- Q — rocket
+- F — laser (hold)
+- Z — railgun (pierce all)
+- P / esc — pause
+- R — restart
+- 0 — quit
+- ctrl — free
+- r, c, x, 1-4 — free
+- tab — free
+- alt — free
 
 ## Research
 - [x] read many parts of raylib.h
@@ -212,25 +223,21 @@ Armor is Bullet Resist, mecha games you fight enemies that are robots? they have
 
 What matters most is building the abstraction of DeliveryType(needs a better name) and a DamageType
 
-
-
-
 ## Build system
 Highkey the wasm target with histos in the pipeline is just goated.
 - [x] linux
-- [] macos
-    - emcc
+- [x] macos
+    - [] emcc working but have to source emsdk_env.sh every time
     - clang
-- [] windows
-    - ????
-    - mingw, how does raylib build, etc
+- [x] windows
+    - oquay
 
-idea: a docker image for dev environment
-- can be spun up on any OS
-- get to practice NixOS config?
+idea: a docker image for dev environment (0QUAY)
+- can be spun up on any OS (ubuntu)
+- ~~get to practice NixOS config?~~
 - nvim, tmux
 - all build tools auto installed
-- ???
+- ??? (it works were in it right now)
 
 ## Music Flow
 rooms = zones = objectives, a level to challenge your mechanics against

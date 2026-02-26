@@ -1,5 +1,6 @@
 #include "mecha.h"
 
+// so we can statically create the enemy definitions
 static const EnemyDef ENEMY_DEFS[] = {
 //              size         hp        spdMin            spdVar
 //              contactDmg   spnKills  spnChance         score
@@ -32,37 +33,6 @@ static const EnemyType SPAWN_PRIORITY[] = { PENTA, OCTA, HEXA, RHOM, RECT };
 static GameState g;
 
 // ========================================================================== /
-// Forward Declarations
-// ========================================================================== /
-// when do start to consider using a header file?
-// right now, we already have a default config header
-void NextFrame(void);
-static void InitGame(void);
-static Projectile* SpawnProjectile(
-    Vector2 pos, Vector2 dir,
-    float speed, int damage, float lifetime, float size,
-    bool isEnemy, bool knockback,
-    ProjectileType type, DamageType dmgType);
-static void FireShotgunBlast(Player *p, Vector2 toMouse);
-static void SpawnEnemy(void);
-static void SpawnParticles(Vector2 pos, Color color, int count);
-static void SpawnParticle(
-    Vector2 pos, Vector2 vel,
-    Color color, float size, float lifetime);
-static void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method);
-static void DamagePlayer(int damage, DamageType dmgType, DamageMethod method);
-
-// refactoring artifact
-static void UpdatePlayer(float dt);
-static void UpdateGame(void);
-
-static void DrawShape2D(
-    Vector2 pos, 
-    float size, float rotY, float rotX, float alpha);
-static void DrawWorld(void);
-static void DrawHUD(void);
-
-// ========================================================================== /
 // Init
 // ========================================================================== /
 // this is quite important.
@@ -91,6 +61,7 @@ static void InitGame(void)
     p->spin.cooldown        = SPIN_COOLDOWN;
     p->rocket.cooldown      = ROCKET_COOLDOWN;
     p->shotgun.blastsLeft   = SHOTGUN_BLASTS;
+    p->revolver.rounds      = REVOLVER_ROUNDS;
 
     g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
     g.camera.target   = p->pos;
@@ -98,6 +69,9 @@ static void InitGame(void)
 
     g.spawnInterval   = SPAWN_INTERVAL;
     g.spawnTimer      = SPAWN_INITIAL_DELAY;
+
+    g.screen          = SCREEN_SELECT;
+    g.selectIndex     = 0;
 }
 
 // ========================================================================== /
@@ -282,6 +256,23 @@ static void SpawnParticles(Vector2 pos, Color color, int count)
     }
 }
 
+static void SpawnBeam(Vector2 origin, Vector2 tip,
+    float duration, Color color, float width)
+{
+    for (int i = 0; i < MAX_BEAMS; i++) {
+        Beam *b = &g.beams[i];
+        if (b->active) continue;
+        b->origin   = origin;
+        b->tip      = tip;
+        b->timer    = duration;
+        b->duration = duration;
+        b->color    = color;
+        b->width    = width;
+        b->active   = true;
+        return;
+    }
+}
+
 // to scale enemy types, each enemy has an enum type which we switch on?
 // then calculate damage?
 // assuming more complex damage calculation is down the line
@@ -419,6 +410,7 @@ static bool CircleOBBOverlap(
 // Collision Dispatchers — switch on enemy type, one case per shape
 // ========================================================================== /
 // Sweep line (sword, spin): does segment AB intersect enemy hitbox?
+// this does all the hitscan damage detection too because it makes contact
 static bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b) {
     switch (e->type) {
     case RECT:
@@ -429,6 +421,8 @@ static bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b) {
     }
 }
 
+// we should make it clear in the comments above these functions exactly what 
+// weapons they do damage detection for
 // Point test with padding (bullets)
 static bool EnemyHitPoint(Enemy *e, Vector2 point, float pad) {
     switch (e->type) {
@@ -460,7 +454,85 @@ static bool EnemyHitCircle(Enemy *e, Vector2 center, float radius) {
 // Update
 // ========================================================================== /
 
-// 
+// ========================================================================== /
+// Hitscan
+// ========================================================================== /
+// Returns beam tip: closest enemy pos (laser) or rayEnd (railgun).
+// maxPierces==1 -> stop at first hit; >1 -> hit all enemies along ray.
+static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
+    float range, int damage, DamageType dmgType, int maxPierces)
+{
+    Vector2 rayEnd = Vector2Add(origin, Vector2Scale(dir, range));
+
+    if (maxPierces == 1) {
+        // Laser: find closest hit, terminate beam there
+        int   firstIdx  = -1;
+        float firstDist = 1e30f;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            Enemy *e = &g.enemies[i];
+            if (!e->active) continue;
+            if (EnemyHitSweep(e, origin, rayEnd)) {
+                float d = Vector2Distance(origin, e->pos);
+                if (d < firstDist) {
+                    firstIdx  = i;
+                    firstDist = d;
+                }
+            }
+        }
+        if (firstIdx >= 0) {
+            Enemy *e = &g.enemies[firstIdx];
+            // project enemy center onto ray, back up by radius -> beam tip
+            // stays on the aim line so there's no visual snapping to e->pos
+            float proj = Vector2DotProduct(
+                Vector2Subtract(e->pos, origin), dir);
+            float tEntry = proj - e->size;
+            if (tEntry < 0.0f) tEntry = 0.0f;
+            Vector2 surfacePt = Vector2Add(origin, Vector2Scale(dir, tEntry));
+            if (damage > 0) {
+                DamageEnemy(firstIdx, damage, dmgType, HIT_SCAN);
+                SpawnParticles(surfacePt, WHITE, LASER_HIT_PARTICLES);
+            }
+            return surfacePt;
+        }
+        return rayEnd;
+    } else {
+        // Railgun: pierce every enemy along ray
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            Enemy *e = &g.enemies[i];
+            if (!e->active) continue;
+            if (EnemyHitSweep(e, origin, rayEnd)) {
+                if (damage > 0) {
+                    Vector2 hitPos = e->pos;
+                    DamageEnemy(i, damage, dmgType, HIT_SCAN);
+                    SpawnParticles(hitPos, WHITE, RAILGUN_HIT_PARTICLES);
+                }
+            }
+        }
+        return rayEnd;
+    }
+}
+
+
+static void UpdateRailgun(Player *p, Vector2 toMouse, float dt)
+{
+    p->railgun.cooldownTimer -= dt;
+    if (p->railgun.cooldownTimer < 0) p->railgun.cooldownTimer = 0;
+
+    if (IsKeyPressed(RAILGUN_KEY) && p->railgun.cooldownTimer <= 0) {
+        p->railgun.cooldownTimer = RAILGUN_COOLDOWN;
+        Vector2 aimDir = Vector2Normalize(toMouse);
+        Vector2 muzzle = Vector2Add(p->pos,
+            Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+
+        Vector2 tip = FireHitscan(muzzle, aimDir,
+            RAILGUN_RANGE, RAILGUN_DAMAGE, DMG_BALLISTIC, MAX_ENEMIES);
+        SpawnBeam(muzzle, tip, RAILGUN_BEAM_DURATION,
+            RAILGUN_COLOR, RAILGUN_BEAM_WIDTH);
+        SpawnParticles(muzzle, WHITE, RAILGUN_MUZZLE_PARTICLES);
+    }
+}
+
+//
 static Vector2 mouse() {
     Player *p = &g.player;
     // ok I see now, this could be out? 
@@ -475,6 +547,83 @@ static Vector2 mouse() {
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
     p->angle = atan2f(toMouse.y, toMouse.x);
     return toMouse;
+}
+
+// ========================================================================== /
+// Weapon Select Screen
+// ========================================================================== /
+static void UpdateSelect(void)
+{
+    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))
+        g.selectIndex = (g.selectIndex + 3) % 4; // wrap up
+    if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))
+        g.selectIndex = (g.selectIndex + 1) % 4; // wrap down
+    if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        g.player.primary = (WeaponType)g.selectIndex;
+        g.screen = SCREEN_PLAYING;
+    }
+}
+
+static void DrawSelect(void)
+{
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+    float ui = (float)sh / HUD_SCALE_REF;
+
+    BeginDrawing();
+    ClearBackground(SELECT_BG_COLOR);
+
+    // Title
+    int titleFont = (int)(SELECT_TITLE_FONT * ui);
+    const char *title = "CHOOSE YOUR WEAPON";
+    int titleW = MeasureText(title, titleFont);
+    DrawText(title, sw / 2 - titleW / 2,
+        (int)(sh * SELECT_TITLE_Y), titleFont, WHITE);
+
+    // Options
+    const char *names[] = { "MACHINE GUN", "LASER", "SWORD", "REVOLVER" };
+    const char *descs[] = {
+        "Hold to fire — rapid ballistic rounds",
+        "Hold to fire — continuous beam, hits first target",
+        "Click to swing — melee arc slash",
+        "Precise single shots — fan the hammer with M2",
+    };
+    int optFont = (int)(SELECT_OPTION_FONT * ui);
+    int descFont = (int)(SELECT_DESC_FONT * ui);
+    int spacing = (int)(SELECT_OPTION_SPACING * ui);
+    int baseY = (int)(sh * SELECT_OPTIONS_Y);
+
+    for (int i = 0; i < 4; i++) {
+        int y = baseY + i * spacing;
+        Color nameColor = (i == g.selectIndex) ? SELECT_HIGHLIGHT_COLOR : GRAY;
+        Color descColor = (i == g.selectIndex) ? WHITE : DARKGRAY;
+
+        int nameW = MeasureText(names[i], optFont);
+        int nameX = sw / 2 - nameW / 2;
+        DrawText(names[i], nameX, y, optFont, nameColor);
+
+        // Selection highlight box
+        if (i == g.selectIndex) {
+            int pad = (int)(SELECT_CURSOR_PAD * ui);
+            DrawRectangleLinesEx(
+                (Rectangle){ nameX - pad, y - pad,
+                    nameW + pad * 2, optFont + pad * 2 },
+                SELECT_CURSOR_THICK * ui, SELECT_HIGHLIGHT_COLOR);
+        }
+
+        int descW = MeasureText(descs[i], descFont);
+        DrawText(descs[i], sw / 2 - descW / 2,
+            y + optFont + (int)(SELECT_DESC_GAP * ui), descFont, descColor);
+    }
+
+    // Hint
+    int hintFont = (int)(SELECT_HINT_FONT * ui);
+    const char *hint = "W/S to navigate — Enter or M1 to confirm";
+    int hintW = MeasureText(hint, hintFont);
+    DrawText(hint, sw / 2 - hintW / 2,
+        sh - (int)(SELECT_HINT_Y * ui), hintFont, Fade(WHITE, 0.5f));
+
+    EndDrawing();
 }
 
 // player inputs and mechanics
@@ -531,14 +680,6 @@ static void UpdatePlayer(float dt)
         }
         SpawnParticles(p->pos, SKYBLUE, DASH_BURST_PARTICLES);
         SpawnParticles(p->pos, WHITE, DASH_BURST_PARTICLES);
-
-        // Retroactive dash slash: if sword is already swinging,
-        // upgrade it so press order (M2 before Space) doesn't matter
-        if (p->sword.timer > 0 && !p->sword.dashSlash) {
-            p->sword.dashSlash = true;
-            for (int i = 0; i < MAX_ENEMIES; i++)
-                p->sword.lastHitAngle[i] = -1000.0f;
-        }
     }
 
     if (p->dash.active) {
@@ -557,69 +698,139 @@ static void UpdatePlayer(float dt)
         }
     }
 
-    // or is it an ability?
-    // --- Gun (M1) ---
+    // --- M1 weapon dispatch ---
     p->gun.cooldown -= dt;
-    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) 
-        && p->gun.cooldown <= 0 
-        && p->sword.timer <= 0
-    ) {
-        p->gun.cooldown = 1.0f / p->gun.fireRate;
-        Vector2 aimDir = Vector2Normalize(toMouse);
-        float spread = ((float)GetRandomValue(-GUN_SPREAD, GUN_SPREAD)) * 0.001f;
-        float bulletAngle = p->angle + spread;
-        Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
-        Vector2 muzzle = 
-            Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-        SpawnProjectile(muzzle, bulletDir,
-            GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
-            GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false,
-            PROJ_BULLET, DMG_BALLISTIC);
-        // we should make the bullet, actually bullet coloured
-        // like a golden brassy, u know
-        SpawnParticle(muzzle,
-                      Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
-                      GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
-    }
-
-    // --- Sword swing (M2) ---
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) 
-        && p->sword.timer <= 0 
-        && p->spin.timer <= 0
-    ) {
-        p->sword.timer = p->sword.duration;
-        p->sword.angle = p->angle;
-        p->sword.dashSlash = p->dash.active;
-        for (int i = 0; i < MAX_ENEMIES; i++)
-            p->sword.lastHitAngle[i] = -1000.0f;
-
-        // no probably not using ternary? if its over 80 chars?
-        // nvm its fine with multiline
-        // dash slash makes the sword attack bigger
-        float arc =
-            p->sword.dashSlash ?
-            p->sword.arc * DASH_SLASH_ARC_MULT :
-            p->sword.arc;
-        float radius =
-            p->sword.dashSlash ?
-            p->sword.radius * DASH_SLASH_RADIUS_MULT :
-            p->sword.radius;
-        Color slashColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
-        for (int i = 0; i < SWORD_SPARK_COUNT; i++) {
-            float a = p->sword.angle - arc / 2.0f
-                + arc * (float)i / (SWORD_SPARK_COUNT - 1);
-            Vector2 particlePos = Vector2Add(
-                p->pos,
-                (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
-                           sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC }
-            );
-            Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
-                                    sinf(a) * SWORD_SPARK_SPEED };
-            SpawnParticle(particlePos, particleVel, slashColor,
-                SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
+    switch (p->primary) {
+    case WPN_GUN:
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)
+            && p->gun.cooldown <= 0
+            && p->sword.timer <= 0
+        ) {
+            p->gun.cooldown = 1.0f / p->gun.fireRate;
+            Vector2 aimDir = Vector2Normalize(toMouse);
+            float spread = ((float)GetRandomValue(-GUN_SPREAD, GUN_SPREAD)) * 0.001f;
+            float bulletAngle = p->angle + spread;
+            Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+            Vector2 muzzle =
+                Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+            SpawnProjectile(muzzle, bulletDir,
+                GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
+                GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+            SpawnParticle(muzzle,
+                          Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                          GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
         }
+        break;
+    case WPN_LASER:
+        p->laser.active = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        if (p->laser.active) {
+            Vector2 aimDir = Vector2Normalize(toMouse);
+            Vector2 muzzle = Vector2Add(p->pos,
+                Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+            p->laser.damageAccum += LASER_DPS * dt;
+            int dmg = (int)p->laser.damageAccum;
+            if (dmg > 0) p->laser.damageAccum -= (float)dmg;
+            p->laser.beamTip = FireHitscan(muzzle, aimDir,
+                LASER_RANGE, dmg, DMG_BALLISTIC, 1);
+        } else {
+            p->laser.damageAccum = 0;
+        }
+        break;
+    case WPN_SWORD:
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
+            && p->sword.timer <= 0
+            && p->spin.timer <= 0
+        ) {
+            p->sword.timer = p->sword.duration;
+            p->sword.angle = p->angle;
+            p->sword.dashSlash = false;
+            for (int i = 0; i < MAX_ENEMIES; i++)
+                p->sword.lastHitAngle[i] = -1000.0f;
+
+            float arc = p->sword.arc;
+            float radius = p->sword.radius;
+            for (int i = 0; i < SWORD_SPARK_COUNT; i++) {
+                float a = p->sword.angle - arc / 2.0f
+                    + arc * (float)i / (SWORD_SPARK_COUNT - 1);
+                Vector2 particlePos = Vector2Add(
+                    p->pos,
+                    (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
+                               sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC }
+                );
+                Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
+                                        sinf(a) * SWORD_SPARK_SPEED };
+                SpawnParticle(particlePos, particleVel, ORANGE,
+                    SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
+            }
+        }
+        break;
+    case WPN_REVOLVER:
+        // Reload
+        if (p->revolver.reloadTimer > 0) {
+            p->revolver.reloadTimer -= dt;
+            if (p->revolver.reloadTimer <= 0) {
+                p->revolver.rounds = REVOLVER_ROUNDS;
+                p->revolver.reloadTimer = 0;
+            }
+            break;
+        }
+        // M2 fan the hammer — commits to emptying the cylinder
+        if (p->revolver.fanning) {
+            p->revolver.cooldownTimer -= dt;
+            if (p->revolver.cooldownTimer <= 0 && p->revolver.rounds > 0) {
+                p->revolver.cooldownTimer = REVOLVER_FAN_COOLDOWN;
+                Vector2 aimDir = Vector2Normalize(toMouse);
+                float spread = ((float)GetRandomValue(-REVOLVER_FAN_SPREAD, REVOLVER_FAN_SPREAD)) * 0.001f;
+                float bulletAngle = p->angle + spread;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                Vector2 muzzle = Vector2Add(p->pos,
+                    Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, bulletDir,
+                    REVOLVER_BULLET_SPEED, REVOLVER_DAMAGE,
+                    REVOLVER_BULLET_LIFETIME, REVOLVER_PROJECTILE_SIZE, false, false,
+                    PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                    Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), ORANGE,
+                    GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+                p->revolver.rounds--;
+            }
+            if (p->revolver.rounds <= 0) p->revolver.fanning = false;
+            break;
+        }
+        // M1 precise shot — fires as fast as you click
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
+            && p->revolver.rounds > 0
+        ) {
+            Vector2 aimDir = Vector2Normalize(toMouse);
+            float spread = ((float)GetRandomValue(-REVOLVER_PRECISE_SPREAD, REVOLVER_PRECISE_SPREAD)) * 0.001f;
+            float bulletAngle = p->angle + spread;
+            Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+            Vector2 muzzle = Vector2Add(p->pos,
+                Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+            SpawnProjectile(muzzle, bulletDir,
+                REVOLVER_BULLET_SPEED, REVOLVER_DAMAGE,
+                REVOLVER_BULLET_LIFETIME, REVOLVER_PROJECTILE_SIZE, false, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+            SpawnParticle(muzzle,
+                Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+            p->revolver.rounds--;
+        }
+        // M2 press starts fanning
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)
+            && p->revolver.rounds > 0
+        ) {
+            p->revolver.fanning = true;
+            p->revolver.cooldownTimer = 0;
+        }
+        // Empty — start reload
+        if (p->revolver.rounds <= 0 && p->revolver.reloadTimer <= 0) {
+            p->revolver.reloadTimer = REVOLVER_RELOAD_TIME;
+        }
+        break;
     }
-    
+
     // Sword damage — sweep line hits enemies as it passes over them
     if (p->sword.timer > 0) {
         float radius =
@@ -738,6 +949,8 @@ static void UpdatePlayer(float dt)
         SpawnRocket(p, toMouse);
         p->rocket.cooldownTimer = ROCKET_COOLDOWN;
     }
+
+    UpdateRailgun(p, toMouse, dt);
 
     // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
@@ -1023,6 +1236,16 @@ static void UpdateParticles(float dt)
 
 }
 
+static void UpdateBeams(float dt)
+{
+    for (int i = 0; i < MAX_BEAMS; i++) {
+        Beam *b = &g.beams[i];
+        if (!b->active) continue;
+        b->timer -= dt;
+        if (b->timer <= 0) b->active = false;
+    }
+}
+
 // update camera offset to current browser window size
 // how to make it resize while game is paused?
 // separate window resize and camera
@@ -1067,18 +1290,19 @@ static void MoveCamera(float dt)
 // let's separate this and make it more modular
 // so its not so hard to add features. 
 // or is it commonplace to have massive functions in the game dev world?
-static void UpdateGame(void) 
+static void UpdateGame(void)
 {
+    WindowResize();
+
+    if (g.screen == SCREEN_SELECT) {
+        UpdateSelect();
+        return;
+    }
+
     // frametime clamp
-    // ? why 0.05? if less delta time greater than this we make it that time?
-    // 0.05 is a 20fps frametime, this is a nice minimum
-    // why, is it like a max frame time/hz for each calculation we want to do?
-    // if the world get's too far ahead, don't let the physics break.
     float dt = GetFrameTime();
     if (dt > DT_MAX) dt = DT_MAX;
 
-    WindowResize();
-    
     // need to make sure that esc also pauses in native build
     if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) g.paused = !g.paused;
 
@@ -1087,24 +1311,13 @@ static void UpdateGame(void)
         return;
     }
 
-    // like a pause state? hmmm
-    // early return on pause, make sure nothing in the game world is updating
     if (g.paused) return;
 
-    // check mouse
-    // check keys
-    // update player
-    // update movement
     UpdatePlayer(dt);
-    
-    // update enemy
-    // update movement
     UpdateEnemies(dt);
-
-    // update projectiles
     UpdateProjectiles(dt);
-    
     UpdateParticles(dt);
+    UpdateBeams(dt);
 
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
         if (!g.explosives[i].active) continue;
@@ -1113,7 +1326,6 @@ static void UpdateGame(void)
             g.explosives[i].active = false;
     }
 
-    // player camera
     MoveCamera(dt);
 }
 
@@ -1639,6 +1851,27 @@ static void DrawWorld(void)
             (Vector2){ ca * (p->size + GUN_TIP_OFFSET),
                        sa * (p->size + GUN_TIP_OFFSET) });
         DrawLineEx(p->pos, gunTip, GUN_BARREL_THICKNESS, DARKGRAY);
+
+        // --- Laser beam (live while key held) ---
+        if (p->laser.active) {
+            Vector2 aimDir = { cosf(p->angle), sinf(p->angle) };
+            Vector2 muzzle = Vector2Add(p->pos,
+                Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+            DrawLineEx(muzzle, p->laser.beamTip, LASER_GLOW_WIDTH, LASER_GLOW_COLOR);
+            DrawLineEx(muzzle, p->laser.beamTip, LASER_BEAM_WIDTH, LASER_COLOR);
+        }
+    }
+
+    // --- Beam pool (railgun lingering flash) ---
+    for (int i = 0; i < MAX_BEAMS; i++) {
+        Beam *b = &g.beams[i];
+        if (!b->active) continue;
+        float t = b->timer / b->duration;
+        Color glow = { RAILGUN_GLOW_COLOR.r, RAILGUN_GLOW_COLOR.g,
+                       RAILGUN_GLOW_COLOR.b, (u8)(80.0f * t) };
+        Color core = { b->color.r, b->color.g, b->color.b, (u8)(255.0f * t) };
+        DrawLineEx(b->origin, b->tip, RAILGUN_GLOW_WIDTH * t, glow);
+        DrawLineEx(b->origin, b->tip, b->width, core);
     }
 
     // --- Sword swing arc ---
@@ -1860,7 +2093,7 @@ static void DrawHUD(void)
     {
         if (p->rocket.cooldownTimer > 0) {
             float cdRatio = p->rocket.cooldownTimer / p->rocket.cooldown;
-            DrawRectangle(cdX, cdY, 
+            DrawRectangle(cdX, cdY,
                 (int)(cdBarW * (1.0f - cdRatio)), cdBarH, RED);
             DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
             DrawText("ROCKET", cdLabelX, cdY, cdFontSize, GRAY);
@@ -1871,6 +2104,53 @@ static void DrawHUD(void)
         }
     }
 
+    // Railgun cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color rgColor = RAILGUN_COLOR;
+        if (p->railgun.cooldownTimer > 0) {
+            float ratio = 1.0f - (p->railgun.cooldownTimer / RAILGUN_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, rgColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("RAIL", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, rgColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("RAIL", cdLabelX, cdY, cdFontSize, rgColor);
+        }
+    }
+
+    // Revolver cylinder (only when revolver is equipped)
+    if (p->primary == WPN_REVOLVER) {
+        cdY += (int)(HUD_ROW_SPACING * ui);
+        int pipW = (int)(HUD_PIP_W * ui);
+        int pipGap = (int)(HUD_PIP_GAP * ui);
+        Color revColor = (Color){ 220, 180, 80, 255 };
+        for (int i = 0; i < REVOLVER_ROUNDS; i++) {
+            int pipX = cdX + i * (pipW + pipGap);
+            if (i < p->revolver.rounds) {
+                DrawRectangle(pipX, cdY, pipW, cdBarH, revColor);
+                DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
+            } else {
+                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
+            }
+        }
+        int labelX = cdX
+            + REVOLVER_ROUNDS * (pipW + pipGap) + (int)(2 * ui);
+        if (p->revolver.reloadTimer > 0) {
+            // Reload bar overlaid on label area
+            float ratio = 1.0f
+                - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
+            DrawRectangle(labelX, cdY, (int)(cdBarW * ratio), cdBarH,
+                Fade(revColor, 0.4f));
+            DrawRectangleLines(labelX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("RELOAD", labelX + cdBarW + (int)(4 * ui),
+                cdY, cdFontSize, GRAY);
+        } else {
+            DrawText("REVLR", labelX, cdY, cdFontSize,
+                p->revolver.rounds > 0 ? revColor : GRAY);
+        }
+    }
 
     // FPS (top-right)
     int fpsFont = (int)(HUD_FPS_FONT * ui);
@@ -1924,7 +2204,7 @@ static void DrawHUD(void)
     
     // Controls reminder (bottom-left)
     int ctrlFont = (int)(HUD_CTRL_FONT * ui);
-    DrawText("WASD: Move | Space: Dash | M1: Shoot | M2: Sword | E: Shotgun | Q: Rocket | Shift: Spin | R: Restart | 0: Quit",
+    DrawText("WASD: Move | Space: Dash | M1: Weapon | E: Shotgun | Q: Rocket | Shift: Spin | Z: Railgun | R: Restart | 0: Quit",
         (int)(HUD_MARGIN * ui), sh - (int)(HUD_BOTTOM_Y * ui), ctrlFont, Fade(WHITE, 0.5f));
 
     // bottom right, game title text
@@ -1999,6 +2279,11 @@ static void DrawHUD(void)
 // ========================================================================== /
 static void DrawGame(void)
 {
+    if (g.screen == SCREEN_SELECT) {
+        DrawSelect();
+        return;
+    }
+
     BeginDrawing();
     ClearBackground(BG_COLOR);
 

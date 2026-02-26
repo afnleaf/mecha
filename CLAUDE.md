@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Mecha bullet hell prototype. Single-file C game built with raylib, compiled to WASM via Emscripten, packed into a single HTML file with Histos. Data-oriented design — read PHILOSOPHY.md before making changes.
+Mecha bullet hell prototype. C game built with raylib, compiled to WASM via Emscripten, packed into a single HTML file with Histos. Data-oriented design — read PHILOSOPHY.md before making changes.
 
 ## Build Commands
 
@@ -19,7 +19,8 @@ No automated test suite. Testing is manual gameplay: `./build.sh n && ./game`.
 ## Project Structure
 
 ```
-game.c            - all game logic (~2200 lines, monolithic)
+mecha.c           - all game logic (monolithic)
+mecha.h           - all types, structs, and declarations
 default.h         - all tunable gameplay constants (defines)
 rtypes.h          - Rust-style type aliases (u8, u16, u32, u64, etc.)
 build.sh          - compile + pack script
@@ -36,13 +37,13 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 ## Architecture
 
 - Single global `GameState g` struct (Emscripten requires `void(*)(void)` callback pattern)
-- Player weapons: `Gun`, `Sword`, `Dash`, `Spin`, `Shotgun`, `Rocket` composed as fields in `Player`
+- Player weapons: `Gun`, `Sword`, `Revolver`, `Dash`, `Spin`, `Shotgun`, `Rocket` composed as fields in `Player`
 - Enemy types: `EnemyDef` data table indexed by `EnemyType` enum, table-driven spawning via `SPAWN_PRIORITY`
 - Collision dispatchers: `EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle` — switch on enemy type, one `case` per shape
 - Update pipeline: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateBullets` -> `UpdateParticles` -> `MoveCamera`
 - Draw pipeline: `DrawWorld` (camera space) -> `DrawHUD` (screen space)
 - Player models: `DrawShape2D` (tetrahedron), `DrawCube2D` (cube) — plan is all 5 platonic solids as selectable characters. **Do not delete any Draw*2D functions.**
-- All gameplay constants belong in `default.h`, not as magic numbers in game.c
+- All gameplay constants belong in `default.h`, not as magic numbers in mecha.c
 - HUD scales via `ui = screenHeight / 450.0f`
 - Pools: projectiles[1024], enemies[1024], particles[1024], explosives[8]
 
@@ -56,11 +57,20 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 
 ## Working With This Codebase
 
-- **Read `claude_review.md` before modifying game.c. Update it after significant changes.** It tracks resolved items, current stats, refactoring priorities, and architectural assessment.
+- **Read `claude_review.md` before modifying mecha.c or mecha.h. Update it after significant changes.** It tracks resolved items, current stats, refactoring priorities, and architectural assessment.
 - Follow PHILOSOPHY.md: solve for the common case, design around data not abstractions, prefer simple explicit code
 - When the user asks for implementation help, give specifications and snippets, not full rewrites — unless in agent building mode
 - Refactor from ends inward: design output shape first, then input, then the middle transformation
 - Don't over-engineer for hypothetical edge cases
+
+### Commit Messages
+- Updated: 
+- Added:
+- Fixed:
+- Refactored
+- Removed: 
+- In progress:
+etc
 
 ## Version Roadmap
 
@@ -70,4 +80,6 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 
 ## Controls
 
-WASD: move | Mouse: aim | M1: gun | M2: sword | E: shotgun | Q: rocket | Space: dash (2 charges) | Space+M2: dash slash | Shift: spin (lifesteal) | P/Esc: pause | R: restart
+WASD: move | Mouse: aim | M1: primary weapon | M2: revolver fan (empties cylinder) | E: shotgun | Q: rocket | Space: dash (2 charges) | Space+M2: dash slash | Shift: spin (lifesteal) | P/Esc: pause | R: restart
+
+Primary weapons (select screen): Machine Gun, Laser, Sword, Revolver. Revolver uses both mouse buttons — M1 precise single shots, M2 fans all remaining rounds rapidly.

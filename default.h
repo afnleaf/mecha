@@ -12,6 +12,7 @@
 #define MAX_PROJECTILES         1024
 #define MAX_ENEMIES             1024
 #define MAX_PARTICLES           1024
+#define MAX_BEAMS               8
 #define MAX_ENTITIES // of a type, just seeing that this is all the same
 
 // Map
@@ -91,6 +92,18 @@
 #define SHOTGUN_KNOCKBACK       350.0f
 #define SHOTGUN_BLASTS          2
 #define SHOTGUN_COOLDOWN        1.5f
+
+// Revolver
+#define REVOLVER_ROUNDS         6
+#define REVOLVER_DAMAGE         22
+#define REVOLVER_COOLDOWN       0.35f
+#define REVOLVER_FAN_COOLDOWN   0.10f
+#define REVOLVER_FAN_SPREAD     120
+#define REVOLVER_RELOAD_TIME    1.2f
+#define REVOLVER_BULLET_SPEED   1800.0f
+#define REVOLVER_BULLET_LIFETIME 2.0f
+#define REVOLVER_PROJECTILE_SIZE 4.0f
+#define REVOLVER_PRECISE_SPREAD  8
 
 // Rocket Launcher
 #define ROCKET_SPEED            800.0f
@@ -337,3 +350,43 @@
 #define HUD_GO_SCORE_Y          20
 #define HUD_GO_RESTART_FONT     20
 #define HUD_GO_RESTART_Y        60
+
+// Weapon Select Screen ----------------------------------------------------- /
+#define SELECT_TITLE_FONT       40
+#define SELECT_TITLE_Y          0.25f
+#define SELECT_OPTION_FONT      24
+#define SELECT_DESC_FONT        14
+#define SELECT_OPTION_SPACING   60
+#define SELECT_OPTIONS_Y        0.42f
+#define SELECT_DESC_GAP         6
+#define SELECT_CURSOR_PAD       8
+#define SELECT_CURSOR_THICK     2.0f
+#define SELECT_HINT_FONT        14
+#define SELECT_HINT_Y           40
+#define SELECT_BG_COLOR         (Color){ 15, 15, 25, 255 }
+#define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
+
+// Hitscan weapons ---------------------------------------------------------- /
+// Laser (hold F, continuous DPS, terminates at first hit)
+#define LASER_DPS                   80
+#define LASER_RANGE                 1000.0f
+#define LASER_BEAM_WIDTH            2.0f
+#define LASER_GLOW_WIDTH            4.0f
+//#define LASER_COLOR                 (Color){ 255, 60, 60, 255 }
+//#define LASER_GLOW_COLOR            (Color){ 255, 60, 60, 80 }
+#define LASER_COLOR                 (Color){ 100, 180, 255, 255 }
+#define LASER_GLOW_COLOR            (Color){ 100, 180, 255, 80 }
+#define LASER_HIT_PARTICLES         4
+
+// Railgun (press Z, pierce all, long cooldown)
+#define RAILGUN_KEY                 KEY_Z
+#define RAILGUN_DAMAGE              200
+#define RAILGUN_RANGE               3000.0f
+#define RAILGUN_COOLDOWN            4.0f
+#define RAILGUN_BEAM_DURATION       0.2f
+#define RAILGUN_BEAM_WIDTH          5.0f
+#define RAILGUN_GLOW_WIDTH          14.0f
+#define RAILGUN_COLOR               (Color){ 0, 255, 0, 255 }
+#define RAILGUN_GLOW_COLOR          (Color){ 0, 255, 0, 80 }
+#define RAILGUN_HIT_PARTICLES       6
+#define RAILGUN_MUZZLE_PARTICLES    8
