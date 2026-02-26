@@ -10,8 +10,8 @@ index.html
 game.js
 mecha.js
 
-.claude
-
+.claude/
+.garry/
 
 # # Prerequisites
 *.d
