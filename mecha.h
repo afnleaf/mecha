@@ -202,6 +202,8 @@ typedef struct Projectile {
     bool isEnemy;
     bool knockback;
     u8 bounces;
+    float height;       // visual-only: simulated height above ground
+    float heightVel;    // visual-only: vertical velocity for bounce arc
 } Projectile;
 
 #define MAX_EXPLOSIVES 8

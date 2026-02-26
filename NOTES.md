@@ -136,7 +136,7 @@ weapons
 - [x] railgun (histcan big damage)
 - [x] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
 - [x] minigun (slows you down, wind up time, many bullets)
-- [] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
+- [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
 - [] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
 - [] shotgun bullets ricochet?
 - [] fix dash slash

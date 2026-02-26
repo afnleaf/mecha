@@ -151,19 +151,19 @@ static void SpawnGrenade(Player *p, Vector2 toMouse) {
     Vector2 aimDir = Vector2Normalize(toMouse);
     Vector2 muzzle = Vector2Add(p->pos,
         Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-    // lob upward: rotate aim direction by launch angle
-    float baseAngle = atan2f(aimDir.y, aimDir.x);
-    float lobAngle = baseAngle - GRENADE_LAUNCH_ANGLE;
-    Vector2 lobDir = { cosf(lobAngle), sinf(lobAngle) };
-    Projectile *gr = SpawnProjectile(muzzle, lobDir,
+    Projectile *gr = SpawnProjectile(muzzle, aimDir,
         GRENADE_SPEED, GRENADE_DIRECT_DAMAGE,
         GRENADE_LIFETIME, GRENADE_PROJECTILE_SIZE, false, true,
         PROJ_GRENADE, DMG_EXPLOSIVE);
-    if (gr) gr->bounces = GRENADE_MAX_BOUNCES;
+    if (gr) {
+        gr->bounces = GRENADE_MAX_BOUNCES;
+        gr->height = 0.0f;
+        gr->heightVel = GRENADE_LAUNCH_HEIGHT_VEL;
+    }
     // muzzle flash
-    SpawnParticles(muzzle, GREEN, GRENADE_MUZZLE_PARTICLES);
+    SpawnParticles(muzzle, GRENADE_GLOW_COLOR, GRENADE_MUZZLE_PARTICLES);
     SpawnParticle(muzzle,
-        Vector2Scale(aimDir, GRENADE_MUZZLE_SPEED), GREEN,
+        Vector2Scale(aimDir, GRENADE_MUZZLE_SPEED), GRENADE_GLOW_COLOR,
         GRENADE_MUZZLE_SIZE, GRENADE_MUZZLE_LIFETIME);
 }
 
@@ -1321,9 +1321,17 @@ static void UpdateProjectiles(float dt) {
         Projectile *b = &g.projectiles[i];
         if (!b->active) continue;
 
-        // grenade gravity
+        // grenade: drag + visual bounce arc
         if (b->type == PROJ_GRENADE) {
-            b->vel.y += GRENADE_GRAVITY * dt;
+            b->vel = Vector2Scale(b->vel, 1.0f - GRENADE_DRAG * dt);
+            // visual height simulation
+            b->heightVel -= GRENADE_ARC_GRAVITY * dt;
+            b->height += b->heightVel * dt;
+            if (b->height <= 0.0f) {
+                b->height = 0.0f;
+                b->heightVel = -b->heightVel * GRENADE_ARC_BOUNCE_DAMPING;
+                if (b->heightVel < GRENADE_ARC_MIN_VEL) b->heightVel = 0.0f;
+            }
         }
 
         b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
@@ -1868,10 +1876,12 @@ static void DrawWorld(void)
             Vector2 trail = Vector2Subtract(base, Vector2Scale(fwd, len * SNIPER_TRAIL_MULT));
             DrawLineEx(base, trail, w * 0.8f, Fade(SNIPER_COLOR, 0.4f));
         } else if (b->type == PROJ_GRENADE) {
-            DrawCircleV(b->pos, b->size, GRENADE_COLOR);
-            DrawCircleLinesV(b->pos, b->size + 1.0f, GREEN);
-            Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR * 1.5f));
-            DrawLineEx(trail, b->pos, 2.0f, Fade(GREEN, 0.4f));
+            // shadow on ground
+            DrawCircleV(b->pos, b->size * 0.8f, Fade(BLACK, 0.3f));
+            // grenade drawn at visual height offset (negative Y = up on screen)
+            Vector2 drawPos = { b->pos.x, b->pos.y - b->height };
+            DrawCircleV(drawPos, b->size, GRENADE_COLOR);
+            DrawCircleLinesV(drawPos, b->size + 1.0f, GRENADE_GLOW_COLOR);
         } else {
             Color bColor = b->isEnemy ? MAGENTA : YELLOW;
             float bSize = b->size;

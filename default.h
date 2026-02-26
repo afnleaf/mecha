@@ -136,19 +136,23 @@
 
 // Grenade Launcher
 #define GRENADE_KEY                 KEY_C
-#define GRENADE_SPEED               400.0f
-#define GRENADE_GRAVITY             600.0f
+#define GRENADE_SPEED               500.0f
+#define GRENADE_DRAG                1.5f
 #define GRENADE_LIFETIME            2.5f
-#define GRENADE_DIRECT_DAMAGE       30
-#define GRENADE_EXPLOSION_DAMAGE    50
+#define GRENADE_DIRECT_DAMAGE       35
+#define GRENADE_EXPLOSION_DAMAGE    60
 #define GRENADE_EXPLOSION_RADIUS    140.0f
 #define GRENADE_KNOCKBACK           200.0f
 #define GRENADE_COOLDOWN            1.5f
 #define GRENADE_PROJECTILE_SIZE     5.0f
 #define GRENADE_MAX_BOUNCES         2
 #define GRENADE_BOUNCE_DAMPING      0.6f
-#define GRENADE_LAUNCH_ANGLE        0.35f
-#define GRENADE_COLOR               (Color){ 0, 200, 50, 255 }
+#define GRENADE_LAUNCH_HEIGHT_VEL   200.0f
+#define GRENADE_ARC_GRAVITY         500.0f
+#define GRENADE_ARC_BOUNCE_DAMPING  0.5f
+#define GRENADE_ARC_MIN_VEL         20.0f
+#define GRENADE_COLOR               (Color){ 214, 144, 36, 255 }
+#define GRENADE_GLOW_COLOR          (Color){ 255, 180, 50, 255 }
 #define GRENADE_MUZZLE_PARTICLES    6
 #define GRENADE_MUZZLE_SPEED        100.0f
 #define GRENADE_MUZZLE_SIZE         4.0f
