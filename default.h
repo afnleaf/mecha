@@ -158,6 +158,37 @@
 #define GRENADE_MUZZLE_SIZE         4.0f
 #define GRENADE_MUZZLE_LIFETIME     0.1f
 
+// BFG10k ------------------------------------------------------------------- /
+#define BFG_KEY                     KEY_FOUR
+#define BFG_SPEED                   600.0f
+#define BFG_LIFETIME                3.0f
+#define BFG_PROJECTILE_SIZE         14.0f
+#define BFG_DIRECT_DAMAGE           80
+#define BFG_COOLDOWN                15.0f
+#define BFG_COLOR                   (Color){ 120, 220, 255, 255 }
+#define BFG_GLOW_COLOR              (Color){ 80, 160, 255, 100 }
+#define BFG_CHAIN_DAMAGE            100
+#define BFG_CHAIN_RADIUS            200.0f
+#define BFG_HOP_DELAY               0.1f
+#define BFG_ARC_DURATION            0.4f
+#define BFG_MAX_HOPS                256
+#define BFG_MAX_CHAIN_TARGETS       256
+#define BFG_MAX_ARCS                256
+#define BFG_TRAIL_SPEED             50.0f
+#define BFG_TRAIL_SIZE              3.0f
+#define BFG_TRAIL_LIFETIME          0.15f
+#define BFG_MUZZLE_PARTICLES        8
+#define BFG_MUZZLE_SPEED            120.0f
+#define BFG_MUZZLE_SIZE             5.0f
+#define BFG_MUZZLE_LIFETIME         0.12f
+#define BFG_HIT_PARTICLES           6
+#define BFG_DETONATION_PARTICLES    12
+#define BFG_ARC_JITTER              12.0f
+#define BFG_ARC_CORE_WIDTH          2.0f
+#define BFG_ARC_GLOW_WIDTH          5.0f
+#define BFG_PULSE_SPEED             15.0f
+#define BFG_PULSE_AMOUNT            2.0f
+
 // Hitscan weapons ---------------------------------------------------------- /
 // Laser (hold F, continuous DPS, terminates at first hit)
 #define LASER_DPS                   80

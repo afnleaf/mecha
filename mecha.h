@@ -118,6 +118,10 @@ typedef struct Sniper {
     float cooldownTimer;
 } Sniper;
 
+typedef struct Bfg {
+    float cooldownTimer;
+} Bfg;
+
 typedef struct Beam {
     Vector2 origin;
     Vector2 tip;
@@ -148,6 +152,7 @@ typedef struct Player {
     Laser   laser;
     Railgun railgun;
     Sniper  sniper;
+    Bfg     bfg;
     WeaponType primary;
 } Player;
 
@@ -187,6 +192,7 @@ typedef enum ProjectileType {
     PROJ_BULLET,
     PROJ_ROCKET,
     PROJ_GRENADE,
+    PROJ_BFG,
 } ProjectileType;
 
 typedef struct Projectile {
@@ -213,6 +219,30 @@ typedef struct Explosive {
     float duration;
     bool active;
 } Explosive;
+
+typedef struct LightningArc {
+    Vector2 from;
+    Vector2 to;
+    float timer;
+    float duration;
+    bool active;
+    bool damageApplied;
+    int targetIdx;
+} LightningArc;
+
+typedef struct LightningChain {
+    bool active;
+    float hopTimer;
+    int currentWave;
+    Vector2 sources[BFG_MAX_CHAIN_TARGETS];
+    int sourceCount;
+    Vector2 nextSources[BFG_MAX_CHAIN_TARGETS];
+    int nextSourceCount;
+    bool hit[MAX_ENEMIES];
+    LightningArc arcs[BFG_MAX_ARCS];
+    int arcCount;
+    bool propagating;
+} LightningChain;
 
 // enemy -------------------------------------------------------------------- /
 // we should use this to determine the enemy type
@@ -281,6 +311,7 @@ typedef struct GameState {
     Particle particles[MAX_PARTICLES];
     Explosive explosives[MAX_EXPLOSIVES];
     Beam beams[MAX_BEAMS];
+    LightningChain lightning;
     //
     Camera2D camera;
     int score;
@@ -322,6 +353,8 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
 static void UpdateRailgun(Player *p, Vector2 toMouse, float dt);
 static void SpawnGrenade(Player *p, Vector2 toMouse);
 static void GrenadeExplode(Vector2 pos);
+static void TriggerLightningChain(Vector2 origin, int firstEnemyIdx);
+static void UpdateLightningChain(float dt);
 
 // refactoring artifact
 static void UpdatePlayer(float dt);

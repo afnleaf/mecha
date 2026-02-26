@@ -81,7 +81,7 @@ pick a chassis type to start with
 - [x] (user) added game title text
 - [x] (claude) treat spin to the sword trailing animation treatment
 - [x] (user) added healing to spin attack
-- [x] (claude) fix hitmask — replaced with sweep line + lastHitAngle
+- [x] (claude) fix hitmask - replaced with sweep line + lastHitAngle
 - [x] (user) clamp enemies to map size rather than -500, 500
 - [x] (user) add green particles on heal 
 - [x] (user) separate update camera and window resize logic
@@ -137,12 +137,14 @@ weapons
 - [x] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
 - [x] minigun (slows you down, wind up time, many bullets)
 - [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
-- [] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
+- [x] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
 - [] shotgun bullets ricochet?
 - [] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
+- [] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
 - [] decide what the actual 5? primary weapons should be?
+- [] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -175,26 +177,28 @@ the different games idea, each chassis has one really powerful identity that ena
 
 what can you customize? all your buttons, its a mecha game... some remain for basics. 
 
-- WASD — move
-- m1/m2 — main weapon 
+- WASD - move
+- m1/m2 - main weapon 
     - machine gun, 
     - laser 
     - revolver m2 fan the hammer
-    — sword (dash slash if dashing) (not sure if it works rn)
-- space — dash (2 charges)
-- shift — spin (lifesteal)
-- E — shotgun (2 blasts)
-- Q — rocket
-- Z — railgun (pierce all)
+    - sword (dash slash if dashing) (not sure if it works rn)
+- space - dash (2 charges)
+- shift - spin (lifesteal)
+- E - shotgun (2 blasts)
+- Q - rocket
+- Z - railgun (pierce all)
 - X - sniper
-- P / esc — pause
-- R — restart (has to be reload eventually)
-- 0 — quit
-- F — free
-- ctrl — free
-- r, c, 1-4 — free
-- tab — free
-- alt — free
+- P / esc - pause
+- R - restart (has to be reload eventually)
+- 0 - quit
+- F - free (parry)
+- C - Grenade launcher
+- 4 - BGG10k
+- ctrl - free
+- v, 1-3 - free
+- tab - free
+- alt - free
 
 ## Research
 - [x] read many parts of raylib.h

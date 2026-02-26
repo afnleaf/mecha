@@ -1042,6 +1042,26 @@ static void UpdatePlayer(float dt)
             SNIPER_MUZZLE_SIZE, SNIPER_MUZZLE_LIFETIME);
     }
 
+    // bfg10k — massive lightning chain, long cooldown
+    if (p->bfg.cooldownTimer > 0)
+        p->bfg.cooldownTimer -= dt;
+
+    if (IsKeyPressed(BFG_KEY) && p->bfg.cooldownTimer <= 0) {
+        Vector2 aimDir = Vector2Normalize(toMouse);
+        Vector2 muzzle = Vector2Add(p->pos,
+            Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+        SpawnProjectile(muzzle, aimDir,
+            BFG_SPEED, BFG_DIRECT_DAMAGE,
+            BFG_LIFETIME, BFG_PROJECTILE_SIZE, false, false,
+            PROJ_BFG, DMG_ABILITY);
+        p->bfg.cooldownTimer = BFG_COOLDOWN;
+        // muzzle flash
+        SpawnParticles(muzzle, (Color)BFG_COLOR, BFG_MUZZLE_PARTICLES);
+        SpawnParticle(muzzle,
+            Vector2Scale(aimDir, BFG_MUZZLE_SPEED), WHITE,
+            BFG_MUZZLE_SIZE, BFG_MUZZLE_LIFETIME);
+    }
+
     // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
     if (p->pos.y < p->size) p->pos.y = p->size;
@@ -1315,6 +1335,100 @@ static void GrenadeExplode(Vector2 pos) {
     }
 }
 
+// bfg10k lightning chain -------------------------------------------------- /
+static void TriggerLightningChain(Vector2 origin, int firstEnemyIdx) {
+    LightningChain *lc = &g.lightning;
+    memset(lc, 0, sizeof(*lc));
+    lc->active = true;
+    lc->propagating = true;
+    lc->hopTimer = BFG_HOP_DELAY;
+    lc->currentWave = 0;
+
+    // first enemy is wave 0 — already damaged by direct hit
+    lc->hit[firstEnemyIdx] = true;
+    lc->sources[0] = origin;
+    lc->sourceCount = 1;
+}
+
+static void UpdateLightningChain(float dt) {
+    LightningChain *lc = &g.lightning;
+    if (!lc->active) return;
+
+    // fade existing arcs
+    bool anyArcAlive = false;
+    for (int i = 0; i < lc->arcCount; i++) {
+        LightningArc *a = &lc->arcs[i];
+        if (!a->active) continue;
+        a->timer -= dt;
+        if (a->timer <= 0) {
+            a->active = false;
+        } else {
+            anyArcAlive = true;
+        }
+    }
+
+    // propagation
+    if (lc->propagating) {
+        lc->hopTimer -= dt;
+        if (lc->hopTimer <= 0) {
+            lc->hopTimer = BFG_HOP_DELAY;
+            lc->nextSourceCount = 0;
+
+            // for each source in current wave, find nearby unhit enemies
+            for (int s = 0; s < lc->sourceCount; s++) {
+                Vector2 src = lc->sources[s];
+                for (int j = 0; j < MAX_ENEMIES; j++) {
+                    if (!g.enemies[j].active) continue;
+                    if (lc->hit[j]) continue;
+
+                    float dist = Vector2Distance(src, g.enemies[j].pos);
+                    if (dist <= BFG_CHAIN_RADIUS + g.enemies[j].size) {
+                        lc->hit[j] = true;
+
+                        // damage enemy
+                        DamageEnemy(j, BFG_CHAIN_DAMAGE, DMG_ABILITY, HIT_AOE);
+
+                        // spark particles on hit
+                        SpawnParticles(g.enemies[j].pos, (Color)BFG_COLOR, BFG_HIT_PARTICLES);
+
+                        // create visual arc
+                        if (lc->arcCount < BFG_MAX_ARCS) {
+                            LightningArc *a = &lc->arcs[lc->arcCount++];
+                            a->from = src;
+                            a->to = g.enemies[j].pos;
+                            a->timer = BFG_ARC_DURATION;
+                            a->duration = BFG_ARC_DURATION;
+                            a->active = true;
+                            a->damageApplied = true;
+                            a->targetIdx = j;
+                        }
+
+                        // add as source for next wave
+                        if (lc->nextSourceCount < BFG_MAX_CHAIN_TARGETS) {
+                            lc->nextSources[lc->nextSourceCount++] = g.enemies[j].pos;
+                        }
+                    }
+                }
+            }
+
+            // move to next wave
+            lc->currentWave++;
+            if (lc->nextSourceCount == 0 || lc->currentWave >= BFG_MAX_HOPS) {
+                lc->propagating = false;
+            } else {
+                memcpy(lc->sources, lc->nextSources,
+                    sizeof(Vector2) * lc->nextSourceCount);
+                lc->sourceCount = lc->nextSourceCount;
+            }
+        }
+    }
+
+    // chain fully done when no arcs remain and propagation stopped
+    if (!lc->propagating && !anyArcAlive) {
+        lc->active = false;
+    }
+}
+
 static void UpdateProjectiles(float dt) {
     Player *p = &g.player;
     for (int i = 0; i < MAX_PROJECTILES; i++) {
@@ -1334,6 +1448,14 @@ static void UpdateProjectiles(float dt) {
             }
         }
 
+        // bfg: spawn trail particles
+        if (b->type == PROJ_BFG && !b->isEnemy) {
+            Vector2 tvel = { (float)GetRandomValue(-40, 40),
+                             (float)GetRandomValue(-40, 40) };
+            Color tc = GetRandomValue(0, 1) ? (Color)BFG_COLOR : WHITE;
+            SpawnParticle(b->pos, tvel, tc, BFG_TRAIL_SIZE, BFG_TRAIL_LIFETIME);
+        }
+
         b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
         b->lifetime -= dt;
 
@@ -1341,6 +1463,10 @@ static void UpdateProjectiles(float dt) {
         if (b->lifetime <= 0) {
             if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
             if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
+            if (b->type == PROJ_BFG) {
+                // fizzle — sad sparks, no chain
+                SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
+            }
             b->active = false;
             continue;
         }
@@ -1359,6 +1485,7 @@ static void UpdateProjectiles(float dt) {
             } else {
                 if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
                 if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
+                if (b->type == PROJ_BFG) SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
                 b->active = false;
                 continue;
             }
@@ -1398,6 +1525,11 @@ static void UpdateProjectiles(float dt) {
                         RocketExplode(b->pos);
                     } else if (b->type == PROJ_GRENADE) {
                         GrenadeExplode(b->pos);
+                    } else if (b->type == PROJ_BFG) {
+                        TriggerLightningChain(ej->pos, j);
+                        // detonation burst
+                        SpawnParticles(ej->pos, (Color)BFG_COLOR, BFG_DETONATION_PARTICLES);
+                        SpawnParticles(ej->pos, WHITE, BFG_DETONATION_PARTICLES / 2);
                     } else if (b->knockback) {
                         Vector2 kb = Vector2Normalize(b->vel);
                         ej->vel = Vector2Scale(kb, SHOTGUN_KNOCKBACK);
@@ -1505,6 +1637,7 @@ static void UpdateGame(void)
     UpdatePlayer(dt);
     UpdateEnemies(dt);
     UpdateProjectiles(dt);
+    UpdateLightningChain(dt);
     UpdateParticles(dt);
     UpdateBeams(dt);
 
@@ -1875,6 +2008,14 @@ static void DrawWorld(void)
             // tracer trail
             Vector2 trail = Vector2Subtract(base, Vector2Scale(fwd, len * SNIPER_TRAIL_MULT));
             DrawLineEx(base, trail, w * 0.8f, Fade(SNIPER_COLOR, 0.4f));
+        } else if (b->type == PROJ_BFG) {
+            // pulsing lightning ball
+            float pulse = sinf(GetTime() * BFG_PULSE_SPEED) * BFG_PULSE_AMOUNT;
+            float outerR = b->size + pulse;
+            float innerR = b->size * 0.6f + pulse * 0.5f;
+            DrawCircleV(b->pos, outerR, (Color)BFG_GLOW_COLOR);
+            DrawCircleV(b->pos, innerR, (Color)BFG_COLOR);
+            DrawCircleV(b->pos, innerR * 0.4f, WHITE);
         } else if (b->type == PROJ_GRENADE) {
             // shadow on ground
             DrawCircleV(b->pos, b->size * 0.8f, Fade(BLACK, 0.3f));
@@ -1900,6 +2041,42 @@ static void DrawWorld(void)
         float radius = ROCKET_EXPLOSION_RADIUS * (1.0f - t * 0.3f);
         DrawCircleLinesV(ex->pos, radius, Fade(ORANGE, alpha));
         DrawCircleLinesV(ex->pos, radius - 2.0f, Fade(RED, alpha * 0.6f));
+    }
+
+    // --- Lightning chain arcs (BFG) ---
+    if (g.lightning.active) {
+        LightningChain *lc = &g.lightning;
+        for (int i = 0; i < lc->arcCount; i++) {
+            LightningArc *a = &lc->arcs[i];
+            if (!a->active) continue;
+            float t = a->timer / a->duration;
+
+            // jagged line: 3 midpoints with perpendicular jitter
+            Vector2 diff = Vector2Subtract(a->to, a->from);
+            Vector2 perp = { -diff.y, diff.x };
+            float pLen = Vector2Length(perp);
+            if (pLen > 0.1f) perp = Vector2Scale(perp, 1.0f / pLen);
+
+            Vector2 pts[5];
+            pts[0] = a->from;
+            pts[4] = a->to;
+            for (int m = 1; m <= 3; m++) {
+                float frac = (float)m / 4.0f;
+                Vector2 base = Vector2Lerp(a->from, a->to, frac);
+                float jitter = (float)GetRandomValue(
+                    -(int)BFG_ARC_JITTER, (int)BFG_ARC_JITTER);
+                pts[m] = Vector2Add(base, Vector2Scale(perp, jitter));
+            }
+
+            // draw glow then core
+            Color glow = { BFG_GLOW_COLOR.r, BFG_GLOW_COLOR.g,
+                           BFG_GLOW_COLOR.b, (u8)(BFG_GLOW_COLOR.a * t) };
+            Color core = Fade((Color)BFG_COLOR, t);
+            for (int s = 0; s < 4; s++) {
+                DrawLineEx(pts[s], pts[s + 1], BFG_ARC_GLOW_WIDTH * t, glow);
+                DrawLineEx(pts[s], pts[s + 1], BFG_ARC_CORE_WIDTH, core);
+            }
+        }
     }
 
     // --- Enemies ---
@@ -2396,6 +2573,22 @@ static void DrawHUD(void)
             DrawRectangle(cdX, cdY, cdBarW, cdBarH, grColor);
             DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
             DrawText("GREN", cdLabelX, cdY, cdFontSize, grColor);
+        }
+    }
+
+    // BFG cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color bfgColor = BFG_COLOR;
+        if (p->bfg.cooldownTimer > 0) {
+            float ratio = 1.0f - (p->bfg.cooldownTimer / BFG_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, bfgColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("BFG", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, bfgColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("BFG", cdLabelX, cdY, cdFontSize, bfgColor);
         }
     }
 
