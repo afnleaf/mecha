@@ -27,6 +27,7 @@ typedef enum WeaponType {
     WPN_LASER,
     WPN_SWORD,
     WPN_REVOLVER,
+    WPN_MINIGUN,
 } WeaponType;
 
 typedef enum GameScreen {
@@ -86,12 +87,21 @@ typedef struct Rocket {
     float cooldownTimer;
 } Rocket;
 
+typedef struct Grenade {
+    float cooldownTimer;
+} Grenade;
+
 typedef struct Revolver {
     int rounds;
     float cooldownTimer;
     float reloadTimer;
     bool fanning;
 } Revolver;
+
+typedef struct Minigun {
+    float spinUp;       // current spin-up progress (0.0 = idle, 1.0 = max speed)
+    float cooldown;     // per-shot cooldown timer
+} Minigun;
 
 typedef struct Laser {
     float   damageAccum;
@@ -103,6 +113,10 @@ typedef struct Railgun {
     // but Railgun does not?
     float cooldownTimer;
 } Railgun;
+
+typedef struct Sniper {
+    float cooldownTimer;
+} Sniper;
 
 typedef struct Beam {
     Vector2 origin;
@@ -128,9 +142,12 @@ typedef struct Player {
     Spin spin;
     Shotgun shotgun;
     Rocket rocket;
+    Grenade grenade;
     Revolver revolver;
+    Minigun minigun;
     Laser   laser;
     Railgun railgun;
+    Sniper  sniper;
     WeaponType primary;
 } Player;
 
@@ -169,6 +186,7 @@ typedef enum DamageType {
 typedef enum ProjectileType {
     PROJ_BULLET,
     PROJ_ROCKET,
+    PROJ_GRENADE,
 } ProjectileType;
 
 typedef struct Projectile {
@@ -183,6 +201,7 @@ typedef struct Projectile {
     bool active;
     bool isEnemy;
     bool knockback;
+    u8 bounces;
 } Projectile;
 
 #define MAX_EXPLOSIVES 8
@@ -231,6 +250,8 @@ typedef struct Enemy {
     int contactDamage;
     int score;
     EnemyType type;
+    float slowTimer;
+    float slowFactor;
 } Enemy;
 
 // other -------------------------------------------------------------------- /
@@ -297,6 +318,8 @@ static void UpdateBeams(float dt);
 static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
     float range, int damage, DamageType dmgType, int maxPierces);
 static void UpdateRailgun(Player *p, Vector2 toMouse, float dt);
+static void SpawnGrenade(Player *p, Vector2 toMouse);
+static void GrenadeExplode(Vector2 pos);
 
 // refactoring artifact
 static void UpdatePlayer(float dt);

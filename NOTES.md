@@ -35,7 +35,6 @@ This probably fits really nicely inside cache. Also it's still tiny, so duh.
 I'm surprised the binary executable is 1.1mb while the full index.html single file mode is 300kb. This is because the native build links everything from the full build of make platform_desktop inside the lib.a. While emscripten -Os build is aggressive and can strip all the functions you don't use. 
 
 maybe we should refactor the huge update and draw functions? but, not sure what the proper way to approach this problem is. we are at the point where if we keep adding new stuff to the game, our current approach would be unmaintainable, but it works right now in this super early prototype version. This is a good spot to be in from a single "vibe coding" session, but continuing on with feature creep would be a massive mistake. We need to understand the data transformation problem better before we tackle a re design. 
-
 draw vs update
 
 so draw is obviously handling the visuals
@@ -93,13 +92,15 @@ pick a chassis type to start with
 - [x] (claude) redesign and refactor collision logic
 - [x] (claude) make the character model a tetrahedron pyramid
 - [x] (gemini + gpt5.2 + claude) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close.
+- [] move keybind instructions UI to pause menu.
+- [] launch screen shows keybinds
 
 refactorin time
 - [x] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
-- [] figure out how to do hitscan, what are the other weapon types?
-- [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [x] (claude) big refactor of all hardcoded numbers
+- [x] figure out how to do hitscan, what are the other weapon types?
+- [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
@@ -132,11 +133,12 @@ weapons
 - [x] choose your weapon screen, you get 5 options (machine gun, laser, revolver, sword, ???)
 - [x] revolver (6 shooter) (m1, m2 fan the hammer)
 - [x] railgun (histcan big damage)
-- [] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
-- [] shotgun bullets ricochet?
+- [x] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
+- [x] minigun (slows you down, wind up time, many bullets)
+- [] (fix arc) grenade launcher (delayed explosion)
 - [] big gun (BFG10k)
-- [] grenade launcher (delayed explosion)
-- [] minigun
+- [] shotgun bullets ricochet?
+- [] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
 
@@ -163,19 +165,23 @@ the different games idea, each chassis has one really powerful identity that ena
 what can you customize? all your buttons, its a mecha game... some remain for basics. 
 
 - WASD — move
-- m1 — gun
-- m2 — sword (dash slash if dashing)
+- m1/m2 — main weapon 
+    - machine gun, 
+    - laser 
+    - revolver m2 fan the hammer
+    — sword (dash slash if dashing) (not sure if it works rn)
 - space — dash (2 charges)
 - shift — spin (lifesteal)
 - E — shotgun (2 blasts)
 - Q — rocket
-- F — laser (hold)
 - Z — railgun (pierce all)
+- X - sniper
 - P / esc — pause
-- R — restart
+- R — restart (has to be reload eventually)
 - 0 — quit
+- F — free
 - ctrl — free
-- r, c, x, 1-4 — free
+- r, c, 1-4 — free
 - tab — free
 - alt — free
 

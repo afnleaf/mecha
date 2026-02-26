@@ -147,6 +147,26 @@ static void SpawnRocket(Player *p, Vector2 toMouse) {
     SpawnParticles(p->pos, GRAY, ROCKET_BACKBLAST_PARTICLES);
 }
 
+static void SpawnGrenade(Player *p, Vector2 toMouse) {
+    Vector2 aimDir = Vector2Normalize(toMouse);
+    Vector2 muzzle = Vector2Add(p->pos,
+        Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+    // lob upward: rotate aim direction by launch angle
+    float baseAngle = atan2f(aimDir.y, aimDir.x);
+    float lobAngle = baseAngle - GRENADE_LAUNCH_ANGLE;
+    Vector2 lobDir = { cosf(lobAngle), sinf(lobAngle) };
+    Projectile *gr = SpawnProjectile(muzzle, lobDir,
+        GRENADE_SPEED, GRENADE_DIRECT_DAMAGE,
+        GRENADE_LIFETIME, GRENADE_PROJECTILE_SIZE, false, true,
+        PROJ_GRENADE, DMG_EXPLOSIVE);
+    if (gr) gr->bounces = GRENADE_MAX_BOUNCES;
+    // muzzle flash
+    SpawnParticles(muzzle, GREEN, GRENADE_MUZZLE_PARTICLES);
+    SpawnParticle(muzzle,
+        Vector2Scale(aimDir, GRENADE_MUZZLE_SPEED), GREEN,
+        GRENADE_MUZZLE_SIZE, GRENADE_MUZZLE_LIFETIME);
+}
+
 // this of course will need a lot of work
 // serves well for the mechanics practice / design phase
 // maybe we should scale up the number of enemies that spawn as time goes on?
@@ -161,6 +181,8 @@ static void SpawnEnemy(void)
             e->active = true;
             e->hitFlash = 0;
             e->shootTimer = 0;
+            e->slowTimer = 0;
+            e->slowFactor = 1.0f;
 
             // Roll for enemy type — priority table, TRI fallback
             EnemyType type = TRI;
@@ -555,9 +577,9 @@ static Vector2 mouse() {
 static void UpdateSelect(void)
 {
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))
-        g.selectIndex = (g.selectIndex + 3) % 4; // wrap up
+        g.selectIndex = (g.selectIndex + 4) % 5; // wrap up
     if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))
-        g.selectIndex = (g.selectIndex + 1) % 4; // wrap down
+        g.selectIndex = (g.selectIndex + 1) % 5; // wrap down
     if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         g.player.primary = (WeaponType)g.selectIndex;
         g.screen = SCREEN_PLAYING;
@@ -581,19 +603,20 @@ static void DrawSelect(void)
         (int)(sh * SELECT_TITLE_Y), titleFont, WHITE);
 
     // Options
-    const char *names[] = { "MACHINE GUN", "LASER", "SWORD", "REVOLVER" };
+    const char *names[] = { "MACHINE GUN", "LASER", "SWORD", "REVOLVER", "MINIGUN" };
     const char *descs[] = {
         "Hold to fire — rapid ballistic rounds",
         "Hold to fire — continuous beam, hits first target",
         "Click to swing — melee arc slash",
         "Precise single shots — fan the hammer with M2",
+        "High volume fire — winds up over time, slows movement",
     };
     int optFont = (int)(SELECT_OPTION_FONT * ui);
     int descFont = (int)(SELECT_DESC_FONT * ui);
     int spacing = (int)(SELECT_OPTION_SPACING * ui);
     int baseY = (int)(sh * SELECT_OPTIONS_Y);
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         int y = baseY + i * spacing;
         Color nameColor = (i == g.selectIndex) ? SELECT_HIGHLIGHT_COLOR : GRAY;
         Color descColor = (i == g.selectIndex) ? WHITE : DARKGRAY;
@@ -649,7 +672,10 @@ static void UpdatePlayer(float dt)
     if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
 
     if (!p->dash.active) {
-        p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, p->speed * dt));
+        float moveSpeed = p->speed;
+        if (p->primary == WPN_MINIGUN && p->minigun.spinUp > 0)
+            moveSpeed = p->speed * MINIGUN_SLOW_FACTOR;
+        p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, moveSpeed * dt));
     }
 
     // --- Dash (charge system) ---
@@ -829,6 +855,38 @@ static void UpdatePlayer(float dt)
             p->revolver.reloadTimer = REVOLVER_RELOAD_TIME;
         }
         break;
+    case WPN_MINIGUN: {
+        p->minigun.cooldown -= dt;
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            p->minigun.spinUp += dt / MINIGUN_SPIN_UP_TIME;
+            if (p->minigun.spinUp > 1.0f) p->minigun.spinUp = 1.0f;
+
+            float rate = MINIGUN_MIN_FIRE_RATE +
+                (MINIGUN_MAX_FIRE_RATE - MINIGUN_MIN_FIRE_RATE) * p->minigun.spinUp;
+
+            if (p->minigun.cooldown <= 0 && p->minigun.spinUp > 0.1f) {
+                p->minigun.cooldown = 1.0f / rate;
+                int spread = MINIGUN_SPREAD_MIN +
+                    (int)((MINIGUN_SPREAD_MAX - MINIGUN_SPREAD_MIN) * p->minigun.spinUp);
+                float s = ((float)GetRandomValue(-spread, spread)) * 0.001f;
+                float bulletAngle = p->angle + s;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                Vector2 aimDir = Vector2Normalize(toMouse);
+                Vector2 muzzle =
+                    Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, bulletDir,
+                    MINIGUN_BULLET_SPEED, MINIGUN_BULLET_DAMAGE,
+                    MINIGUN_BULLET_LIFETIME, MINIGUN_PROJECTILE_SIZE, false, false,
+                    PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                    Vector2Scale(bulletDir, MINIGUN_MUZZLE_SPEED), WHITE,
+                    MINIGUN_MUZZLE_SIZE, MINIGUN_MUZZLE_LIFETIME);
+            }
+        } else {
+            p->minigun.spinUp -= dt / MINIGUN_SPIN_DOWN_TIME;
+            if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
+        }
+    } break;
     }
 
     // Sword damage — sweep line hits enemies as it passes over them
@@ -950,7 +1008,39 @@ static void UpdatePlayer(float dt)
         p->rocket.cooldownTimer = ROCKET_COOLDOWN;
     }
 
+    // grenade launcher — arcing explosive, cooldown
+    if (p->grenade.cooldownTimer > 0)
+        p->grenade.cooldownTimer -= dt;
+
+    if (IsKeyPressed(GRENADE_KEY) && p->grenade.cooldownTimer <= 0) {
+        SpawnGrenade(p, toMouse);
+        p->grenade.cooldownTimer = GRENADE_COOLDOWN;
+    }
+
     UpdateRailgun(p, toMouse, dt);
+
+    // sniper — single fast projectile, slows target, long cooldown
+    if (p->sniper.cooldownTimer > 0)
+        p->sniper.cooldownTimer -= dt;
+
+    if (IsKeyPressed(SNIPER_KEY) && p->sniper.cooldownTimer <= 0) {
+        Vector2 aimDir = Vector2Normalize(toMouse);
+        // tiny random spread
+        float spread = (float)(GetRandomValue(-SNIPER_SPREAD, SNIPER_SPREAD)) / 1000.0f;
+        Vector2 dir = Vector2Rotate(aimDir, spread);
+        Vector2 muzzle = Vector2Add(p->pos,
+            Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+        SpawnProjectile(muzzle, dir,
+            SNIPER_BULLET_SPEED, SNIPER_DAMAGE,
+            SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE, false, false,
+            PROJ_BULLET, DMG_PIERCE);
+        p->sniper.cooldownTimer = SNIPER_COOLDOWN;
+        // muzzle flash
+        SpawnParticles(muzzle, (Color)SNIPER_COLOR, SNIPER_MUZZLE_PARTICLES);
+        SpawnParticle(muzzle,
+            Vector2Scale(aimDir, SNIPER_MUZZLE_SPEED), WHITE,
+            SNIPER_MUZZLE_SIZE, SNIPER_MUZZLE_LIFETIME);
+    }
 
     // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
@@ -982,6 +1072,9 @@ static void UpdateEnemies(float dt) {
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
 
+        // tick slow debuff
+        if (e->slowTimer > 0) e->slowTimer -= dt;
+
         // Chase player (HEXA strafes instead)
         Vector2 toPlayer = Vector2Subtract(p->pos, e->pos);
         float dist = Vector2Length(toPlayer);
@@ -1004,6 +1097,9 @@ static void UpdateEnemies(float dt) {
             } else {
                 desired = Vector2Scale(chaseDir, e->speed);
             }
+            // apply slow debuff
+            if (e->slowTimer > 0)
+                desired = Vector2Scale(desired, e->slowFactor);
             e->vel = Vector2Lerp(e->vel, desired, ENEMY_VEL_LERP_RATE * dt);
         }
         e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
@@ -1166,20 +1262,98 @@ static void RocketExplode(Vector2 pos) {
     }
 }
 
+static void GrenadeExplode(Vector2 pos) {
+    for (int j = 0; j < MAX_ENEMIES; j++) {
+        if (!g.enemies[j].active) continue;
+        Enemy *ej = &g.enemies[j];
+        float dist = Vector2Distance(pos, ej->pos);
+        if (dist < GRENADE_EXPLOSION_RADIUS + ej->size) {
+            DamageEnemy(j, GRENADE_EXPLOSION_DAMAGE, DMG_EXPLOSIVE, HIT_AOE);
+            Vector2 away = Vector2Subtract(ej->pos, pos);
+            if (Vector2Length(away) > 1.0f)
+                ej->vel = Vector2Scale(
+                    Vector2Normalize(away), GRENADE_KNOCKBACK);
+        }
+    }
+    // explosion ring — green/yellow/orange theme
+    for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
+        float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_RING_SPEED_MIN, EXPLOSION_RING_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        Color c = (i % 3 == 0) ? GREEN : (i % 3 == 1) ? YELLOW : ORANGE;
+        SpawnParticle(pos, vel, c, EXPLOSION_RING_SIZE,
+            EXPLOSION_RING_LIFETIME);
+    }
+    // inner fireball
+    for (int i = 0; i < EXPLOSION_FIRE_COUNT; i++) {
+        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_FIRE_SPEED_MIN, EXPLOSION_FIRE_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        SpawnParticle(pos, vel, YELLOW, EXPLOSION_FIRE_SIZE,
+            EXPLOSION_FIRE_LIFETIME);
+    }
+    // smoke
+    for (int i = 0; i < EXPLOSION_SMOKE_COUNT; i++) {
+        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_SMOKE_SPEED_MIN, EXPLOSION_SMOKE_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        SpawnParticle(pos, vel, GRAY, EXPLOSION_SMOKE_SIZE,
+            EXPLOSION_SMOKE_LIFETIME);
+    }
+    // spawn radius ring
+    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
+        if (!g.explosives[i].active) {
+            g.explosives[i].active = true;
+            g.explosives[i].pos = pos;
+            g.explosives[i].timer = EXPLOSION_VFX_DURATION;
+            g.explosives[i].duration = EXPLOSION_VFX_DURATION;
+            break;
+        }
+    }
+}
+
 static void UpdateProjectiles(float dt) {
     Player *p = &g.player;
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         Projectile *b = &g.projectiles[i];
         if (!b->active) continue;
 
+        // grenade gravity
+        if (b->type == PROJ_GRENADE) {
+            b->vel.y += GRENADE_GRAVITY * dt;
+        }
+
         b->pos = Vector2Add(b->pos, Vector2Scale(b->vel, dt));
         b->lifetime -= dt;
 
-        if (b->lifetime <= 0 || b->pos.x < 0 || b->pos.x > MAP_SIZE ||
-            b->pos.y < 0 || b->pos.y > MAP_SIZE) {
+        // fuse timer expired
+        if (b->lifetime <= 0) {
             if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
+            if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
             b->active = false;
             continue;
+        }
+
+        // map boundary
+        if (b->pos.x < 0 || b->pos.x > MAP_SIZE ||
+            b->pos.y < 0 || b->pos.y > MAP_SIZE) {
+            if (b->type == PROJ_GRENADE && b->bounces > 0) {
+                // bounce off map edges
+                if (b->pos.x < 0)        { b->pos.x = 0;        b->vel.x = -b->vel.x; }
+                if (b->pos.x > MAP_SIZE)  { b->pos.x = MAP_SIZE; b->vel.x = -b->vel.x; }
+                if (b->pos.y < 0)        { b->pos.y = 0;        b->vel.y = -b->vel.y; }
+                if (b->pos.y > MAP_SIZE)  { b->pos.y = MAP_SIZE; b->vel.y = -b->vel.y; }
+                b->vel = Vector2Scale(b->vel, GRENADE_BOUNCE_DAMPING);
+                b->bounces--;
+            } else {
+                if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
+                if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
+                b->active = false;
+                continue;
+            }
         }
 
         // rocket reached target — explode
@@ -1207,8 +1381,15 @@ static void UpdateProjectiles(float dt) {
                 bool hit = EnemyHitPoint(ej, b->pos, b->size);
                 if (hit) {
                     DamageEnemy(j, b->damage, b->dmgType, HIT_PROJ);
+                    // sniper slow debuff
+                    if (b->dmgType == DMG_PIERCE) {
+                        ej->slowTimer = SNIPER_SLOW_DURATION;
+                        ej->slowFactor = SNIPER_SLOW_FACTOR;
+                    }
                     if (b->type == PROJ_ROCKET) {
                         RocketExplode(b->pos);
+                    } else if (b->type == PROJ_GRENADE) {
+                        GrenadeExplode(b->pos);
                     } else if (b->knockback) {
                         Vector2 kb = Vector2Normalize(b->vel);
                         ej->vel = Vector2Scale(kb, SHOTGUN_KNOCKBACK);
@@ -1661,11 +1842,43 @@ static void DrawWorld(void)
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         Projectile *b = &g.projectiles[i];
         if (!b->active) continue;
-        Color bColor = b->isEnemy ? MAGENTA : YELLOW;
-        float bSize = b->size;
-        DrawCircleV(b->pos, bSize, bColor);
-        Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
-        DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
+
+        // sniper .50 cal bullet — elongated pointed shape
+        if (b->dmgType == DMG_PIERCE && !b->isEnemy) {
+            Vector2 fwd = Vector2Normalize(b->vel);
+            Vector2 perp = { -fwd.y, fwd.x };
+            float len = b->size * SNIPER_BULLET_LENGTH;
+            float w   = b->size * SNIPER_BULLET_WIDTH;
+            float tip = b->size * SNIPER_NOSE_LENGTH;
+            // nose cone tip
+            Vector2 noseTip = Vector2Add(b->pos, Vector2Scale(fwd, tip));
+            // body front (where nose meets body)
+            Vector2 frontL = Vector2Add(b->pos, Vector2Scale(perp,  w));
+            Vector2 frontR = Vector2Add(b->pos, Vector2Scale(perp, -w));
+            // body rear
+            Vector2 base = Vector2Subtract(b->pos, Vector2Scale(fwd, len));
+            Vector2 rearL = Vector2Add(base, Vector2Scale(perp,  w));
+            Vector2 rearR = Vector2Add(base, Vector2Scale(perp, -w));
+            // draw body (two triangles for the rect)
+            DrawTriangle(frontL, rearL, rearR, SNIPER_BODY_COLOR);
+            DrawTriangle(frontL, rearR, frontR, SNIPER_BODY_COLOR);
+            // draw nose cone
+            DrawTriangle(noseTip, frontR, frontL, SNIPER_TIP_COLOR);
+            // tracer trail
+            Vector2 trail = Vector2Subtract(base, Vector2Scale(fwd, len * SNIPER_TRAIL_MULT));
+            DrawLineEx(base, trail, w * 0.8f, Fade(SNIPER_COLOR, 0.4f));
+        } else if (b->type == PROJ_GRENADE) {
+            DrawCircleV(b->pos, b->size, GRENADE_COLOR);
+            DrawCircleLinesV(b->pos, b->size + 1.0f, GREEN);
+            Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR * 1.5f));
+            DrawLineEx(trail, b->pos, 2.0f, Fade(GREEN, 0.4f));
+        } else {
+            Color bColor = b->isEnemy ? MAGENTA : YELLOW;
+            float bSize = b->size;
+            DrawCircleV(b->pos, bSize, bColor);
+            Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
+            DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
+        }
     }
 
     // --- Explosion rings ---
@@ -1687,6 +1900,10 @@ static void DrawWorld(void)
         Vector2 toPlayer = Vector2Subtract(p->pos, e->pos);
         float eAngle = atan2f(toPlayer.y, toPlayer.x);
         Color eColor = (e->hitFlash > 0) ? WHITE : RED;
+        // Icy tint when slowed
+        if (e->slowTimer > 0 && e->hitFlash <= 0) {
+            eColor = SNIPER_COLOR;
+        }
 
         switch (e->type) {
         case TRI: {
@@ -1847,10 +2064,30 @@ static void DrawWorld(void)
 
         // Gun barrel
         float ca = cosf(p->angle), sa = sinf(p->angle);
-        Vector2 gunTip = Vector2Add(p->pos,
-            (Vector2){ ca * (p->size + GUN_TIP_OFFSET),
-                       sa * (p->size + GUN_TIP_OFFSET) });
-        DrawLineEx(p->pos, gunTip, GUN_BARREL_THICKNESS, DARKGRAY);
+        if (p->primary == WPN_MINIGUN) {
+            Vector2 miniTip = Vector2Add(p->pos,
+                (Vector2){ ca * (p->size + MINIGUN_TIP_OFFSET),
+                           sa * (p->size + MINIGUN_TIP_OFFSET) });
+            DrawLineEx(p->pos, miniTip, MINIGUN_BARREL_THICKNESS, DARKGRAY);
+            // spinning barrel lines
+            if (p->minigun.spinUp > 0) {
+                float spin = (float)GetTime() * p->minigun.spinUp * 30.0f;
+                for (int b = 0; b < 3; b++) {
+                    float bAngle = p->angle + spin + b * (2.0f * PI / 3.0f);
+                    float bca = cosf(bAngle), bsa = sinf(bAngle);
+                    Vector2 bOff = { -bsa * 2.0f, bca * 2.0f };
+                    Vector2 bStart = Vector2Add(p->pos, bOff);
+                    Vector2 bEnd = Vector2Add(miniTip, bOff);
+                    DrawLineEx(bStart, bEnd, 1.0f,
+                        Fade(LIGHTGRAY, 0.4f * p->minigun.spinUp));
+                }
+            }
+        } else {
+            Vector2 gunTip = Vector2Add(p->pos,
+                (Vector2){ ca * (p->size + GUN_TIP_OFFSET),
+                           sa * (p->size + GUN_TIP_OFFSET) });
+            DrawLineEx(p->pos, gunTip, GUN_BARREL_THICKNESS, DARKGRAY);
+        }
 
         // --- Laser beam (live while key held) ---
         if (p->laser.active) {
@@ -2120,6 +2357,38 @@ static void DrawHUD(void)
         }
     }
 
+    // Sniper cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color snColor = SNIPER_COLOR;
+        if (p->sniper.cooldownTimer > 0) {
+            float ratio = 1.0f - (p->sniper.cooldownTimer / SNIPER_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, snColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("SNIPER", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, snColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("SNIPER", cdLabelX, cdY, cdFontSize, snColor);
+        }
+    }
+
+    // Grenade cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color grColor = GRENADE_COLOR;
+        if (p->grenade.cooldownTimer > 0) {
+            float ratio = 1.0f - (p->grenade.cooldownTimer / GRENADE_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, grColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("GREN", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, grColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("GREN", cdLabelX, cdY, cdFontSize, grColor);
+        }
+    }
+
     // Revolver cylinder (only when revolver is equipped)
     if (p->primary == WPN_REVOLVER) {
         cdY += (int)(HUD_ROW_SPACING * ui);
@@ -2150,6 +2419,16 @@ static void DrawHUD(void)
             DrawText("REVLR", labelX, cdY, cdFontSize,
                 p->revolver.rounds > 0 ? revColor : GRAY);
         }
+    }
+
+    // Minigun spin-up bar
+    if (p->primary == WPN_MINIGUN && p->minigun.spinUp > 0) {
+        cdY += (int)(HUD_ROW_SPACING * ui);
+        Color miniColor = (Color){ 255, 100, 50, 255 };
+        float ratio = p->minigun.spinUp;
+        DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, miniColor);
+        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+        DrawText("SPIN", cdLabelX, cdY, cdFontSize, miniColor);
     }
 
     // FPS (top-right)
@@ -2204,7 +2483,7 @@ static void DrawHUD(void)
     
     // Controls reminder (bottom-left)
     int ctrlFont = (int)(HUD_CTRL_FONT * ui);
-    DrawText("WASD: Move | Space: Dash | M1: Weapon | E: Shotgun | Q: Rocket | Shift: Spin | Z: Railgun | R: Restart | 0: Quit",
+    DrawText("WASD: Move | Space: Dash | M1: Weapon | E: Shotgun | Q: Rocket | C: Grenade | X: Sniper | Shift: Spin | Z: Railgun | R: Restart | 0: Quit",
         (int)(HUD_MARGIN * ui), sh - (int)(HUD_BOTTOM_Y * ui), ctrlFont, Fade(WHITE, 0.5f));
 
     // bottom right, game title text

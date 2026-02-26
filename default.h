@@ -51,6 +51,24 @@
 #define GUN_TIP_OFFSET          12.0f
 #define GUN_BARREL_THICKNESS    3.0f
 
+// Minigun
+#define MINIGUN_MAX_FIRE_RATE    40.0f
+#define MINIGUN_MIN_FIRE_RATE    4.0f
+#define MINIGUN_SPIN_UP_TIME     0.8f
+#define MINIGUN_SPIN_DOWN_TIME   0.5f
+#define MINIGUN_BULLET_SPEED     1000.0f
+#define MINIGUN_BULLET_LIFETIME  1.5f
+#define MINIGUN_BULLET_DAMAGE    6
+#define MINIGUN_PROJECTILE_SIZE  2.5f
+#define MINIGUN_SPREAD_MIN       20
+#define MINIGUN_SPREAD_MAX       80
+#define MINIGUN_SLOW_FACTOR      0.4f
+#define MINIGUN_TIP_OFFSET       14.0f
+#define MINIGUN_BARREL_THICKNESS 4.0f
+#define MINIGUN_MUZZLE_SPEED     100.0f
+#define MINIGUN_MUZZLE_SIZE      2.0f
+#define MINIGUN_MUZZLE_LIFETIME  0.06f
+
 // Sword
 #define SWORD_DURATION          0.16f
 #define SWORD_ARC               (0.9f * 3.14159265f)
@@ -115,6 +133,73 @@
 #define ROCKET_COOLDOWN         2.0f
 #define ROCKET_SIZE             6.0f
 #define ROCKET_PROJECTILE_SIZE  6.0f
+
+// Grenade Launcher
+#define GRENADE_KEY                 KEY_C
+#define GRENADE_SPEED               400.0f
+#define GRENADE_GRAVITY             600.0f
+#define GRENADE_LIFETIME            2.5f
+#define GRENADE_DIRECT_DAMAGE       30
+#define GRENADE_EXPLOSION_DAMAGE    50
+#define GRENADE_EXPLOSION_RADIUS    140.0f
+#define GRENADE_KNOCKBACK           200.0f
+#define GRENADE_COOLDOWN            1.5f
+#define GRENADE_PROJECTILE_SIZE     5.0f
+#define GRENADE_MAX_BOUNCES         2
+#define GRENADE_BOUNCE_DAMPING      0.6f
+#define GRENADE_LAUNCH_ANGLE        0.35f
+#define GRENADE_COLOR               (Color){ 0, 200, 50, 255 }
+#define GRENADE_MUZZLE_PARTICLES    6
+#define GRENADE_MUZZLE_SPEED        100.0f
+#define GRENADE_MUZZLE_SIZE         4.0f
+#define GRENADE_MUZZLE_LIFETIME     0.1f
+
+// Hitscan weapons ---------------------------------------------------------- /
+// Laser (hold F, continuous DPS, terminates at first hit)
+#define LASER_DPS                   80
+#define LASER_RANGE                 1000.0f
+#define LASER_BEAM_WIDTH            2.0f
+#define LASER_GLOW_WIDTH            4.0f
+//#define LASER_COLOR                 (Color){ 255, 60, 60, 255 }
+//#define LASER_GLOW_COLOR            (Color){ 255, 60, 60, 80 }
+#define LASER_COLOR                 (Color){ 100, 180, 255, 255 }
+#define LASER_GLOW_COLOR            (Color){ 100, 180, 255, 80 }
+#define LASER_HIT_PARTICLES         4
+
+// Railgun (press Z, pierce all, long cooldown)
+#define RAILGUN_KEY                 KEY_Z
+#define RAILGUN_DAMAGE              200
+#define RAILGUN_RANGE               3000.0f
+#define RAILGUN_COOLDOWN            4.0f
+#define RAILGUN_BEAM_DURATION       0.2f
+#define RAILGUN_BEAM_WIDTH          5.0f
+#define RAILGUN_GLOW_WIDTH          14.0f
+#define RAILGUN_COLOR               (Color){ 0, 255, 0, 255 }
+#define RAILGUN_GLOW_COLOR          (Color){ 0, 255, 0, 80 }
+#define RAILGUN_HIT_PARTICLES       6
+#define RAILGUN_MUZZLE_PARTICLES    8
+
+// Sniper (press X, single fast projectile, slows target, long cooldown)
+#define SNIPER_KEY              KEY_X
+#define SNIPER_DAMAGE           120
+#define SNIPER_BULLET_SPEED     2400.0f
+#define SNIPER_BULLET_LIFETIME  1.5f
+#define SNIPER_PROJECTILE_SIZE  4.0f
+#define SNIPER_COOLDOWN         0.915f
+#define SNIPER_SLOW_FACTOR      0.4f
+#define SNIPER_SLOW_DURATION    2.0f
+#define SNIPER_SPREAD           4
+#define SNIPER_MUZZLE_PARTICLES 6
+#define SNIPER_MUZZLE_SPEED     120.0f
+#define SNIPER_MUZZLE_SIZE      4.0f
+#define SNIPER_MUZZLE_LIFETIME  0.1f
+#define SNIPER_COLOR            (Color){ 180, 220, 255, 255 }
+#define SNIPER_BULLET_LENGTH    5.0f
+#define SNIPER_BULLET_WIDTH     1.1f
+#define SNIPER_NOSE_LENGTH      8.0f
+#define SNIPER_TRAIL_MULT       0.6f
+#define SNIPER_BODY_COLOR       (Color){ 160, 100, 60, 255 }
+#define SNIPER_TIP_COLOR        (Color){ 200, 130, 80, 255 }
 
 // Enemies ------------------------------------------------------------------ /
 // Spawning
@@ -366,27 +451,3 @@
 #define SELECT_BG_COLOR         (Color){ 15, 15, 25, 255 }
 #define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
 
-// Hitscan weapons ---------------------------------------------------------- /
-// Laser (hold F, continuous DPS, terminates at first hit)
-#define LASER_DPS                   80
-#define LASER_RANGE                 1000.0f
-#define LASER_BEAM_WIDTH            2.0f
-#define LASER_GLOW_WIDTH            4.0f
-//#define LASER_COLOR                 (Color){ 255, 60, 60, 255 }
-//#define LASER_GLOW_COLOR            (Color){ 255, 60, 60, 80 }
-#define LASER_COLOR                 (Color){ 100, 180, 255, 255 }
-#define LASER_GLOW_COLOR            (Color){ 100, 180, 255, 80 }
-#define LASER_HIT_PARTICLES         4
-
-// Railgun (press Z, pierce all, long cooldown)
-#define RAILGUN_KEY                 KEY_Z
-#define RAILGUN_DAMAGE              200
-#define RAILGUN_RANGE               3000.0f
-#define RAILGUN_COOLDOWN            4.0f
-#define RAILGUN_BEAM_DURATION       0.2f
-#define RAILGUN_BEAM_WIDTH          5.0f
-#define RAILGUN_GLOW_WIDTH          14.0f
-#define RAILGUN_COLOR               (Color){ 0, 255, 0, 255 }
-#define RAILGUN_GLOW_COLOR          (Color){ 0, 255, 0, 80 }
-#define RAILGUN_HIT_PARTICLES       6
-#define RAILGUN_MUZZLE_PARTICLES    8
