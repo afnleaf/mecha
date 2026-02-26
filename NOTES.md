@@ -101,6 +101,7 @@ refactorin time
 - [x] (claude) big refactor of all hardcoded numbers
 - [x] figure out how to do hitscan, what are the other weapon types?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
+- [] enemy debuff whack
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
@@ -135,12 +136,13 @@ weapons
 - [x] railgun (histcan big damage)
 - [x] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
 - [x] minigun (slows you down, wind up time, many bullets)
-- [] (fix arc) grenade launcher (delayed explosion)
-- [] big gun (BFG10k)
+- [] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
+- [] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
 - [] shotgun bullets ricochet?
 - [] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
+- [] decide what the actual 5? primary weapons should be?
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -153,6 +155,15 @@ abilities
 - [] summons (npcs who take aggro for you) 
 - [] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - are weapons just abilities in a mecha? buttons?
+
+players
+- [x] tetrahedron
+- [] cube
+- [] octahedron
+- [] dodecahedron
+- [] icosahedron
+- [] decide who gets which primary weapon
+- [] do you get to pick two shapes and morph between them?
 
 levels
 - [] rounds/rooms
