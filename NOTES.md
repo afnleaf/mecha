@@ -5,7 +5,7 @@ feel free to use these urls to explore
 - [Math Sheet](https://www.raylib.com/cheatsheet/raymath_cheatsheet.html)
 - [raylib.h](https://github.com/raysan5/raylib/blob/master/src/raylib.h) inside ./raylib/src/raylib.h
 - [FAQ Technical](https://github.com/raysan5/raylib/wiki/Frequently-Asked-Questions)
-- [FAQ Generic](https://github.com/raysan5/raylib/blob/master/FAQ.md
+- [FAQ Generic](https://github.com/raysan5/raylib/blob/master/FAQ.md)
 
 joint implementation between claude and myself the user! 🤝🫡
 
@@ -94,8 +94,8 @@ pick a chassis type to start with
 - [x] (claude) make the character model a tetrahedron pyramid
 - [x] (gemini + gpt5.2 + claude) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close.
 
-refactor
-- [] refactorin time
+refactorin time
+- [] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
 - [] figure out how to do hitscan, what are the other weapon types?
 - [x] (claude) big refactor of all hardcoded numbers

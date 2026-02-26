@@ -8,4 +8,4 @@ pack:
     - "./style.css"
   scripts:
     - "./setup.js"
-    - "./mecha.js"
+    - "./game.js"
