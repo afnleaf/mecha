@@ -113,10 +113,11 @@ static void FireShotgunBlast(Player *p, Vector2 toMouse) {
         Vector2 dir = { cosf(angle), sinf(angle) };
         Vector2 muzzle = Vector2Add(p->pos,
             Vector2Scale(dir, p->size + MUZZLE_OFFSET));
-        SpawnProjectile(muzzle, dir,
+        Projectile *pellet = SpawnProjectile(muzzle, dir,
             SHOTGUN_BULLET_SPEED, SHOTGUN_DAMAGE,
             SHOTGUN_BULLET_LIFETIME, SHOTGUN_PROJECTILE_SIZE, false, true,
             PROJ_BULLET, DMG_BALLISTIC);
+        if (pellet) pellet->bounces = SHOTGUN_BOUNCES;
     }
 
     Vector2 muzzle = Vector2Add(p->pos,
@@ -309,6 +310,13 @@ static void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod me
     e->hp -= damage;
     e->hitFlash = HIT_FLASH_DURATION;
     SpawnParticles(e->pos, WHITE, HIT_PARTICLES);
+
+    // charge BFG from damage dealt (only when not active)
+    if (!g.player.bfg.active) {
+        g.player.bfg.charge += damage;
+        if (g.player.bfg.charge > BFG_CHARGE_COST)
+            g.player.bfg.charge = BFG_CHARGE_COST;
+    }
 
     if (e->hp <= 0) {
         e->active = false;
@@ -512,7 +520,7 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
             Vector2 surfacePt = Vector2Add(origin, Vector2Scale(dir, tEntry));
             if (damage > 0) {
                 DamageEnemy(firstIdx, damage, dmgType, HIT_SCAN);
-                SpawnParticles(surfacePt, WHITE, LASER_HIT_PARTICLES);
+                SpawnParticles(surfacePt, WHITE, 4);
             }
             return surfacePt;
         }
@@ -580,9 +588,9 @@ static void UpdateSelect(void)
         g.selectIndex = (g.selectIndex + 4) % 5; // wrap up
     if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))
         g.selectIndex = (g.selectIndex + 1) % 5; // wrap down
-    // Display order: SWORD, REVOLVER, GUN, LASER, MINIGUN (face count ascending)
+    // Display order: SWORD, REVOLVER, GUN, SNIPER, MINIGUN (face count ascending)
     WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_LASER, WPN_MINIGUN
+        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_MINIGUN
     };
     if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         g.player.primary = selectWeapons[g.selectIndex];
@@ -615,13 +623,13 @@ static void DrawSelect(void)
 
     // Keybinds (left column)
     const char *keyLabels[] = {
-        "WASD", "Space", "M1", "M2", "E", "Q", "C", "X", "Z", "Shift", "P / Esc", "0" 
+        "WASD", "Space", "M1", "M2", "E", "Q", "C", "Z", "Shift", "P / Esc", "0"
     };
     const char *keyDescs[] = {
         "Move", "Dash", "Primary Weapon", "Fan / Dash Slash", "Shotgun",
-        "Rocket", "Grenade", "Sniper", "Railgun", "Spin", "Pause", "Exit"
+        "Rocket", "Grenade", "Railgun", "Spin", "Pause", "Exit"
     };
-    int keyCount = 12; // terrible hardcode
+    int keyCount = 11; // terrible hardcode
     int keyFont = (int)(SELECT_KEYS_FONT * ui);
     int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
     int keyX = (int)(sw * SELECT_KEYS_X);
@@ -635,17 +643,17 @@ static void DrawSelect(void)
     }
 
     // Weapons (right column) — ordered by solid face count (4→6→8→12→20)
-    const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "LASER", "MINIGUN" };
+    const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "MINIGUN" };
     const char *descs[] = {
         "Click to swing — melee arc slash",
         "Precise single shots — fan the hammer with M2",
         "Hold to fire — rapid ballistic rounds",
-        "Hold to fire — continuous beam, hits first target",
+        "Click to fire — high damage, slows targets",
         "High volume fire — winds up over time, slows movement",
     };
     // Map display index → WeaponType
     WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_LASER, WPN_MINIGUN
+        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_MINIGUN
     };
     int optFont = (int)(SELECT_OPTION_FONT * ui);
     int descFont = (int)(SELECT_DESC_FONT * ui);
@@ -659,7 +667,7 @@ static void DrawSelect(void)
         DrawTetra2D,    // Tetrahedron  (4)  — SWORD
         DrawCube2D,     // Cube         (6)  — REVOLVER
         DrawOcta2D,     // Octahedron   (8)  — GUN
-        DrawDodeca2D,   // Dodecahedron (12) — LASER
+        DrawDodeca2D,   // Dodecahedron (12) — SNIPER
         DrawIcosa2D,    // Icosahedron  (20) — MINIGUN
     };
 
@@ -804,6 +812,7 @@ static void UpdatePlayer(float dt)
                           GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
         }
         break;
+#if 0 // laser primary — preserved for future use
     case WPN_LASER:
         p->laser.active = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         if (p->laser.active) {
@@ -817,6 +826,27 @@ static void UpdatePlayer(float dt)
                 LASER_RANGE, dmg, DMG_BALLISTIC, 1);
         } else {
             p->laser.damageAccum = 0;
+        }
+        break;
+#endif
+    case WPN_SNIPER:
+        if (p->sniper.cooldownTimer > 0)
+            p->sniper.cooldownTimer -= dt;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && p->sniper.cooldownTimer <= 0) {
+            Vector2 aimDir = Vector2Normalize(toMouse);
+            float spread = (float)(GetRandomValue(-SNIPER_SPREAD, SNIPER_SPREAD)) / 1000.0f;
+            Vector2 dir = Vector2Rotate(aimDir, spread);
+            Vector2 muzzle = Vector2Add(p->pos,
+                Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+            SpawnProjectile(muzzle, dir,
+                SNIPER_BULLET_SPEED, SNIPER_DAMAGE,
+                SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE, false, false,
+                PROJ_BULLET, DMG_PIERCE);
+            p->sniper.cooldownTimer = SNIPER_COOLDOWN;
+            SpawnParticles(muzzle, (Color)SNIPER_COLOR, SNIPER_MUZZLE_PARTICLES);
+            SpawnParticle(muzzle,
+                Vector2Scale(aimDir, SNIPER_MUZZLE_SPEED), WHITE,
+                SNIPER_MUZZLE_SIZE, SNIPER_MUZZLE_LIFETIME);
         }
         break;
     case WPN_SWORD:
@@ -943,6 +973,7 @@ static void UpdatePlayer(float dt)
             if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
         }
     } break;
+    default: break;
     }
 
     // Sword damage — sweep line hits enemies as it passes over them
@@ -1075,34 +1106,10 @@ static void UpdatePlayer(float dt)
 
     UpdateRailgun(p, toMouse, dt);
 
-    // sniper — single fast projectile, slows target, long cooldown
-    if (p->sniper.cooldownTimer > 0)
-        p->sniper.cooldownTimer -= dt;
+    // sniper — primary weapon only, no secondary binding
 
-    if (IsKeyPressed(SNIPER_KEY) && p->sniper.cooldownTimer <= 0) {
-        Vector2 aimDir = Vector2Normalize(toMouse);
-        // tiny random spread
-        float spread = (float)(GetRandomValue(-SNIPER_SPREAD, SNIPER_SPREAD)) / 1000.0f;
-        Vector2 dir = Vector2Rotate(aimDir, spread);
-        Vector2 muzzle = Vector2Add(p->pos,
-            Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-        SpawnProjectile(muzzle, dir,
-            SNIPER_BULLET_SPEED, SNIPER_DAMAGE,
-            SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE, false, false,
-            PROJ_BULLET, DMG_PIERCE);
-        p->sniper.cooldownTimer = SNIPER_COOLDOWN;
-        // muzzle flash
-        SpawnParticles(muzzle, (Color)SNIPER_COLOR, SNIPER_MUZZLE_PARTICLES);
-        SpawnParticle(muzzle,
-            Vector2Scale(aimDir, SNIPER_MUZZLE_SPEED), WHITE,
-            SNIPER_MUZZLE_SIZE, SNIPER_MUZZLE_LIFETIME);
-    }
-
-    // bfg10k — massive lightning chain, long cooldown
-    if (p->bfg.cooldownTimer > 0)
-        p->bfg.cooldownTimer -= dt;
-
-    if (IsKeyPressed(BFG_KEY) && p->bfg.cooldownTimer <= 0) {
+    // bfg10k — charges from damage dealt, fires when full
+    if (IsKeyPressed(BFG_KEY) && p->bfg.charge >= BFG_CHARGE_COST && !p->bfg.active) {
         Vector2 aimDir = Vector2Normalize(toMouse);
         Vector2 muzzle = Vector2Add(p->pos,
             Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
@@ -1110,7 +1117,8 @@ static void UpdatePlayer(float dt)
             BFG_SPEED, BFG_DIRECT_DAMAGE,
             BFG_LIFETIME, BFG_PROJECTILE_SIZE, false, false,
             PROJ_BFG, DMG_ABILITY);
-        p->bfg.cooldownTimer = BFG_COOLDOWN;
+        p->bfg.charge = 0;
+        p->bfg.active = true;
         // muzzle flash
         SpawnParticles(muzzle, (Color)BFG_COLOR, BFG_MUZZLE_PARTICLES);
         SpawnParticle(muzzle,
@@ -1482,6 +1490,7 @@ static void UpdateLightningChain(float dt) {
     // chain fully done when no arcs remain and propagation stopped
     if (!lc->propagating && !anyArcAlive) {
         lc->active = false;
+        g.player.bfg.active = false;
     }
 }
 
@@ -1522,6 +1531,7 @@ static void UpdateProjectiles(float dt) {
             if (b->type == PROJ_BFG) {
                 // fizzle — sad sparks, no chain
                 SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
+                g.player.bfg.active = false;
             }
             b->active = false;
             continue;
@@ -1541,7 +1551,10 @@ static void UpdateProjectiles(float dt) {
             } else {
                 if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
                 if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
-                if (b->type == PROJ_BFG) SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
+                if (b->type == PROJ_BFG) {
+                    SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
+                    g.player.bfg.active = false;
+                }
                 b->active = false;
                 continue;
             }
@@ -1589,6 +1602,31 @@ static void UpdateProjectiles(float dt) {
                     } else if (b->knockback) {
                         Vector2 kb = Vector2Normalize(b->vel);
                         ej->vel = Vector2Scale(kb, SHOTGUN_KNOCKBACK);
+                        // ricochet to nearest enemy
+                        if (b->bounces > 0) {
+                            b->bounces--;
+                            b->lifetime = SHOTGUN_BULLET_LIFETIME;
+                            float bestDist = 1e9f;
+                            int bestIdx = -1;
+                            for (int k = 0; k < MAX_ENEMIES; k++) {
+                                if (k == j || !g.enemies[k].active) continue;
+                                float d = Vector2Distance(b->pos, g.enemies[k].pos);
+                                if (d < bestDist) {
+                                    bestDist = d;
+                                    bestIdx = k;
+                                }
+                            }
+                            float speed = Vector2Length(b->vel) * SHOTGUN_BOUNCE_SPEED;
+                            if (bestIdx >= 0) {
+                                Vector2 dir = Vector2Normalize(
+                                    Vector2Subtract(g.enemies[bestIdx].pos, b->pos));
+                                b->vel = Vector2Scale(dir, speed);
+                            } else {
+                                // no target — reflect velocity
+                                b->vel = Vector2Scale(Vector2Normalize(b->vel), -speed);
+                            }
+                            break;
+                        }
                     }
                     b->active = false;
                     break;
@@ -2435,8 +2473,9 @@ static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, flo
         case WPN_SWORD:    DrawTetra2D(pos, size, rotY, rotX, alpha); break;
         case WPN_REVOLVER: DrawCube2D(pos, size, rotY, rotX, alpha); break;
         case WPN_GUN:      DrawOcta2D(pos, size, rotY, rotX, alpha); break;
-        case WPN_LASER:    DrawDodeca2D(pos, size, rotY, rotX, alpha); break;
+        case WPN_SNIPER:   DrawDodeca2D(pos, size, rotY, rotX, alpha); break;
         case WPN_MINIGUN:  DrawIcosa2D(pos, size, rotY, rotX, alpha); break;
+        default: break;
     }
 }
 
@@ -2765,6 +2804,7 @@ static void DrawWorld(void)
             DrawLineEx(p->pos, gunTip, GUN_BARREL_THICKNESS, DARKGRAY);
         }
 
+#if 0 // laser beam draw — preserved for future use
         // --- Laser beam (live while key held) ---
         if (p->laser.active) {
             Vector2 aimDir = { cosf(p->angle), sinf(p->angle) };
@@ -2773,6 +2813,7 @@ static void DrawWorld(void)
             DrawLineEx(muzzle, p->laser.beamTip, LASER_GLOW_WIDTH, LASER_GLOW_COLOR);
             DrawLineEx(muzzle, p->laser.beamTip, LASER_BEAM_WIDTH, LASER_COLOR);
         }
+#endif
     }
 
     // --- Beam pool (railgun lingering flash) ---
@@ -3033,7 +3074,8 @@ static void DrawHUD(void)
         }
     }
 
-    // Sniper cooldown
+    // Sniper cooldown (only when sniper is primary)
+    if (p->primary == WPN_SNIPER) {
     cdY += (int)(HUD_ROW_SPACING * ui);
     {
         Color snColor = SNIPER_COLOR;
@@ -3047,6 +3089,7 @@ static void DrawHUD(void)
             DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
             DrawText("SNIPER", cdLabelX, cdY, cdFontSize, snColor);
         }
+    }
     }
 
     // Grenade cooldown
@@ -3069,9 +3112,9 @@ static void DrawHUD(void)
     cdY += (int)(HUD_ROW_SPACING * ui);
     {
         Color bfgColor = BFG_COLOR;
-        if (p->bfg.cooldownTimer > 0) {
-            float ratio = 1.0f - (p->bfg.cooldownTimer / BFG_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, bfgColor);
+        float chargeRatio = p->bfg.charge / BFG_CHARGE_COST;
+        if (chargeRatio < 1.0f || p->bfg.active) {
+            DrawRectangle(cdX, cdY, (int)(cdBarW * chargeRatio), cdBarH, bfgColor);
             DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
             DrawText("BFG", cdLabelX, cdY, cdFontSize, GRAY);
         } else {
@@ -3218,9 +3261,9 @@ static void DrawHUD(void)
 
         // Right column: secondary weapons/utility
         // this is ass
-        const char *rKeys[] = { "E", "Q", "C", "X", "Z", "R" };
-        const char *rDescs[] = { "Shotgun", "Rocket", "Grenade", "Sniper", "Railgun"};
-        int rCount = 5;
+        const char *rKeys[] = { "E", "Q", "C", "Z", "R" };
+        const char *rDescs[] = { "Shotgun", "Rocket", "Grenade", "Railgun"};
+        int rCount = 4;
 
         int lColX = sw / 2 - pkColW;
         int rColX = sw / 2 + (int)(20 * ui);

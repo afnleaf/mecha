@@ -28,6 +28,7 @@ typedef enum WeaponType {
     WPN_SWORD,
     WPN_REVOLVER,
     WPN_MINIGUN,
+    WPN_SNIPER,
 } WeaponType;
 
 typedef enum GameScreen {
@@ -119,7 +120,8 @@ typedef struct Sniper {
 } Sniper;
 
 typedef struct Bfg {
-    float cooldownTimer;
+    float charge;       // accumulated damage, fires at BFG_CHARGE_COST
+    bool  active;       // true while projectile or lightning chain is active
 } Bfg;
 
 typedef struct Beam {

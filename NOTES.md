@@ -141,12 +141,13 @@ weapons
 - [x] minigun (slows you down, wind up time, many bullets)
 - [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
 - [x] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
-- [] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
-- [] sniper over laser as primary?
-- [] remove laser? (put on backburner, redefine something that feels good about it)
+- [x] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
+- [x] sniper over laser as primary?
+- [x] remove laser? (put on backburner, redefine something that feels good about it)
 - [] shotgun bullets ricochet?
 - [x] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
+- [] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
 - [] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
 - [] decide what the actual 5? primary weapons should be?
@@ -158,6 +159,7 @@ maybe each primary weapon should have a quirk where a basic other ability upgrad
 
 abilities
 - [x] dash
+- [] super dash, like deadlock dash timing on the second dash gives you something
 - [x] spin
 - [] parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
 - [] spin that deflects bullets

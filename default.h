@@ -108,6 +108,8 @@
 #define SHOTGUN_DAMAGE          10
 #define SHOTGUN_PROJECTILE_SIZE 3.0f
 #define SHOTGUN_KNOCKBACK       350.0f
+#define SHOTGUN_BOUNCES         2
+#define SHOTGUN_BOUNCE_SPEED    0.8f
 #define SHOTGUN_BLASTS          2
 #define SHOTGUN_COOLDOWN        1.5f
 
@@ -164,7 +166,7 @@
 #define BFG_LIFETIME                3.0f
 #define BFG_PROJECTILE_SIZE         14.0f
 #define BFG_DIRECT_DAMAGE           80
-#define BFG_COOLDOWN                15.0f
+#define BFG_CHARGE_COST             1000.0f
 #define BFG_COLOR                   (Color){ 120, 220, 255, 255 }
 #define BFG_GLOW_COLOR              (Color){ 80, 160, 255, 100 }
 #define BFG_CHAIN_DAMAGE            100
@@ -190,6 +192,7 @@
 #define BFG_PULSE_AMOUNT            2.0f
 
 // Hitscan weapons ---------------------------------------------------------- /
+#if 0 // laser constants — preserved for future use
 // Laser (hold F, continuous DPS, terminates at first hit)
 #define LASER_DPS                   80
 #define LASER_RANGE                 1000.0f
@@ -200,6 +203,7 @@
 #define LASER_COLOR                 (Color){ 100, 180, 255, 255 }
 #define LASER_GLOW_COLOR            (Color){ 100, 180, 255, 80 }
 #define LASER_HIT_PARTICLES         4
+#endif
 
 // Railgun (press Z, pierce all, long cooldown)
 #define RAILGUN_KEY                 KEY_Z

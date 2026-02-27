@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Mecha bullet hell prototype. C game built with raylib, compiled to WASM via Emscripten, packed into a single HTML file with Histos. Data-oriented design — read PHILOSOPHY.md before making changes.
 
 ## Build Commands
-
+You never run the build command. The user will always do this.
 ```bash
 ./build.sh        # WASM build (emcc + histos -> mecha.html)
 ./build.sh n      # debug native build (gcc -> ./game)
