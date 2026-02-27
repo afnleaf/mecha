@@ -92,8 +92,11 @@ pick a chassis type to start with
 - [x] (claude) redesign and refactor collision logic
 - [x] (claude) make the character model a tetrahedron pyramid
 - [x] (gemini + gpt5.2 + claude) make the player model HSV, or RBG, so the texture is generated algorithmically by going through each possible value of HSV or RBH u know 3 u8s right uint8_t in C? it needs to look like a rainbow. still not working properly but close.
-- [] move keybind instructions UI to pause menu.
-- [] launch screen shows keybinds
+- [x] move keybind instructions UI to pause menu.
+- [x] launch screen shows keybinds
+- [x] sent to primary monitor on launch
+- [x] fullscreen, set toggle
+
 
 refactorin time
 - [x] ok let's do a header file and remake the build
@@ -138,8 +141,11 @@ weapons
 - [x] minigun (slows you down, wind up time, many bullets)
 - [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
 - [x] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
+- [] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
+- [] sniper over laser as primary?
+- [] remove laser? (put on backburner, redefine something that feels good about it)
 - [] shotgun bullets ricochet?
-- [] fix dash slash
+- [x] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
@@ -148,11 +154,13 @@ weapons
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
+maybe each primary weapon should have a quirk where a basic other ability upgrades it or another mechanic exectured properly. a reload is kind of like this, overheat too. dash slash, fan the hammer is just an m2. We should think about what is m2 for the others. Machine Gun = gunner = two weapons on one arm? Sword = Special sword ability? Is spin for the sword only? Then we want something else on shift. 
+
 abilities
 - [x] dash
 - [x] spin
-- [] parry
-- [] spin that?? what did i forget
+- [] parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
+- [] spin that deflects bullets
 - [] grenades?
 - [] summons (npcs who take aggro for you) 
 - [] decoy (you leave your shadow on the ground, and the enemies aggro it)
@@ -160,12 +168,13 @@ abilities
 
 players
 - [x] tetrahedron
-- [] cube
-- [] octahedron
-- [] dodecahedron
-- [] icosahedron
-- [] decide who gets which primary weapon
-- [] do you get to pick two shapes and morph between them?
+- [x] cube
+- [x] octahedron
+- [x] dodecahedron
+- [x] icosahedron
+- [x] decide who gets which primary weapon
+- [] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
+
 
 levels
 - [] rounds/rooms

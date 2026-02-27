@@ -362,9 +362,23 @@ static void UpdateSelect(void);
 static void DrawSelect(void);
 static void UpdateGame(void);
 
-static void DrawShape2D(
-    Vector2 pos, 
+static void DrawTetra2D(
+    Vector2 pos,
     float size, float rotY, float rotX, float alpha);
+static void DrawCube2D(
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha);
+static void DrawOcta2D(
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha);
+static void DrawIcosa2D(
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha);
+static void DrawDodeca2D(
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha);
+static void DrawPlayerSolid(
+    Vector2 pos, float size, float rotY, float rotX, float alpha);
 static void DrawWorld(void);
 static void DrawHUD(void);
 

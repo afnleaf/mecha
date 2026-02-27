@@ -5,8 +5,8 @@
 // ========================================================================== /
 
 // Window / Pools
-#define SCREEN_W                1544
-#define SCREEN_H                1080
+#define SCREEN_W                1443
+#define SCREEN_H                1000
 
 // Entities
 #define MAX_PROJECTILES         1024
@@ -422,6 +422,9 @@
 #define SHAPE_HUE_SPEED         60.0f
 #define SHAPE_HUE_DEPTH_SCALE   90.0f
 #define CUBE_HUE_VERTEX_STEP    45.0f
+#define OCTA_HUE_VERTEX_STEP    60.0f
+#define ICOSA_HUE_VERTEX_STEP   30.0f
+#define DODECA_HUE_VERTEX_STEP  18.0f
 
 // HUD ---------------------------------------------------------------------- /
 #define HUD_SCALE_REF           450.0f
@@ -459,10 +462,10 @@
 #define HUD_TITLE_X             210
 // Pause
 #define HUD_PAUSE_FONT          60
-#define HUD_PAUSE_Y             40
+#define HUD_PAUSE_Y             80
 #define HUD_RESUME_FONT         20
-#define HUD_RESUME_Y            30
-#define HUD_PAUSE_KEYS_Y        80
+#define HUD_RESUME_Y            -10
+#define HUD_PAUSE_KEYS_Y        40
 #define HUD_PAUSE_KEYS_FONT     16
 #define HUD_PAUSE_KEYS_SPACING  24
 #define HUD_PAUSE_KEYS_COL_W    200
