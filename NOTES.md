@@ -144,7 +144,7 @@ weapons
 - [x] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
 - [x] sniper over laser as primary?
 - [x] remove laser? (put on backburner, redefine something that feels good about it)
-- [] shotgun bullets ricochet?
+- [x] shotgun bullets ricochet?
 - [x] fix dash slash
 - [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
