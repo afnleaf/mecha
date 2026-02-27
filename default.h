@@ -18,6 +18,7 @@
 // Map
 #define MAP_SIZE                2000.0f
 #define BG_COLOR                (Color){ 20, 20, 30, 255 }
+//#define BG_COLOR                (Color){ 128, 128, 128, 255 }
 #define GRID_COLOR              (Color){ 40, 40, 55, 255 }
 #define GRID_STEP               100.0f
 #define MAP_BORDER_THICKNESS    3.0f
@@ -33,10 +34,10 @@
 // Mecha ------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
-#define PLAYER_SIZE             9.0f
+#define PLAYER_SIZE             16.0f
 #define PLAYER_HP               100
 #define IFRAME_DURATION         0.9f
-#define PLAYER_ROT_SPEED        2.0f
+#define PLAYER_ROT_SPEED        1.0f
 #define PLAYER_ROT_TILT         0.45f
 #define PLAYER_BLINK_RATE       20
 #define MUZZLE_OFFSET           4.0f
@@ -82,12 +83,18 @@
 // Dash
 #define DASH_SPEED              1600.0f
 #define DASH_DURATION           0.2f
-#define DASH_COOLDOWN           1.0f
-#define DASH_MAX_CHARGES        2
+#define DASH_COOLDOWN           2.0f
+#define DASH_MAX_CHARGES        3
 #define DASH_GHOST_COUNT        5
 #define DASH_GHOST_SPACING      14.0f
 #define DASH_GHOST_ROT_STEP     0.15f
 #define DASH_BURST_PARTICLES    5
+#define DASH_SUPER_WINDOW       0.12f
+#define DECOY_DURATION          1.0f
+#define DECOY_PULSE_SPEED       8.0f
+#define DECOY_MIN_ALPHA         0.15f
+#define DECOY_MAX_ALPHA         0.45f
+#define DECOY_EXPIRE_PARTICLES  10
 
 // Spin
 #define SPIN_DURATION           0.32f
@@ -124,6 +131,11 @@
 #define REVOLVER_BULLET_LIFETIME 2.0f
 #define REVOLVER_PROJECTILE_SIZE 4.0f
 #define REVOLVER_PRECISE_SPREAD  8
+// Active reload
+#define REVOLVER_RELOAD_SWEET_START 0.35f
+#define REVOLVER_RELOAD_SWEET_END   0.55f
+#define REVOLVER_RELOAD_FAST_TIME   0.08f
+#define REVOLVER_RELOAD_FAIL_PENALTY 0.5f
 
 // Rocket Launcher
 #define ROCKET_SPEED            800.0f
@@ -385,6 +397,8 @@
 #define SPIN_BURST_SIZE         4.0f
 #define SPIN_BURST_LIFETIME     0.3f
 #define SPIN_HEAL_PARTICLE_MULT 6.0f
+#define SPIN_DEFLECT_SPEED_MULT 1.5f
+#define SPIN_DEFLECT_DAMAGE_MULT 2
 
 // Dash trail
 #define DASH_TRAIL_SPEED        30.0f
@@ -420,6 +434,14 @@
 #define HEXA_MUZZLE_LIFETIME    0.15f
 
 // Drawing ------------------------------------------------------------------ /
+// Shadows
+#define SHADOW_OFFSET_X         4.0f
+#define SHADOW_OFFSET_Y         8.0f
+#define SHADOW_ALPHA            0.3f
+#define SHADOW_COLOR            (Color){ 240, 240, 240 }
+#define SHADOW_SCALE            1.0f
+#define SHADOW_LAG              20.0f
+
 #define BULLET_TRAIL_FACTOR     0.02f
 #define ENEMY_HPBAR_HEIGHT      3.0f
 #define ENEMY_HPBAR_YOFFSET     8

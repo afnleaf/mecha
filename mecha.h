@@ -63,6 +63,12 @@ typedef struct Dash {
     int charges;
     int maxCharges;
     Vector2 dir;
+    // Super dash / decoy
+    float superWindow;
+    bool superMissed;
+    bool decoyActive;
+    Vector2 decoyPos;
+    float decoyTimer;
 } Dash;
 
 typedef struct Spin {
@@ -97,6 +103,8 @@ typedef struct Revolver {
     float cooldownTimer;
     float reloadTimer;
     bool fanning;
+    bool reloadLocked;  // true = already attempted active reload this cycle
+    int bonusRounds;    // rounds remaining with double damage (dash reload)
 } Revolver;
 
 typedef struct Minigun {
@@ -156,6 +164,7 @@ typedef struct Player {
     Sniper  sniper;
     Bfg     bfg;
     WeaponType primary;
+    Vector2 shadowPos;
 } Player;
 
 // damage method and type ------------------------------------------------------ /
@@ -366,21 +375,27 @@ static void UpdateGame(void);
 
 static void DrawTetra2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha);
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawCube2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha);
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawOcta2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha);
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawIcosa2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha);
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawDodeca2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha);
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawPlayerSolid(
-    Vector2 pos, float size, float rotY, float rotX, float alpha);
+    Vector2 pos, float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha);
 static void DrawWorld(void);
 static void DrawHUD(void);
 

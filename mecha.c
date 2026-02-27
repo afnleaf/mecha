@@ -62,6 +62,7 @@ static void InitGame(void)
     p->rocket.cooldown      = ROCKET_COOLDOWN;
     p->shotgun.blastsLeft   = SHOTGUN_BLASTS;
     p->revolver.rounds      = REVOLVER_ROUNDS;
+    p->shadowPos            = p->pos;
 
     g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
     g.camera.target   = p->pos;
@@ -401,9 +402,9 @@ static bool LineSegOBB(
 // ========================================================================== /
 // OBB collision helpers (for RECT enemy hitbox)
 // ========================================================================== /
-// Get the enemy facing angle (faces player)
+// Get the enemy facing angle (faces player shadow / decoy)
 static float EnemyAngle(Enemy *e) {
-    Vector2 toPlayer = Vector2Subtract(g.player.pos, e->pos);
+    Vector2 toPlayer = Vector2Subtract(g.player.shadowPos, e->pos);
     return atan2f(toPlayer.y, toPlayer.x);
 }
 
@@ -662,7 +663,7 @@ static void DrawSelect(void)
     int weaponRightX = (int)(sw * SELECT_WEAPONS_X);
 
     // Draw function per display slot (face count order)
-    typedef void (*DrawSolidFn)(Vector2, float, float, float, float);
+    typedef void (*DrawSolidFn)(Vector2, float, float, float, float, Vector2, float);
     DrawSolidFn solidFns[] = {
         DrawTetra2D,    // Tetrahedron  (4)  — SWORD
         DrawCube2D,     // Cube         (6)  — REVOLVER
@@ -693,9 +694,11 @@ static void DrawSelect(void)
         // Solid preview next to weapon name
         float solidSize = optFont * 0.35f;
         float previewAlpha = (i == g.selectIndex) ? 1.0f : 0.3f;
+        float shadowAlpha = (i == g.selectIndex) ? SHADOW_ALPHA : SHADOW_ALPHA * 0.3f;
         float t = (float)GetTime();
         Vector2 solidPos = { nameX - optFont * 1.0f, y + optFont * 0.5f };
-        solidFns[i](solidPos, solidSize, t * PLAYER_ROT_SPEED, PLAYER_ROT_TILT, previewAlpha);
+        Vector2 shadowP = { solidPos.x + SHADOW_OFFSET_X, solidPos.y + SHADOW_OFFSET_Y };
+        solidFns[i](solidPos, solidSize, t * PLAYER_ROT_SPEED, PLAYER_ROT_TILT, previewAlpha, shadowP, shadowAlpha);
 
         int descW = MeasureText(descs[i], descFont);
         DrawText(descs[i], weaponRightX - descW,
@@ -744,10 +747,43 @@ static void UpdatePlayer(float dt)
         }
     }
 
-    if (IsKeyPressed(KEY_SPACE)
+    bool spacePressed = IsKeyPressed(KEY_SPACE);
+
+    // Pressed space during active dash = mistimed, no super dash
+    if (spacePressed && p->dash.active) {
+        p->dash.superMissed = true;
+    }
+
+    // Tick super dash window
+    if (p->dash.superWindow > 0) p->dash.superWindow -= dt;
+
+    // Tick decoy
+    if (p->dash.decoyActive) {
+        p->dash.decoyTimer -= dt;
+        if (p->dash.decoyTimer <= 0) {
+            p->dash.decoyActive = false;
+            SpawnParticles(p->dash.decoyPos, SKYBLUE,
+                DECOY_EXPIRE_PARTICLES);
+        }
+    }
+
+    if (spacePressed
         && !p->dash.active
         && p->dash.charges > 0
     ) {
+        // Check for super dash timing
+        bool isSuperDash = (p->dash.superWindow > 0
+            && !p->dash.superMissed);
+        if (isSuperDash) {
+            p->dash.decoyActive = true;
+            p->dash.decoyPos = p->pos;
+            p->dash.decoyTimer = DECOY_DURATION;
+            SpawnParticles(p->pos, WHITE, DECOY_EXPIRE_PARTICLES);
+        }
+        p->dash.superWindow = 0;
+        p->dash.superMissed = false;
+
+        // Normal dash mechanics
         p->dash.active = true;
         p->dash.timer = p->dash.duration;
         bool wasFull = (p->dash.charges == p->dash.maxCharges);
@@ -785,6 +821,9 @@ static void UpdatePlayer(float dt)
 
         if (p->dash.timer <= 0) {
             p->dash.active = false;
+            // Open super dash window
+            p->dash.superWindow = DASH_SUPER_WINDOW;
+            p->dash.superMissed = false;
         }
     }
 
@@ -880,10 +919,27 @@ static void UpdatePlayer(float dt)
     case WPN_REVOLVER:
         // Reload
         if (p->revolver.reloadTimer > 0) {
+            float progress = 1.0f - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
+            // Active reload: R or Space during reload attempts speed reload
+            bool reloadInput = IsKeyPressed(KEY_R) || IsKeyPressed(KEY_SPACE);
+            if (reloadInput && !p->revolver.reloadLocked) {
+                bool inSweet = progress >= REVOLVER_RELOAD_SWEET_START
+                    && progress <= REVOLVER_RELOAD_SWEET_END;
+                if (inSweet) {
+                    p->revolver.reloadTimer = REVOLVER_RELOAD_FAST_TIME;
+                    // Dash reload — next cylinder does double damage
+                    if (IsKeyPressed(KEY_SPACE))
+                        p->revolver.bonusRounds = REVOLVER_ROUNDS;
+                } else {
+                    p->revolver.reloadTimer += REVOLVER_RELOAD_FAIL_PENALTY;
+                }
+                p->revolver.reloadLocked = true;
+            }
             p->revolver.reloadTimer -= dt;
             if (p->revolver.reloadTimer <= 0) {
                 p->revolver.rounds = REVOLVER_ROUNDS;
                 p->revolver.reloadTimer = 0;
+                p->revolver.reloadLocked = false;
             }
             break;
         }
@@ -892,6 +948,9 @@ static void UpdatePlayer(float dt)
             p->revolver.cooldownTimer -= dt;
             if (p->revolver.cooldownTimer <= 0 && p->revolver.rounds > 0) {
                 p->revolver.cooldownTimer = REVOLVER_FAN_COOLDOWN;
+                int dmg = REVOLVER_DAMAGE;
+                bool bonus = p->revolver.bonusRounds > 0;
+                if (bonus) { dmg *= 2; p->revolver.bonusRounds--; }
                 Vector2 aimDir = Vector2Normalize(toMouse);
                 float spread = ((float)GetRandomValue(-REVOLVER_FAN_SPREAD, REVOLVER_FAN_SPREAD)) * 0.001f;
                 float bulletAngle = p->angle + spread;
@@ -899,11 +958,12 @@ static void UpdatePlayer(float dt)
                 Vector2 muzzle = Vector2Add(p->pos,
                     Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
                 SpawnProjectile(muzzle, bulletDir,
-                    REVOLVER_BULLET_SPEED, REVOLVER_DAMAGE,
+                    REVOLVER_BULLET_SPEED, dmg,
                     REVOLVER_BULLET_LIFETIME, REVOLVER_PROJECTILE_SIZE, false, false,
                     PROJ_BULLET, DMG_BALLISTIC);
                 SpawnParticle(muzzle,
-                    Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), ORANGE,
+                    Vector2Scale(bulletDir, GUN_MUZZLE_SPEED),
+                    bonus ? GOLD : ORANGE,
                     GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
                 p->revolver.rounds--;
             }
@@ -914,6 +974,9 @@ static void UpdatePlayer(float dt)
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
             && p->revolver.rounds > 0
         ) {
+            int dmg = REVOLVER_DAMAGE;
+            bool bonus = p->revolver.bonusRounds > 0;
+            if (bonus) { dmg *= 2; p->revolver.bonusRounds--; }
             Vector2 aimDir = Vector2Normalize(toMouse);
             float spread = ((float)GetRandomValue(-REVOLVER_PRECISE_SPREAD, REVOLVER_PRECISE_SPREAD)) * 0.001f;
             float bulletAngle = p->angle + spread;
@@ -921,11 +984,12 @@ static void UpdatePlayer(float dt)
             Vector2 muzzle = Vector2Add(p->pos,
                 Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
             SpawnProjectile(muzzle, bulletDir,
-                REVOLVER_BULLET_SPEED, REVOLVER_DAMAGE,
+                REVOLVER_BULLET_SPEED, dmg,
                 REVOLVER_BULLET_LIFETIME, REVOLVER_PROJECTILE_SIZE, false, false,
                 PROJ_BULLET, DMG_BALLISTIC);
             SpawnParticle(muzzle,
-                Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                Vector2Scale(bulletDir, GUN_MUZZLE_SPEED),
+                bonus ? GOLD : WHITE,
                 GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
             p->revolver.rounds--;
         }
@@ -936,9 +1000,12 @@ static void UpdatePlayer(float dt)
             p->revolver.fanning = true;
             p->revolver.cooldownTimer = 0;
         }
-        // Empty — start reload
-        if (p->revolver.rounds <= 0 && p->revolver.reloadTimer <= 0) {
+        // Manual reload (R) or auto-reload when empty
+        if (p->revolver.reloadTimer <= 0
+            && p->revolver.rounds < REVOLVER_ROUNDS
+            && (p->revolver.rounds <= 0 || IsKeyPressed(KEY_R))) {
             p->revolver.reloadTimer = REVOLVER_RELOAD_TIME;
+            p->revolver.reloadLocked = false;
         }
         break;
     case WPN_MINIGUN: {
@@ -1067,6 +1134,23 @@ static void UpdatePlayer(float dt)
                 ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
             }
         }
+
+        // deflect enemy bullets inside spin radius
+        for (int i = 0; i < MAX_PROJECTILES; i++) {
+            Projectile *b = &g.projectiles[i];
+            if (!b->active || !b->isEnemy) continue;
+            float dist = Vector2Distance(b->pos, p->pos);
+            if (dist < p->spin.radius) {
+                b->isEnemy = false;
+                b->damage *= SPIN_DEFLECT_DAMAGE_MULT;
+                Vector2 away = Vector2Normalize(
+                    Vector2Subtract(b->pos, p->pos));
+                float speed = Vector2Length(b->vel) * SPIN_DEFLECT_SPEED_MULT;
+                b->vel = Vector2Scale(away, speed);
+                SpawnParticles(b->pos, YELLOW, 4);
+            }
+        }
+
         p->spin.timer -= dt;
     }
 
@@ -1132,6 +1216,14 @@ static void UpdatePlayer(float dt)
     if (p->pos.x > MAP_SIZE - p->size) p->pos.x = MAP_SIZE - p->size;
     if (p->pos.y > MAP_SIZE - p->size) p->pos.y = MAP_SIZE - p->size;
 
+    // Shadow lag — anchored during decoy, lerp otherwise
+    if (p->dash.decoyActive) {
+        p->shadowPos = p->dash.decoyPos;
+    } else {
+        p->shadowPos = Vector2Lerp(
+            p->shadowPos, p->pos, SHADOW_LAG * dt);
+    }
+
     // ok this is an important piece of gamefeel we need to get right
     // this means iframes after taking damage
     // --- iFrames ---
@@ -1159,8 +1251,8 @@ static void UpdateEnemies(float dt) {
         // tick slow debuff
         if (e->slowTimer > 0) e->slowTimer -= dt;
 
-        // Chase player (HEXA strafes instead)
-        Vector2 toPlayer = Vector2Subtract(p->pos, e->pos);
+        // Chase player shadow (HEXA strafes instead)
+        Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
         float dist = Vector2Length(toPlayer);
         if (dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toPlayer, 1.0f / dist);
@@ -1788,8 +1880,9 @@ static Color HsvToRgb(float h, float s, float v, float alpha) {
 }
 
 static void DrawTetra2D(
-    Vector2 pos, 
-    float size, float rotY, float rotX, float alpha)
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
 {
     float s = size;
 
@@ -1800,6 +1893,34 @@ static void DrawTetra2D(
         {-s,  s, -s},
         {-s, -s,  s},
     };
+
+    // 4 triangular faces of tetrahedron
+    int faces[4][3] = {
+        {0, 1, 2},
+        {0, 2, 3},
+        {0, 3, 1},
+        {1, 3, 2},
+    };
+
+    // Shadow pass — flat black, top-down projection
+    if (shadowAlpha > 0) {
+        float scy = cosf(rotY), ssy = sinf(rotY);
+        float scx = cosf(PI/2), ssx = sinf(PI/2);
+        Vector2 sp[4];
+        for (int i = 0; i < 4; i++) {
+            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
+            float x1 = x * scy - z * ssy;
+            float z1 = x * ssy + z * scy;
+            float y1 = y * scx - z1 * ssx;
+            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
+        }
+        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+        for (int f = 0; f < 4; f++) {
+            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
+            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+            if (cross < 0) DrawTriangle(a, b, c, scol);
+        }
+    }
 
     float cy = cosf(rotY), sy = sinf(rotY);
     float cx = cosf(rotX), sx = sinf(rotX);
@@ -1820,14 +1941,6 @@ static void DrawTetra2D(
         // Hue based on Z depth — smooth across rotation, no jumps on face swap
         hues[i] = time * SHAPE_HUE_SPEED + pz[i] * (SHAPE_HUE_DEPTH_SCALE / s);
     }
-
-    // 4 triangular faces of tetrahedron
-    int faces[4][3] = {
-        {0, 1, 2},
-        {0, 2, 3},
-        {0, 3, 1},
-        {1, 3, 2},
-    };
 
     float faceZ[4];
     bool faceVis[4];
@@ -1924,6 +2037,8 @@ static void DrawTetra2D(
         DrawLineV(p1, p2, edge);
         DrawLineV(p2, p0, edge);
     }
+
+
 }
 
 
@@ -1932,8 +2047,9 @@ static void DrawTetra2D(
 
 
 static void DrawCube2D(
-    Vector2 pos, 
-    float size, float rotY, float rotX, float alpha)
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
 {
     float s = size;
 
@@ -1943,10 +2059,40 @@ static void DrawCube2D(
         {-s,-s, s}, { s,-s, s}, { s, s, s}, {-s, s, s},
     };
 
+    // 6 faces: {0,3,2,1} is Front, {4,5,6,7} is Back
+    int faces[6][4] = {
+        {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 4, 7, 3},
+        {1, 2, 6, 5}, {0, 1, 5, 4}, {3, 7, 6, 2},
+    };
+
+    // Shadow pass — flat black, top-down projection
+    if (shadowAlpha > 0) {
+        float scy = cosf(rotY), ssy = sinf(rotY);
+        float scx = cosf(PI/2), ssx = sinf(PI/2);
+        Vector2 sp[8];
+        for (int i = 0; i < 8; i++) {
+            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
+            float x1 = x * scy - z * ssy;
+            float z1 = x * ssy + z * scy;
+            float y1 = y * scx - z1 * ssx;
+            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
+        }
+        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+        for (int f = 0; f < 6; f++) {
+            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]];
+            Vector2 c = sp[faces[f][2]], d = sp[faces[f][3]];
+            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+            if (cross < 0) {
+                DrawTriangle(a, b, c, scol);
+                DrawTriangle(a, c, d, scol);
+            }
+        }
+    }
+
     // 4 tetrahedron vertices in local 3D space
     // around origin
     //float vtx[4][3] = {
-    //    {0, 0, s}, 
+    //    {0, 0, s},
     //    {s, -s, -s}, {-s, -s, -s}, {0, s, -s},
     //};
 
@@ -1969,12 +2115,6 @@ static void DrawCube2D(
         // Generate hue offset for "rainbow" look
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * CUBE_HUE_VERTEX_STEP;
     }
-
-    // 6 faces: {0,3,2,1} is Front, {4,5,6,7} is Back
-    int faces[6][4] = {
-        {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 4, 7, 3},
-        {1, 2, 6, 5}, {0, 1, 5, 4}, {3, 7, 6, 2},
-    };
 
     float faceZ[6];
     bool faceVis[6];
@@ -2061,7 +2201,8 @@ static void DrawCube2D(
 // octahedron -------------------------------------------------------------- /
 static void DrawOcta2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha)
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
 {
     float s = size;
 
@@ -2071,6 +2212,32 @@ static void DrawOcta2D(
         { 0, s, 0}, { 0,-s, 0},
         { 0, 0, s}, { 0, 0,-s},
     };
+
+    // 8 triangular faces
+    int faces[8][3] = {
+        {0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4},
+        {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5},
+    };
+
+    // Shadow pass — flat black, top-down projection
+    if (shadowAlpha > 0) {
+        float scy = cosf(rotY), ssy = sinf(rotY);
+        float scx = cosf(PI/2), ssx = sinf(PI/2);
+        Vector2 sp[6];
+        for (int i = 0; i < 6; i++) {
+            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
+            float x1 = x * scy - z * ssy;
+            float z1 = x * ssy + z * scy;
+            float y1 = y * scx - z1 * ssx;
+            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
+        }
+        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+        for (int f = 0; f < 8; f++) {
+            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
+            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+            if (cross < 0) DrawTriangle(a, b, c, scol);
+        }
+    }
 
     float cy = cosf(rotY), sy = sinf(rotY);
     float cx = cosf(rotX), sx = sinf(rotX);
@@ -2090,12 +2257,6 @@ static void DrawOcta2D(
         pz[i] = z2;
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * OCTA_HUE_VERTEX_STEP;
     }
-
-    // 8 triangular faces
-    int faces[8][3] = {
-        {0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4},
-        {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5},
-    };
 
     float faceZ[8];
     bool faceVis[8];
@@ -2184,7 +2345,8 @@ static void DrawOcta2D(
 // icosahedron ------------------------------------------------------------- /
 static void DrawIcosa2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha)
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
 {
     float phi = (1.0f + sqrtf(5.0f)) / 2.0f;
     float sc = size / phi; // scale so max extent ≈ size
@@ -2198,6 +2360,34 @@ static void DrawIcosa2D(
         { sc*phi, 0,  sc}, { sc*phi, 0, -sc},
         {-sc*phi, 0,  sc}, {-sc*phi, 0, -sc},
     };
+
+    // 20 triangular faces
+    int faces[20][3] = {
+        {0, 2, 8},  {0, 8, 4},  {0, 4, 5},  {0, 5, 10}, {0, 10, 2},
+        {2, 6, 8},  {8, 6, 9},  {8, 9, 4},  {4, 9, 1},  {4, 1, 5},
+        {5, 1, 11}, {5, 11, 10},{10, 11, 7}, {10, 7, 2}, {2, 7, 6},
+        {3, 9, 6},  {3, 1, 9},  {3, 11, 1}, {3, 7, 11}, {3, 6, 7},
+    };
+
+    // Shadow pass — flat black, top-down projection
+    if (shadowAlpha > 0) {
+        float scy = cosf(rotY), ssy = sinf(rotY);
+        float scx = cosf(PI/2), ssx = sinf(PI/2);
+        Vector2 sp[12];
+        for (int i = 0; i < 12; i++) {
+            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
+            float x1 = x * scy - z * ssy;
+            float z1 = x * ssy + z * scy;
+            float y1 = y * scx - z1 * ssx;
+            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
+        }
+        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+        for (int f = 0; f < 20; f++) {
+            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
+            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+            if (cross < 0) DrawTriangle(a, b, c, scol);
+        }
+    }
 
     float cy = cosf(rotY), sy = sinf(rotY);
     float cx = cosf(rotX), sx = sinf(rotX);
@@ -2217,14 +2407,6 @@ static void DrawIcosa2D(
         pz[i] = z2;
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * ICOSA_HUE_VERTEX_STEP;
     }
-
-    // 20 triangular faces
-    int faces[20][3] = {
-        {0, 2, 8},  {0, 8, 4},  {0, 4, 5},  {0, 5, 10}, {0, 10, 2},
-        {2, 6, 8},  {8, 6, 9},  {8, 9, 4},  {4, 9, 1},  {4, 1, 5},
-        {5, 1, 11}, {5, 11, 10},{10, 11, 7}, {10, 7, 2}, {2, 7, 6},
-        {3, 9, 6},  {3, 1, 9},  {3, 11, 1}, {3, 7, 11}, {3, 6, 7},
-    };
 
     float faceZ[20];
     bool faceVis[20];
@@ -2314,7 +2496,8 @@ static void DrawIcosa2D(
 // dodecahedron ------------------------------------------------------------ /
 static void DrawDodeca2D(
     Vector2 pos,
-    float size, float rotY, float rotX, float alpha)
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
 {
     float phi = (1.0f + sqrtf(5.0f)) / 2.0f;
     float iphi = 1.0f / phi;
@@ -2341,6 +2524,40 @@ static void DrawDodeca2D(
         {-sc*phi,  sc*iphi, 0}, {-sc*phi, -sc*iphi, 0},
     };
 
+    // 12 pentagonal faces
+    int faces[12][5] = {
+        { 0, 12,  2, 17, 16}, { 0, 16,  1,  9,  8},
+        { 0,  8,  4, 13, 12}, { 1, 16, 17,  3, 14},
+        { 1, 14, 15,  5,  9}, { 2, 12, 13,  6, 10},
+        { 2, 10, 11,  3, 17}, { 4,  8,  9,  5, 18},
+        { 4, 18, 19,  6, 13}, { 7, 11, 10,  6, 19},
+        { 7, 19, 18,  5, 15}, { 7, 15, 14,  3, 11},
+    };
+
+    // Shadow pass — flat black, top-down projection
+    if (shadowAlpha > 0) {
+        float scy = cosf(rotY), ssy = sinf(rotY);
+        float scx = cosf(PI/2), ssx = sinf(PI/2);
+        Vector2 sp[20];
+        for (int i = 0; i < 20; i++) {
+            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
+            float x1 = x * scy - z * ssy;
+            float z1 = x * ssy + z * scy;
+            float y1 = y * scx - z1 * ssx;
+            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
+        }
+        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+        for (int f = 0; f < 12; f++) {
+            Vector2 pv[5];
+            for (int vi = 0; vi < 5; vi++) pv[vi] = sp[faces[f][vi]];
+            float cross = (pv[1].x-pv[0].x)*(pv[2].y-pv[0].y) - (pv[1].y-pv[0].y)*(pv[2].x-pv[0].x);
+            if (cross < 0) {
+                for (int tri = 0; tri < 3; tri++)
+                    DrawTriangle(pv[0], pv[tri+1], pv[tri+2], scol);
+            }
+        }
+    }
+
     float cy = cosf(rotY), sy = sinf(rotY);
     float cx = cosf(rotX), sx = sinf(rotX);
 
@@ -2359,16 +2576,6 @@ static void DrawDodeca2D(
         pz[i] = z2;
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * DODECA_HUE_VERTEX_STEP;
     }
-
-    // 12 pentagonal faces
-    int faces[12][5] = {
-        { 0, 12,  2, 17, 16}, { 0, 16,  1,  9,  8},
-        { 0,  8,  4, 13, 12}, { 1, 16, 17,  3, 14},
-        { 1, 14, 15,  5,  9}, { 2, 12, 13,  6, 10},
-        { 2, 10, 11,  3, 17}, { 4,  8,  9,  5, 18},
-        { 4, 18, 19,  6, 13}, { 7, 11, 10,  6, 19},
-        { 7, 19, 18,  5, 15}, { 7, 15, 14,  3, 11},
-    };
 
     float faceZ[12];
     bool faceVis[12];
@@ -2468,13 +2675,14 @@ static void DrawDodeca2D(
 }
 
 // player solid dispatcher ------------------------------------------------- /
-static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, float alpha) {
+static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, float alpha,
+                            Vector2 shadowPos, float shadowAlpha) {
     switch (g.player.primary) {
-        case WPN_SWORD:    DrawTetra2D(pos, size, rotY, rotX, alpha); break;
-        case WPN_REVOLVER: DrawCube2D(pos, size, rotY, rotX, alpha); break;
-        case WPN_GUN:      DrawOcta2D(pos, size, rotY, rotX, alpha); break;
-        case WPN_SNIPER:   DrawDodeca2D(pos, size, rotY, rotX, alpha); break;
-        case WPN_MINIGUN:  DrawIcosa2D(pos, size, rotY, rotX, alpha); break;
+        case WPN_SWORD:    DrawTetra2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
+        case WPN_REVOLVER: DrawCube2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
+        case WPN_GUN:      DrawOcta2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
+        case WPN_SNIPER:   DrawDodeca2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
+        case WPN_MINIGUN:  DrawIcosa2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
         default: break;
     }
 }
@@ -2612,7 +2820,7 @@ static void DrawWorld(void)
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
 
-        Vector2 toPlayer = Vector2Subtract(p->pos, e->pos);
+        Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
         float eAngle = atan2f(toPlayer.y, toPlayer.x);
         Color eColor = (e->hitFlash > 0) ? WHITE : RED;
         // Icy tint when slowed
@@ -2771,11 +2979,29 @@ static void DrawWorld(void)
                     p->size,
                     rotY - (float)gi * DASH_GHOST_ROT_STEP,
                     rotX,
-                    ga);
+                    ga,
+                    (Vector2){0}, 0);
             }
         }
 
-        DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f);
+        // Decoy ghost — pulsing translucent player at anchored pos
+        if (p->dash.decoyActive) {
+            float pulse = sinf((float)GetTime() * DECOY_PULSE_SPEED);
+            float da = DECOY_MIN_ALPHA
+                + (DECOY_MAX_ALPHA - DECOY_MIN_ALPHA)
+                * (pulse * 0.5f + 0.5f);
+            DrawPlayerSolid(
+                p->dash.decoyPos, p->size,
+                rotY, rotX, da,
+                (Vector2){0}, 0);
+        }
+
+        // Shadow drawn inside DrawPlayerSolid at lagged position
+        Vector2 shadowPos = {
+            p->shadowPos.x + SHADOW_OFFSET_X,
+            p->shadowPos.y + SHADOW_OFFSET_Y
+        };
+        DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f, shadowPos, SHADOW_ALPHA);
 
         // Gun barrel
         float ca = cosf(p->angle), sa = sinf(p->angle);
@@ -3130,10 +3356,23 @@ static void DrawHUD(void)
         int pipW = (int)(HUD_PIP_W * ui);
         int pipGap = (int)(HUD_PIP_GAP * ui);
         Color revColor = (Color){ 220, 180, 80, 255 };
+        Color bonusColor = GOLD;
+        bool buffed = p->revolver.bonusRounds > 0;
+        // Pulsing glow behind pips when buffed
+        if (buffed) {
+            float pulse = 0.3f + 0.2f * sinf(GetTime() * 8.0f);
+            int glowPad = (int)(3 * ui);
+            int totalW = REVOLVER_ROUNDS * (pipW + pipGap) - pipGap;
+            DrawRectangle(cdX - glowPad, cdY - glowPad,
+                totalW + glowPad * 2, cdBarH + glowPad * 2,
+                Fade(bonusColor, pulse));
+        }
         for (int i = 0; i < REVOLVER_ROUNDS; i++) {
             int pipX = cdX + i * (pipW + pipGap);
             if (i < p->revolver.rounds) {
-                DrawRectangle(pipX, cdY, pipW, cdBarH, revColor);
+                bool isBonusPip = i < p->revolver.bonusRounds;
+                DrawRectangle(pipX, cdY, pipW, cdBarH,
+                    isBonusPip ? bonusColor : revColor);
                 DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
             } else {
                 DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
@@ -3142,17 +3381,37 @@ static void DrawHUD(void)
         int labelX = cdX
             + REVOLVER_ROUNDS * (pipW + pipGap) + (int)(2 * ui);
         if (p->revolver.reloadTimer > 0) {
-            // Reload bar overlaid on label area
             float ratio = 1.0f
                 - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
+            if (ratio > 1.0f) ratio = 1.0f;
+            if (ratio < 0.0f) ratio = 0.0f;
+            // Sweet spot zone
+            int sweetX0 = labelX + (int)(cdBarW * REVOLVER_RELOAD_SWEET_START);
+            int sweetX1 = labelX + (int)(cdBarW * REVOLVER_RELOAD_SWEET_END);
+            Color sweetColor;
+            if (p->revolver.reloadLocked) {
+                // Already attempted — show result
+                bool hit = ratio <= REVOLVER_RELOAD_SWEET_END
+                    && p->revolver.reloadTimer <= REVOLVER_RELOAD_FAST_TIME + 0.01f;
+                sweetColor = hit ? (Color){ 60, 255, 60, 120 }
+                                 : (Color){ 255, 60, 60, 120 };
+            } else {
+                sweetColor = (Color){ 255, 255, 100, 100 };
+            }
+            DrawRectangle(sweetX0, cdY, sweetX1 - sweetX0, cdBarH, sweetColor);
+            // Progress fill
             DrawRectangle(labelX, cdY, (int)(cdBarW * ratio), cdBarH,
                 Fade(revColor, 0.4f));
             DrawRectangleLines(labelX, cdY, cdBarW, cdBarH, GRAY);
+            // Cursor line at current progress
+            int cursorX = labelX + (int)(cdBarW * ratio);
+            DrawRectangle(cursorX, cdY - 1, (int)(2 * ui), cdBarH + 2, WHITE);
             DrawText("RELOAD", labelX + cdBarW + (int)(4 * ui),
                 cdY, cdFontSize, GRAY);
         } else {
-            DrawText("REVLR", labelX, cdY, cdFontSize,
-                p->revolver.rounds > 0 ? revColor : GRAY);
+            DrawText(buffed ? "x2" : "REVLR", labelX, cdY, cdFontSize,
+                buffed ? bonusColor
+                    : (p->revolver.rounds > 0 ? revColor : GRAY));
         }
     }
 

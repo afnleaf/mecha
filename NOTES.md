@@ -97,7 +97,6 @@ pick a chassis type to start with
 - [x] sent to primary monitor on launch
 - [x] fullscreen, set toggle
 
-
 refactorin time
 - [x] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
@@ -119,7 +118,7 @@ other features
 - [] (user) damage system design (not implementation, what is the math behind it)
 - [] (user) asset blob data design, how to parse? how to create?
 - [] shaders GLSL
-- [] shadows under entity
+- [x] shadows under entity (the shadow is a 2d projection of the 3d player onto the game world, this is a meta concept of the game for players to figure out, it needs to work well. The shadow must slightly lag behind the player and be underneath them, to give a sense of depth. The shadows also need to be mathematically correct according to their shape. Enemies do not have 2d shadows as they are 2d objects.)
 
 enemy types
 - [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
@@ -146,26 +145,30 @@ weapons
 - [x] remove laser? (put on backburner, redefine something that feels good about it)
 - [x] shotgun bullets ricochet?
 - [x] fix dash slash
-- [] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
-- [] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
+- [x] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
+- [x] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
 - [] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
 - [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
-- [] decide what the actual 5? primary weapons should be?
+- [] decide what the actual 5? primary weapons should be? (sword, revolver, machine gun, sniper, ??? (mingun?, explosives?))
 - [] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
 maybe each primary weapon should have a quirk where a basic other ability upgrades it or another mechanic exectured properly. a reload is kind of like this, overheat too. dash slash, fan the hammer is just an m2. We should think about what is m2 for the others. Machine Gun = gunner = two weapons on one arm? Sword = Special sword ability? Is spin for the sword only? Then we want something else on shift. 
+minigun could be the m2 for machine gun
+
+explosives as primary? is that possible?
+
+shield?
 
 abilities
 - [x] dash
-- [] super dash, like deadlock dash timing on the second dash gives you something
+- [x] super dash, like deadlock dash timing on the second dash gives you something
+- [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - [x] spin
 - [] parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
-- [] spin that deflects bullets
-- [] grenades?
+- [x] spin that deflects bullets
 - [] summons (npcs who take aggro for you) 
-- [] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - are weapons just abilities in a mecha? buttons?
 
 players
@@ -217,7 +220,7 @@ what can you customize? all your buttons, its a mecha game... some remain for ba
 - [x] Vector2Lerp: what is it doing exactly? how much can we fiddle with the lerp constant (8.0f)? (game.c:696-705)
 - [] GetScreenToWorld2D / GetMousePosition: understand the screen-to-world coordinate conversion pipeline (game.c:381-382)
 - [x] GetFrameTime: why clamp at 0.05? is it a max frame time for physics stability? (game.c:724-728)
-- [] SetWindowSize: can we add dynamic resize and fullscreen support? what APIs exist? (game.c:716)
+- [x] SetWindowSize: can we add dynamic resize and fullscreen support? what APIs exist? (game.c:716)
 - [] SetTargetFPS: minimum 60 even on 30fps screens? internal game logic fps vs draw fps? (game.c:1209-1212)
 - [] Camera2D: how do target and offset interact? smooth follow pattern (game.c:696-718)
 - [] emscripten_set_main_loop: why does the static GameState + void(void) pattern matter? (game.c:139-141)
