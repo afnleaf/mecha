@@ -34,7 +34,7 @@
 // Mecha ------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
-#define PLAYER_SIZE             16.0f
+#define PLAYER_SIZE             14.0f
 #define PLAYER_HP               100
 #define IFRAME_DURATION         0.9f
 #define PLAYER_ROT_SPEED        1.0f
@@ -144,7 +144,7 @@
 #define ROCKET_EXPLOSION_DAMAGE 60
 #define ROCKET_EXPLOSION_RADIUS 160.0f
 #define ROCKET_KNOCKBACK        250.0f
-#define ROCKET_COOLDOWN         2.0f
+#define ROCKET_COOLDOWN         0.915f
 #define ROCKET_SIZE             6.0f
 #define ROCKET_PROJECTILE_SIZE  6.0f
 

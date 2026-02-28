@@ -27,7 +27,7 @@ typedef enum WeaponType {
     WPN_LASER,
     WPN_SWORD,
     WPN_REVOLVER,
-    WPN_MINIGUN,
+    WPN_ROCKET,
     WPN_SNIPER,
 } WeaponType;
 

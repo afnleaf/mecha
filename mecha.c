@@ -591,7 +591,7 @@ static void UpdateSelect(void)
         g.selectIndex = (g.selectIndex + 1) % 5; // wrap down
     // Display order: SWORD, REVOLVER, GUN, SNIPER, MINIGUN (face count ascending)
     WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_MINIGUN
+        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
     };
     if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         g.player.primary = selectWeapons[g.selectIndex];
@@ -627,7 +627,7 @@ static void DrawSelect(void)
         "WASD", "Space", "M1", "M2", "E", "Q", "C", "Z", "Shift", "P / Esc", "0"
     };
     const char *keyDescs[] = {
-        "Move", "Dash", "Primary Weapon", "Fan / Dash Slash", "Shotgun",
+        "Move", "Dash", "Primary Weapon", "Alt Fire", "Shotgun",
         "Rocket", "Grenade", "Railgun", "Spin", "Pause", "Exit"
     };
     int keyCount = 11; // terrible hardcode
@@ -644,17 +644,17 @@ static void DrawSelect(void)
     }
 
     // Weapons (right column) — ordered by solid face count (4→6→8→12→20)
-    const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "MINIGUN" };
+    const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
     const char *descs[] = {
         "Click to swing — melee arc slash",
         "Precise single shots — fan the hammer with M2",
         "Hold to fire — rapid ballistic rounds",
         "Click to fire — high damage, slows targets",
-        "High volume fire — winds up over time, slows movement",
+        "Fire rockets — launch grenades with M2",
     };
     // Map display index → WeaponType
     WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_MINIGUN
+        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
     };
     int optFont = (int)(SELECT_OPTION_FONT * ui);
     int descFont = (int)(SELECT_DESC_FONT * ui);
@@ -669,7 +669,7 @@ static void DrawSelect(void)
         DrawCube2D,     // Cube         (6)  — REVOLVER
         DrawOcta2D,     // Octahedron   (8)  — GUN
         DrawDodeca2D,   // Dodecahedron (12) — SNIPER
-        DrawIcosa2D,    // Icosahedron  (20) — MINIGUN
+        DrawIcosa2D,    // Icosahedron  (20) — ROCKET
     };
 
     // magic number
@@ -732,7 +732,7 @@ static void UpdatePlayer(float dt)
 
     if (!p->dash.active) {
         float moveSpeed = p->speed;
-        if (p->primary == WPN_MINIGUN && p->minigun.spinUp > 0)
+        if (p->primary == WPN_GUN && p->minigun.spinUp > 0)
             moveSpeed = p->speed * MINIGUN_SLOW_FACTOR;
         p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, moveSpeed * dt));
     }
@@ -830,27 +830,60 @@ static void UpdatePlayer(float dt)
     // --- M1 weapon dispatch ---
     p->gun.cooldown -= dt;
     switch (p->primary) {
-    case WPN_GUN:
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)
-            && p->gun.cooldown <= 0
-            && p->sword.timer <= 0
-        ) {
-            p->gun.cooldown = 1.0f / p->gun.fireRate;
-            Vector2 aimDir = Vector2Normalize(toMouse);
-            float spread = ((float)GetRandomValue(-GUN_SPREAD, GUN_SPREAD)) * 0.001f;
-            float bulletAngle = p->angle + spread;
-            Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
-            Vector2 muzzle =
-                Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-            SpawnProjectile(muzzle, bulletDir,
-                GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
-                GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false,
-                PROJ_BULLET, DMG_BALLISTIC);
-            SpawnParticle(muzzle,
-                          Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
-                          GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+    case WPN_GUN: {
+        // M2: Minigun mode — spin-up + high volume fire, slows movement
+        p->minigun.cooldown -= dt;
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+            p->minigun.spinUp += dt / MINIGUN_SPIN_UP_TIME;
+            if (p->minigun.spinUp > 1.0f) p->minigun.spinUp = 1.0f;
+
+            float rate = MINIGUN_MIN_FIRE_RATE +
+                (MINIGUN_MAX_FIRE_RATE - MINIGUN_MIN_FIRE_RATE) * p->minigun.spinUp;
+
+            if (p->minigun.cooldown <= 0 && p->minigun.spinUp > 0.1f) {
+                p->minigun.cooldown = 1.0f / rate;
+                int spread = MINIGUN_SPREAD_MIN +
+                    (int)((MINIGUN_SPREAD_MAX - MINIGUN_SPREAD_MIN) * p->minigun.spinUp);
+                float s = ((float)GetRandomValue(-spread, spread)) * 0.001f;
+                float bulletAngle = p->angle + s;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                Vector2 aimDir = Vector2Normalize(toMouse);
+                Vector2 muzzle =
+                    Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, bulletDir,
+                    MINIGUN_BULLET_SPEED, MINIGUN_BULLET_DAMAGE,
+                    MINIGUN_BULLET_LIFETIME, MINIGUN_PROJECTILE_SIZE, false, false,
+                    PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                    Vector2Scale(bulletDir, MINIGUN_MUZZLE_SPEED), WHITE,
+                    MINIGUN_MUZZLE_SIZE, MINIGUN_MUZZLE_LIFETIME);
+            }
+        } else {
+            p->minigun.spinUp -= dt / MINIGUN_SPIN_DOWN_TIME;
+            if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
+
+            // M1: Normal machine gun (only when not spinning minigun)
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)
+                && p->gun.cooldown <= 0
+                && p->sword.timer <= 0
+            ) {
+                p->gun.cooldown = 1.0f / p->gun.fireRate;
+                Vector2 aimDir = Vector2Normalize(toMouse);
+                float spread = ((float)GetRandomValue(-GUN_SPREAD, GUN_SPREAD)) * 0.001f;
+                float bulletAngle = p->angle + spread;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                Vector2 muzzle =
+                    Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, bulletDir,
+                    GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
+                    GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE, false, false,
+                    PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                              Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                              GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+            }
         }
-        break;
+    } break;
 #if 0 // laser primary — preserved for future use
     case WPN_LASER:
         p->laser.active = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
@@ -1008,38 +1041,18 @@ static void UpdatePlayer(float dt)
             p->revolver.reloadLocked = false;
         }
         break;
-    case WPN_MINIGUN: {
-        p->minigun.cooldown -= dt;
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            p->minigun.spinUp += dt / MINIGUN_SPIN_UP_TIME;
-            if (p->minigun.spinUp > 1.0f) p->minigun.spinUp = 1.0f;
-
-            float rate = MINIGUN_MIN_FIRE_RATE +
-                (MINIGUN_MAX_FIRE_RATE - MINIGUN_MIN_FIRE_RATE) * p->minigun.spinUp;
-
-            if (p->minigun.cooldown <= 0 && p->minigun.spinUp > 0.1f) {
-                p->minigun.cooldown = 1.0f / rate;
-                int spread = MINIGUN_SPREAD_MIN +
-                    (int)((MINIGUN_SPREAD_MAX - MINIGUN_SPREAD_MIN) * p->minigun.spinUp);
-                float s = ((float)GetRandomValue(-spread, spread)) * 0.001f;
-                float bulletAngle = p->angle + s;
-                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
-                Vector2 aimDir = Vector2Normalize(toMouse);
-                Vector2 muzzle =
-                    Vector2Add(p->pos, Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-                SpawnProjectile(muzzle, bulletDir,
-                    MINIGUN_BULLET_SPEED, MINIGUN_BULLET_DAMAGE,
-                    MINIGUN_BULLET_LIFETIME, MINIGUN_PROJECTILE_SIZE, false, false,
-                    PROJ_BULLET, DMG_BALLISTIC);
-                SpawnParticle(muzzle,
-                    Vector2Scale(bulletDir, MINIGUN_MUZZLE_SPEED), WHITE,
-                    MINIGUN_MUZZLE_SIZE, MINIGUN_MUZZLE_LIFETIME);
-            }
-        } else {
-            p->minigun.spinUp -= dt / MINIGUN_SPIN_DOWN_TIME;
-            if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
+    case WPN_ROCKET:
+        // M1: Rocket
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && p->rocket.cooldownTimer <= 0) {
+            SpawnRocket(p, toMouse);
+            p->rocket.cooldownTimer = ROCKET_COOLDOWN;
         }
-    } break;
+        // M2: Grenade
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && p->grenade.cooldownTimer <= 0) {
+            SpawnGrenade(p, toMouse);
+            p->grenade.cooldownTimer = GRENADE_COOLDOWN;
+        }
+        break;
     default: break;
     }
 
@@ -2682,7 +2695,7 @@ static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, flo
         case WPN_REVOLVER: DrawCube2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
         case WPN_GUN:      DrawOcta2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
         case WPN_SNIPER:   DrawDodeca2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
-        case WPN_MINIGUN:  DrawIcosa2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
+        case WPN_ROCKET:   DrawIcosa2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
         default: break;
     }
 }
@@ -3005,24 +3018,28 @@ static void DrawWorld(void)
 
         // Gun barrel
         float ca = cosf(p->angle), sa = sinf(p->angle);
-        if (p->primary == WPN_MINIGUN) {
+        if (p->primary == WPN_GUN && p->minigun.spinUp > 0) {
             Vector2 miniTip = Vector2Add(p->pos,
                 (Vector2){ ca * (p->size + MINIGUN_TIP_OFFSET),
                            sa * (p->size + MINIGUN_TIP_OFFSET) });
             DrawLineEx(p->pos, miniTip, MINIGUN_BARREL_THICKNESS, DARKGRAY);
             // spinning barrel lines
-            if (p->minigun.spinUp > 0) {
-                float spin = (float)GetTime() * p->minigun.spinUp * 30.0f;
-                for (int b = 0; b < 3; b++) {
-                    float bAngle = p->angle + spin + b * (2.0f * PI / 3.0f);
-                    float bca = cosf(bAngle), bsa = sinf(bAngle);
-                    Vector2 bOff = { -bsa * 2.0f, bca * 2.0f };
-                    Vector2 bStart = Vector2Add(p->pos, bOff);
-                    Vector2 bEnd = Vector2Add(miniTip, bOff);
-                    DrawLineEx(bStart, bEnd, 1.0f,
-                        Fade(LIGHTGRAY, 0.4f * p->minigun.spinUp));
-                }
+            float spin = (float)GetTime() * p->minigun.spinUp * 30.0f;
+            for (int b = 0; b < 3; b++) {
+                float bAngle = p->angle + spin + b * (2.0f * PI / 3.0f);
+                float bca = cosf(bAngle), bsa = sinf(bAngle);
+                Vector2 bOff = { -bsa * 2.0f, bca * 2.0f };
+                Vector2 bStart = Vector2Add(p->pos, bOff);
+                Vector2 bEnd = Vector2Add(miniTip, bOff);
+                DrawLineEx(bStart, bEnd, 1.0f,
+                    Fade(LIGHTGRAY, 0.4f * p->minigun.spinUp));
             }
+        } else if (p->primary == WPN_ROCKET) {
+            // Thicker rocket tube barrel
+            Vector2 rocketTip = Vector2Add(p->pos,
+                (Vector2){ ca * (p->size + MINIGUN_TIP_OFFSET),
+                           sa * (p->size + MINIGUN_TIP_OFFSET) });
+            DrawLineEx(p->pos, rocketTip, MINIGUN_BARREL_THICKNESS + 1.0f, DARKGRAY);
         } else {
             Vector2 gunTip = Vector2Add(p->pos,
                 (Vector2){ ca * (p->size + GUN_TIP_OFFSET),
@@ -3416,7 +3433,7 @@ static void DrawHUD(void)
     }
 
     // Minigun spin-up bar
-    if (p->primary == WPN_MINIGUN && p->minigun.spinUp > 0) {
+    if (p->primary == WPN_GUN && p->minigun.spinUp > 0) {
         cdY += (int)(HUD_ROW_SPACING * ui);
         Color miniColor = (Color){ 255, 100, 50, 255 };
         float ratio = p->minigun.spinUp;

@@ -189,14 +189,31 @@ idea: two characters? the cube and the tetrahedron? rest of platonic solids: oct
 
 the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
 
-what can you customize? all your buttons, its a mecha game... some remain for basics. 
+what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons
 
 - WASD - move
 - m1/m2 - main weapon 
-    - machine gun, 
-    - laser 
-    - revolver m2 fan the hammer
-    - sword (dash slash if dashing) (not sure if it works rn)
+    - sword (short range)
+        - m1 sweep (hold m1 = spin?)
+        - m2 lunge (pierces through enemies forward cone) (hold m2 == ?)
+        - quirk dash slash + dash lunge
+    - revolver (mid range precision)
+        - m1 shoot regular
+        - m2 fan the hammer
+        - quirk reload timing (r + dash bonus)
+    - machine gun (mid range power)
+        - m1 normal shooting (short overheat)
+        - m2 mini gun (should this be m2 for machine gun?) (longer overheat + movement penalty)
+        - quirk overheat mechanics (r + dash bonus)
+    - sniper (long range precision)
+        - m1 hip fire less accurate
+        - m2 slow down like aiming down sights, more accurate more damage?
+        - quirk debuff (critical opening or slowness?) (dash into m2 timing = super duper shot hidden mechanic)
+    - rocket (area denial)
+        - m1 rocket
+        - m2 grenade
+        - quirk?
+    - ~~laser~~
 - space - dash (2 charges)
 - shift - spin (lifesteal)
 - E - shotgun (2 blasts)
@@ -204,7 +221,7 @@ what can you customize? all your buttons, its a mecha game... some remain for ba
 - Z - railgun (pierce all)
 - X - sniper
 - P / esc - pause
-- R - restart (has to be reload eventually)
+- R - reload (works with revolver)
 - 0 - quit
 - F - free (parry)
 - C - Grenade launcher
