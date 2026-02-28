@@ -189,7 +189,7 @@ idea: two characters? the cube and the tetrahedron? rest of platonic solids: oct
 
 the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
 
-what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons
+what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons. 
 
 - WASD - move
 - m1/m2 - main weapon 
@@ -211,7 +211,7 @@ what can you customize? all your buttons, its a mecha game... some remain for ba
         - quirk debuff (critical opening or slowness?) (dash into m2 timing = super duper shot hidden mechanic)
     - rocket (area denial)
         - m1 rocket
-        - m2 grenade
+        - m2 make rocket explode where it is
         - quirk?
     - ~~laser~~
 - space - dash (2 charges)
