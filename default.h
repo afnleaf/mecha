@@ -37,7 +37,7 @@
 // Mecha ------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
-#define PLAYER_SIZE             14.0f
+#define PLAYER_SIZE             16.0f
 #define PLAYER_HP               100
 #define IFRAME_DURATION         0.9f
 #define PLAYER_ROT_SPEED        1.0f

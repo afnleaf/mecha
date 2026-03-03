@@ -32,12 +32,12 @@ lib/              - pre-built raylib libraries (libraylib.web.a)
 asset_blob/       - custom asset blob encoder/loader (blobbert.c)
 ```
 
-Key documentation: `claude_review.md` (persistent code review state), `NOTES.md` (todo list), `GDD.md` (game design doc), `PHILOSOPHY.md` (must follow).
+Key documentation: `NOTES.md` (todo list), `GDD.md` (game design doc), `PHILOSOPHY.md` (must follow).
 
 ## Architecture
 
 - Single global `GameState g` struct (Emscripten requires `void(*)(void)` callback pattern)
-- Player weapons: `Gun`, `Sword`, `Revolver`, `Dash`, `Spin`, `Shotgun`, `Rocket` composed as fields in `Player`
+- Player weapons/abilities: `Gun`, `Minigun`, `Sword`, `Revolver`, `Sniper`, `Rocket`, `Shotgun`, `Railgun`, `Bfg`, `Grenade`, `Shield`, `Flamethrower`, `GroundSlam`, `Parry`, `Dash`, `Spin`, `Laser` composed as fields in `Player`
 - Enemy types: `EnemyDef` data table indexed by `EnemyType` enum, table-driven spawning via `SPAWN_PRIORITY`
 - Collision dispatchers: `EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle` — switch on enemy type, one `case` per shape
 - Update pipeline: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateProjectiles` -> `UpdateLightningChain` -> `UpdateParticles` -> `UpdateBeams` -> `UpdateDeployables` -> `MoveCamera`
@@ -60,7 +60,6 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 
 ## Working With This Codebase
 
-- **Read `claude_review.md` before modifying mecha.c or mecha.h. Update it after significant changes.** It tracks resolved items, current stats, refactoring priorities, and architectural assessment.
 - Follow PHILOSOPHY.md: solve for the common case, design around data not abstractions, prefer simple explicit code
 - When the user asks for implementation help, give specifications and snippets, not full rewrites — unless in agent building mode
 - Refactor from ends inward: design output shape first, then input, then the middle transformation
@@ -79,7 +78,7 @@ etc
 
 ## Version Roadmap
 
-- **v(-2)**: Add all weapons and enemies (current milestone — requires projectile/shooting/sweep refactors first)
+- **v(-2)**: Add all weapons and enemies (current milestone — weapons/abilities done, remaining: mini boss TRAP, big boss CIRC)
 - **v(-1)**: Room-based progression with weapon selection between rounds, mini boss fight
 - **v(0)**: Chassis selection (platonic solid characters with unique identities)
 

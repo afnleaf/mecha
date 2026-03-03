@@ -1,6 +1,8 @@
 # mecha
+read all of these files to understand the repo.
 
-[notes](NOTES.md)
+[philosophy](PHILOSOPHY.md)
+
 [game design decoument](GDD.md)
 
-
+[notes](NOTES.md)

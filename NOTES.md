@@ -7,7 +7,7 @@ feel free to use these urls to explore
 - [FAQ Technical](https://github.com/raysan5/raylib/wiki/Frequently-Asked-Questions)
 - [FAQ Generic](https://github.com/raysan5/raylib/blob/master/FAQ.md)
 
-joint implementation between claude and myself the user! 🤝🫡
+joint implementation between claude and myself the user! 🤝🫡 ^~~~^
 
 ``` C
 // this is THE piece of data that we are operating on
@@ -46,9 +46,13 @@ the update happens before the draw
 there are a lot of extra lines of C code just to fit inside the 80 col limit
 
 ## v(-2)
-add all the weapons and enemies
+add the main weapons, enemies and abilities
+
+pick two weapon types to start with
 
 ## v(-1)
+massive refactor
+
 a room with the first 4 enemies, defeat them
 
 game pauses you pick an extra weapon out of some options
@@ -62,7 +66,11 @@ mini boss fight
 game end
 
 ## v(0)
-pick a chassis type to start with
+massive refactor
+
+assets, art, music
+
+asset loader
 
 ## todo
 - [x] (claude) optimized native build
@@ -98,12 +106,14 @@ pick a chassis type to start with
 - [x] fullscreen, set toggle
 - [x] mouse visible on top of crosshair on native (fixed)
 - [x] move reload and overheat bars somehwere more visible than the left side
+- [x] cleanup controls hud menu to be properly visible and programmatic
 
 ### refactorin time
 - [x] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
 - [x] (claude) big refactor of all hardcoded numbers
 - [x] figure out how to do hitscan, what are the other weapon types?
+- [] time to make src/ folder and split up the project?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [] enemy debuff whack
 - [] understand particles better (this is an art thing...)
@@ -168,14 +178,14 @@ explosives as primary? is that possible? (yes)
 - [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - [x] spin that deflects bullets
 - [x] shield (delete projectiles in a radius around the player)
-- [] parry (able to parry contact damage from melee enemies?)
-- [] summons (npcs who take aggro for you) 
-- [] turret needs to be targetable by enemies and healable by your field
-- [] root mines when exploded aoe effect
-- [] ground slam (what should this do?) less damage more stun
 - [x] parry (longer?) kinda works like deadlock melee parry
+- [] summons (npcs who take aggro for you) 
+    - [x] turret needs to be targetable by enemies and healable by your field
+    - [] drone, damage drone and heal drone?
+- [x] root mines when exploded aoe web effect 
+- [x] ground slam (what should this do?) less damage more stun, like reinhardt mini slam
 - [x] fire (more like a flamethrower that you can spread infront on the ground)
-- [] healing heal drone + heal field?
+- [x] heal field? (current is fine)
 - [] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
 
 ### players
@@ -186,6 +196,7 @@ explosives as primary? is that possible? (yes)
 - [x] icosahedron
 - [x] decide who gets which primary weapon
 - [x] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
+- [x] consistent player size depending on shape
 
 levels
 - [] rounds/rooms
