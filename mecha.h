@@ -204,7 +204,8 @@ typedef struct Deployable {
 
 typedef struct GroundSlam {
     float cooldownTimer;
-    float vfxTimer;     // expanding ring visual
+    float vfxTimer;     // expanding cone visual
+    float angle;        // direction of slam
 } GroundSlam;
 
 typedef struct Parry {

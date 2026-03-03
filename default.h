@@ -248,12 +248,14 @@
 #define SHIELD_BROKEN_COOLDOWN  2.0f    // lockout when shield breaks
 
 // Ground Slam -------------------------------------------------------------- /
-#define SLAM_DAMAGE             50
-#define SLAM_RADIUS             140.0f
-#define SLAM_KNOCKBACK          350.0f
-#define SLAM_STUN_DURATION      0.8f
+#define SLAM_DAMAGE             15
+#define SLAM_RANGE              300.0f
+#define SLAM_ARC                (PI * 0.417f)   // 75 degree cone
+#define SLAM_KNOCKBACK          250.0f
+#define SLAM_STUN_MIN           0.5f
+#define SLAM_STUN_MAX           2.0f
 #define SLAM_COOLDOWN           6.0f
-#define SLAM_VFX_DURATION       0.3f
+#define SLAM_VFX_DURATION       0.2f
 #define SLAM_COLOR              (Color){ 255, 200, 60, 255 }
 
 // Parry -------------------------------------------------------------------- /

@@ -1678,22 +1678,30 @@ static void UpdatePlayer(float dt)
     if (IsAbilityPressed(p, ABL_SLAM) && p->slam.cooldownTimer <= 0) {
         p->slam.cooldownTimer = SLAM_COOLDOWN;
         p->slam.vfxTimer = SLAM_VFX_DURATION;
+        p->slam.angle = p->angle;
+        float halfArc = SLAM_ARC * 0.5f;
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (!g.enemies[i].active) continue;
             Enemy *ei = &g.enemies[i];
             float dist = Vector2Distance(p->pos, ei->pos);
-            if (dist < SLAM_RADIUS + ei->size) {
-                DamageEnemy(i, SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
-                ei->stunTimer = SLAM_STUN_DURATION;
-                Vector2 away = Vector2Subtract(ei->pos, p->pos);
-                if (Vector2Length(away) > 1.0f)
-                    ei->vel = Vector2Scale(
-                        Vector2Normalize(away), SLAM_KNOCKBACK);
-            }
+            if (dist > SLAM_RANGE + ei->size) continue;
+            // cone check
+            Vector2 toEnemy = Vector2Subtract(ei->pos, p->pos);
+            float enemyAngle = atan2f(toEnemy.y, toEnemy.x);
+            float diff = fmodf(enemyAngle - p->slam.angle + 3*PI, 2*PI) - PI;
+            if (fabsf(diff) > halfArc) continue;
+
+            DamageEnemy(i, SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
+            float t = dist / SLAM_RANGE;
+            ei->stunTimer = SLAM_STUN_MAX + (SLAM_STUN_MIN - SLAM_STUN_MAX) * t;
+            if (dist > 1.0f)
+                ei->vel = Vector2Scale(
+                    Vector2Normalize(toEnemy), SLAM_KNOCKBACK);
         }
-        // burst particles
+        // cone particles
         for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
-            float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
+            float a = p->slam.angle - halfArc
+                + (float)i / (float)EXPLOSION_RING_COUNT * SLAM_ARC;
             float speed = (float)GetRandomValue(200, 400);
             Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
             Color c = (i % 2 == 0) ? (Color)SLAM_COLOR : WHITE;
@@ -4055,15 +4063,31 @@ static void DrawWorld(void)
             }
         }
 
-        // Ground Slam expanding shockwave
+        // Ground Slam expanding cone
         if (p->slam.vfxTimer > 0) {
             float progress = 1.0f - (p->slam.vfxTimer / SLAM_VFX_DURATION);
-            float radius = SLAM_RADIUS * progress;
+            float r = SLAM_RANGE * progress;
             float alpha = 1.0f - progress;
-            DrawCircleLinesV(p->pos, radius,
-                Fade((Color)SLAM_COLOR, alpha));
-            DrawCircleLinesV(p->pos, radius * 0.8f,
-                Fade(WHITE, alpha * 0.5f));
+            float halfArc = SLAM_ARC * 0.5f;
+            float a = p->slam.angle;
+            int segs = 12;
+            // outer arc
+            for (int i = 0; i < segs; i++) {
+                float a0 = a - halfArc + (float)i / segs * SLAM_ARC;
+                float a1 = a - halfArc + (float)(i + 1) / segs * SLAM_ARC;
+                Vector2 p0 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a0) * r, sinf(a0) * r });
+                Vector2 p1 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a1) * r, sinf(a1) * r });
+                DrawLineEx(p0, p1, 2.0f, Fade((Color)SLAM_COLOR, alpha));
+            }
+            // side edges
+            Vector2 left = Vector2Add(p->pos,
+                (Vector2){ cosf(a - halfArc) * r, sinf(a - halfArc) * r });
+            Vector2 right = Vector2Add(p->pos,
+                (Vector2){ cosf(a + halfArc) * r, sinf(a + halfArc) * r });
+            DrawLineEx(p->pos, left, 1.5f, Fade(WHITE, alpha * 0.5f));
+            DrawLineEx(p->pos, right, 1.5f, Fade(WHITE, alpha * 0.5f));
         }
 
         // Parry active flash
