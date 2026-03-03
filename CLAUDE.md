@@ -40,13 +40,15 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 - Player weapons: `Gun`, `Sword`, `Revolver`, `Dash`, `Spin`, `Shotgun`, `Rocket` composed as fields in `Player`
 - Enemy types: `EnemyDef` data table indexed by `EnemyType` enum, table-driven spawning via `SPAWN_PRIORITY`
 - Collision dispatchers: `EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle` — switch on enemy type, one `case` per shape
-- Update pipeline: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateBullets` -> `UpdateParticles` -> `MoveCamera`
+- Update pipeline: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateProjectiles` -> `UpdateLightningChain` -> `UpdateParticles` -> `UpdateBeams` -> `UpdateDeployables` -> `MoveCamera`
 - Draw pipeline: `DrawWorld` (camera space) -> `DrawHUD` (screen space)
 - Player models: all 5 platonic solids — `DrawTetra2D`, `DrawCube2D`, `DrawOcta2D`, `DrawDodeca2D`, `DrawIcosa2D`. **Do not delete any Draw*2D functions.**
 - All gameplay constants belong in `default.h`, not as magic numbers in mecha.c
 - HUD scales via `ui = screenHeight / 450.0f`
-- Player-relative HUD: weapon status (revolver rounds, gun heat, reload/overheat QTE) drawn as `DrawRing` arcs near the player via `GetWorldToScreen2D`. Constants prefixed `HUD_ARC_*` in default.h. Left-side HUD column is for cooldowns (dash, shotgun, rocket, grenade, BFG).
-- Pools: projectiles[1024], enemies[1024], particles[1024], explosives[8]
+- Player-relative HUD: weapon status (revolver rounds, gun heat, reload/overheat QTE) drawn as `DrawRing` arcs near the player via `GetWorldToScreen2D`. Constants prefixed `HUD_ARC_*` in default.h. Left-side HUD column is for all cooldowns.
+- Pools: projectiles[1024], enemies[1024], particles[1024], explosives[8], beams[8], deployables[8]
+- Deployable pool: shared by turret, mine, heal field, fire zone — type-switched via `DeployableType`
+- Enemy debuffs: `slowTimer`/`slowFactor` (reduced speed), `rootTimer` (no move, can shoot), `stunTimer` (no move, no shoot)
 
 ## Code Style
 
@@ -83,6 +85,9 @@ etc
 
 ## Controls
 
-WASD: move | Mouse: aim | M1: primary weapon | M2: revolver fan (empties cylinder) | E: shotgun | Q: rocket | Space: dash (2 charges) | Space+M2: dash slash | Shift: spin (lifesteal) | P/Esc: pause | R: restart
+WASD: move | Mouse: aim | M1: primary weapon | M2: alt fire | Ctrl: swap weapon | Space: dash (3 charges) | Space+M2: dash slash | P/Esc: pause | 0: exit
 
 Primary weapons (select screen): Machine Gun, Sword, Revolver, Sniper, Rocket. Revolver uses both mouse buttons — M1 precise single shots, M2 fans all remaining rounds rapidly.
+
+Abilities (12 slots, all keybinds shown in pause menu and weapon select):
+Q: Shotgun | E: Railgun | Shift: Spin (lifesteal) | 1: Ground Slam (AoE stun) | 2: Parry (deflect window) | 3: Turret (auto-shooter) | 4: Mine (root on trigger) | Z: Heal Field | X: Shield | C: Grenade | V: Fire Zone | F: BFG

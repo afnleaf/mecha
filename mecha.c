@@ -71,14 +71,14 @@ static void InitGame(void)
     p->slots[0]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
     p->slots[1]  = (AbilitySlot){ ABL_RAILGUN,  KEY_E };
     p->slots[2]  = (AbilitySlot){ ABL_SPIN,     KEY_LEFT_SHIFT };
-    p->slots[3]  = (AbilitySlot){ ABL_NONE,     KEY_ONE };
-    p->slots[4]  = (AbilitySlot){ ABL_NONE,     KEY_TWO };
-    p->slots[5]  = (AbilitySlot){ ABL_NONE,     KEY_THREE };
-    p->slots[6]  = (AbilitySlot){ ABL_NONE,     KEY_FOUR };
-    p->slots[7]  = (AbilitySlot){ ABL_NONE,     KEY_Z };
+    p->slots[3]  = (AbilitySlot){ ABL_SLAM,     KEY_ONE };
+    p->slots[4]  = (AbilitySlot){ ABL_PARRY,    KEY_TWO };
+    p->slots[5]  = (AbilitySlot){ ABL_TURRET,   KEY_THREE };
+    p->slots[6]  = (AbilitySlot){ ABL_MINE,     KEY_FOUR };
+    p->slots[7]  = (AbilitySlot){ ABL_HEAL,     KEY_Z };
     p->slots[8]  = (AbilitySlot){ ABL_SHIELD,   KEY_X };
     p->slots[9]  = (AbilitySlot){ ABL_GRENADE,  KEY_C };
-    p->slots[10] = (AbilitySlot){ ABL_NONE,     KEY_V };
+    p->slots[10] = (AbilitySlot){ ABL_FIRE,     KEY_V };
     p->slots[11] = (AbilitySlot){ ABL_BFG,      KEY_F };
 
     p->shadowPos            = p->pos;
@@ -208,6 +208,8 @@ static void SpawnEnemy(void)
             e->shootTimer = 0;
             e->slowTimer = 0;
             e->slowFactor = 1.0f;
+            e->rootTimer = 0;
+            e->stunTimer = 0;
 
             // Roll for enemy type — priority table, TRI fallback
             EnemyType type = TRI;
@@ -593,6 +595,12 @@ static const char* AbilityName(AbilityID id) {
         case ABL_RAILGUN: return "Railgun";
         case ABL_BFG:     return "BFG";
         case ABL_SHIELD:  return "Shield";
+        case ABL_TURRET:  return "Turret";
+        case ABL_MINE:    return "Mine";
+        case ABL_SLAM:    return "Slam";
+        case ABL_PARRY:   return "Parry";
+        case ABL_HEAL:    return "Heal";
+        case ABL_FIRE:    return "Fire";
         default:          return NULL;
     }
 }
@@ -729,30 +737,34 @@ static void DrawSelect(void)
     DrawText(hint, sw / 2 - hintW / 2,
         titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
 
-    // Keybinds (left column)
+    // Keybinds — two columns on left side
     const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "Ctrl", "P / Esc", "0" };
-    const char *coreDescs[] = { "Move", "Dash", "Primary Weapon", "Alt Fire", "Swap Weapon", "Pause", "Exit" };
+    const char *coreDescs[] = { "Move", "Dash", "Primary", "Alt Fire", "Swap Weapon", "Pause", "Exit" };
     int coreCount = 7;
     int keyFont = (int)(SELECT_KEYS_FONT * ui);
     int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
     int keyX = (int)(sw * SELECT_KEYS_X);
     int keyBaseY = (int)(sh * SELECT_KEYS_Y);
-    int keyDescX = keyX + (int)(70 * ui);
+    int keyTabW = (int)(50 * ui);
 
-    int row = 0;
-    for (int i = 0; i < coreCount; i++, row++) {
-        int ky = keyBaseY + row * keySpacing;
+    // Column 1: core controls
+    for (int i = 0; i < coreCount; i++) {
+        int ky = keyBaseY + i * keySpacing;
         DrawText(coreKeys[i], keyX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
-        DrawText(coreDescs[i], keyDescX, ky, keyFont, Fade(WHITE, 0.6f));
+        DrawText(coreDescs[i], keyX + keyTabW, ky, keyFont, Fade(WHITE, 0.6f));
     }
+
+    // Column 2: abilities (starts to the right of column 1)
+    int ablX = keyX + (int)(160 * ui);
     Player *sp = &g.player;
+    int ablRow = 0;
     for (int i = 0; i < ABILITY_SLOTS; i++) {
         const char *name = AbilityName(sp->slots[i].ability);
         if (!name) continue;
-        int ky = keyBaseY + row * keySpacing;
-        DrawText(KeyName(sp->slots[i].key), keyX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
-        DrawText(name, keyDescX, ky, keyFont, Fade(WHITE, 0.6f));
-        row++;
+        int ky = keyBaseY + ablRow * keySpacing;
+        DrawText(KeyName(sp->slots[i].key), ablX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
+        DrawText(name, ablX + keyTabW, ky, keyFont, Fade(WHITE, 0.6f));
+        ablRow++;
     }
 
     // Weapons (right column) — ordered by solid face count (4→6→8→12→20)
@@ -1653,6 +1665,125 @@ static void UpdatePlayer(float dt)
         }
     }
 
+    // --- Ground Slam (instant AoE + stun) ---
+    if (p->slam.cooldownTimer > 0) p->slam.cooldownTimer -= dt;
+    if (p->slam.vfxTimer > 0) p->slam.vfxTimer -= dt;
+
+    if (IsAbilityPressed(p, ABL_SLAM) && p->slam.cooldownTimer <= 0) {
+        p->slam.cooldownTimer = SLAM_COOLDOWN;
+        p->slam.vfxTimer = SLAM_VFX_DURATION;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (!g.enemies[i].active) continue;
+            Enemy *ei = &g.enemies[i];
+            float dist = Vector2Distance(p->pos, ei->pos);
+            if (dist < SLAM_RADIUS + ei->size) {
+                DamageEnemy(i, SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
+                ei->stunTimer = SLAM_STUN_DURATION;
+                Vector2 away = Vector2Subtract(ei->pos, p->pos);
+                if (Vector2Length(away) > 1.0f)
+                    ei->vel = Vector2Scale(
+                        Vector2Normalize(away), SLAM_KNOCKBACK);
+            }
+        }
+        // burst particles
+        for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
+            float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
+            float speed = (float)GetRandomValue(200, 400);
+            Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+            Color c = (i % 2 == 0) ? (Color)SLAM_COLOR : WHITE;
+            SpawnParticle(p->pos, vel, c, 4.0f, 0.3f);
+        }
+    }
+
+    // --- Parry (brief deflect window) ---
+    if (p->parry.cooldownTimer > 0) p->parry.cooldownTimer -= dt;
+
+    if (IsAbilityPressed(p, ABL_PARRY) && p->parry.cooldownTimer <= 0
+        && !p->parry.active) {
+        p->parry.active = true;
+        p->parry.timer = PARRY_WINDOW;
+        p->parry.succeeded = false;
+    }
+
+    if (p->parry.active) {
+        p->parry.timer -= dt;
+        // deflect enemy bullets (tighter window, higher mult than spin)
+        for (int i = 0; i < MAX_PROJECTILES; i++) {
+            Projectile *b = &g.projectiles[i];
+            if (!b->active || !b->isEnemy) continue;
+            float dist = Vector2Distance(b->pos, p->pos);
+            if (dist < p->size + 30.0f) {
+                b->isEnemy = false;
+                b->damage *= PARRY_DEFLECT_MULT;
+                Vector2 away = Vector2Normalize(
+                    Vector2Subtract(b->pos, p->pos));
+                float speed = Vector2Length(b->vel) * PARRY_DEFLECT_SPEED;
+                b->vel = Vector2Scale(away, speed);
+                SpawnParticles(b->pos, WHITE, 6);
+                p->parry.succeeded = true;
+            }
+        }
+        if (p->parry.timer <= 0) {
+            p->parry.active = false;
+            p->parry.cooldownTimer = p->parry.succeeded
+                ? PARRY_SUCCESS_COOLDOWN : PARRY_COOLDOWN;
+            if (p->parry.succeeded)
+                p->iFrames = PARRY_IFRAMES;
+        }
+    }
+
+    // --- Turret deploy ---
+    if (p->turretCooldown > 0) p->turretCooldown -= dt;
+    if (IsAbilityPressed(p, ABL_TURRET) && p->turretCooldown <= 0) {
+        int count = 0;
+        for (int i = 0; i < MAX_DEPLOYABLES; i++)
+            if (g.deployables[i].active
+                && g.deployables[i].type == DEPLOY_TURRET) count++;
+        if (count < TURRET_MAX_ACTIVE) {
+            SpawnDeployable(DEPLOY_TURRET, p->pos);
+            p->turretCooldown = TURRET_COOLDOWN;
+        }
+    }
+
+    // --- Mine deploy ---
+    if (p->mineCooldown > 0) p->mineCooldown -= dt;
+    if (IsAbilityPressed(p, ABL_MINE) && p->mineCooldown <= 0) {
+        int count = 0;
+        for (int i = 0; i < MAX_DEPLOYABLES; i++)
+            if (g.deployables[i].active
+                && g.deployables[i].type == DEPLOY_MINE) count++;
+        if (count < MINE_MAX_ACTIVE) {
+            SpawnDeployable(DEPLOY_MINE, p->pos);
+            p->mineCooldown = MINE_COOLDOWN;
+        }
+    }
+
+    // --- Healing Field deploy ---
+    if (p->healCooldown > 0) p->healCooldown -= dt;
+    if (IsAbilityPressed(p, ABL_HEAL) && p->healCooldown <= 0) {
+        int count = 0;
+        for (int i = 0; i < MAX_DEPLOYABLES; i++)
+            if (g.deployables[i].active
+                && g.deployables[i].type == DEPLOY_HEAL) count++;
+        if (count < HEAL_MAX_ACTIVE) {
+            SpawnDeployable(DEPLOY_HEAL, p->pos);
+            p->healCooldown = HEAL_COOLDOWN;
+        }
+    }
+
+    // --- Fire Zone deploy ---
+    if (p->fireCooldown > 0) p->fireCooldown -= dt;
+    if (IsAbilityPressed(p, ABL_FIRE) && p->fireCooldown <= 0) {
+        int count = 0;
+        for (int i = 0; i < MAX_DEPLOYABLES; i++)
+            if (g.deployables[i].active
+                && g.deployables[i].type == DEPLOY_FIRE) count++;
+        if (count < FIRE_MAX_ACTIVE) {
+            SpawnDeployable(DEPLOY_FIRE, p->pos);
+            p->fireCooldown = FIRE_COOLDOWN;
+        }
+    }
+
     // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
     if (p->pos.y < p->size) p->pos.y = p->size;
@@ -1691,13 +1822,17 @@ static void UpdateEnemies(float dt) {
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
 
-        // tick slow debuff
+        // tick debuffs
         if (e->slowTimer > 0) e->slowTimer -= dt;
+        if (e->rootTimer > 0) e->rootTimer -= dt;
+        if (e->stunTimer > 0) e->stunTimer -= dt;
+
+        bool rooted = e->rootTimer > 0 || e->stunTimer > 0;
 
         // Chase player shadow (HEXA strafes instead)
         Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
         float dist = Vector2Length(toPlayer);
-        if (dist > 1.0f) {
+        if (!rooted && dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toPlayer, 1.0f / dist);
             Vector2 desired;
             if (e->type == HEXA) {
@@ -1720,6 +1855,8 @@ static void UpdateEnemies(float dt) {
             if (e->slowTimer > 0)
                 desired = Vector2Scale(desired, e->slowFactor);
             e->vel = Vector2Lerp(e->vel, desired, ENEMY_VEL_LERP_RATE * dt);
+        } else if (rooted) {
+            e->vel = (Vector2){ 0, 0 };
         }
         e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
 
@@ -1729,8 +1866,10 @@ static void UpdateEnemies(float dt) {
         if (e->pos.y < 0) e->pos.y = 0;
         if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
 
+        bool stunned = e->stunTimer > 0;
+
         // RECT shooting AI
-        if (e->type == RECT) {
+        if (e->type == RECT && !stunned) {
             e->shootTimer -= dt;
             if (e->shootTimer <= 0 && dist > 1.0f) {
                 e->shootTimer = RECT_SHOOT_INTERVAL;
@@ -1748,7 +1887,7 @@ static void UpdateEnemies(float dt) {
         }
 
         // PENTA shooting AI — two parallel rows of 5 bullets
-        if (e->type == PENTA) {
+        if (e->type == PENTA && !stunned) {
             e->shootTimer -= dt;
             if (e->shootTimer <= 0 && dist > 1.0f) {
                 e->shootTimer = PENTA_SHOOT_INTERVAL;
@@ -1785,7 +1924,7 @@ static void UpdateEnemies(float dt) {
         }
 
         // HEXA shooting AI — fan of 5 bullets
-        if (e->type == HEXA) {
+        if (e->type == HEXA && !stunned) {
             e->shootTimer -= dt;
             if (e->shootTimer <= 0 && dist > 1.0f) {
                 e->shootTimer = HEXA_SHOOT_INTERVAL;
@@ -1818,11 +1957,24 @@ static void UpdateEnemies(float dt) {
         // Collide with player
         bool contact = EnemyHitCircle(e, p->pos, p->size);
         if (contact && p->iFrames <= 0) {
-            DamagePlayer(e->contactDamage, DMG_BLUNT, HIT_MELEE);
-            // Knockback enemy
-            if (dist > 1.0f) {
-                Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), ENEMY_CONTACT_KNOCKBACK);
-                e->vel = kb;
+            // Parry reflects contact damage back to enemy
+            if (p->parry.active) {
+                DamageEnemy(i, PARRY_REFLECT_DAMAGE, DMG_BLUNT, HIT_MELEE);
+                p->parry.succeeded = true;
+                SpawnParticles(e->pos, WHITE, 8);
+                if (dist > 1.0f) {
+                    Vector2 kb = Vector2Scale(
+                        Vector2Normalize(Vector2Subtract(e->pos, p->pos)),
+                        PARRY_REFLECT_KNOCKBACK);
+                    e->vel = kb;
+                }
+            } else {
+                DamagePlayer(e->contactDamage, DMG_BLUNT, HIT_MELEE);
+                // Knockback enemy
+                if (dist > 1.0f) {
+                    Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), ENEMY_CONTACT_KNOCKBACK);
+                    e->vel = kb;
+                }
             }
         }
     }
@@ -1947,6 +2099,125 @@ static void GrenadeExplode(Vector2 pos) {
             g.explosives[i].timer = EXPLOSION_VFX_DURATION;
             g.explosives[i].duration = EXPLOSION_VFX_DURATION;
             break;
+        }
+    }
+}
+
+// deployables ------------------------------------------------------------- /
+static void SpawnDeployable(DeployableType type, Vector2 pos) {
+    for (int i = 0; i < MAX_DEPLOYABLES; i++) {
+        if (!g.deployables[i].active) {
+            Deployable *d = &g.deployables[i];
+            d->active = true;
+            d->pos = pos;
+            d->type = type;
+            d->actionTimer = 0;
+            switch (type) {
+                case DEPLOY_TURRET:
+                    d->timer = TURRET_LIFETIME;
+                    d->radius = TURRET_RANGE;
+                    break;
+                case DEPLOY_MINE:
+                    d->timer = MINE_LIFETIME;
+                    d->radius = MINE_TRIGGER_RADIUS;
+                    break;
+                case DEPLOY_HEAL:
+                    d->timer = HEAL_LIFETIME;
+                    d->radius = HEAL_RADIUS;
+                    break;
+                case DEPLOY_FIRE:
+                    d->timer = FIRE_LIFETIME;
+                    d->radius = FIRE_RADIUS;
+                    break;
+            }
+            break;
+        }
+    }
+}
+
+static void UpdateDeployables(float dt) {
+    Player *p = &g.player;
+    for (int i = 0; i < MAX_DEPLOYABLES; i++) {
+        Deployable *d = &g.deployables[i];
+        if (!d->active) continue;
+
+        d->timer -= dt;
+        if (d->timer <= 0) {
+            d->active = false;
+            continue;
+        }
+
+        switch (d->type) {
+        case DEPLOY_TURRET: {
+            d->actionTimer -= dt;
+            if (d->actionTimer <= 0) {
+                // find nearest enemy in range
+                int best = -1;
+                float bestDist = d->radius;
+                for (int j = 0; j < MAX_ENEMIES; j++) {
+                    if (!g.enemies[j].active) continue;
+                    float dist = Vector2Distance(d->pos, g.enemies[j].pos);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = j;
+                    }
+                }
+                if (best >= 0) {
+                    Vector2 dir = Vector2Normalize(
+                        Vector2Subtract(g.enemies[best].pos, d->pos));
+                    Vector2 muzzle = Vector2Add(d->pos,
+                        Vector2Scale(dir, 10.0f));
+                    SpawnProjectile(muzzle, dir,
+                        TURRET_BULLET_SPEED, TURRET_DAMAGE,
+                        TURRET_BULLET_LIFETIME, TURRET_BULLET_SIZE,
+                        false, false, PROJ_BULLET, DMG_BALLISTIC);
+                    SpawnParticle(muzzle,
+                        Vector2Scale(dir, 80.0f),
+                        (Color)TURRET_COLOR, 2.0f, 0.08f);
+                    d->actionTimer = TURRET_FIRE_RATE;
+                }
+            }
+        } break;
+
+        case DEPLOY_MINE: {
+            // mine trigger check: proximity to any enemy
+            for (int j = 0; j < MAX_ENEMIES; j++) {
+                Enemy *e = &g.enemies[j];
+                if (!e->active) continue;
+                float dist = Vector2Distance(d->pos, e->pos);
+                if (dist < d->radius + e->size) {
+                    e->rootTimer = MINE_ROOT_DURATION;
+                    d->active = false;
+                    SpawnParticles(d->pos, (Color)MINE_COLOR, 10);
+                    break;
+                }
+            }
+        } break;
+
+        case DEPLOY_HEAL: {
+            float dist = Vector2Distance(d->pos, p->pos);
+            if (dist < d->radius && p->hp < p->maxHp) {
+                p->hp += (int)(HEAL_PER_SEC * dt);
+                if (p->hp > p->maxHp) p->hp = p->maxHp;
+            }
+        } break;
+
+        case DEPLOY_FIRE: {
+            d->actionTimer -= dt;
+            if (d->actionTimer <= 0) {
+                d->actionTimer = 0.25f; // damage tick rate
+                for (int j = 0; j < MAX_ENEMIES; j++) {
+                    Enemy *e = &g.enemies[j];
+                    if (!e->active) continue;
+                    float dist = Vector2Distance(d->pos, e->pos);
+                    if (dist < d->radius + e->size) {
+                        DamageEnemy(j,
+                            (int)(FIRE_DAMAGE_PER_SEC * 0.25f),
+                            DMG_ABILITY, HIT_AOE);
+                    }
+                }
+            }
+        } break;
         }
     }
 }
@@ -2330,6 +2601,7 @@ static void UpdateGame(void)
     UpdateLightningChain(dt);
     UpdateParticles(dt);
     UpdateBeams(dt);
+    UpdateDeployables(dt);
 
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
         if (!g.explosives[i].active) continue;
@@ -3206,6 +3478,55 @@ static void DrawWorld(void)
         DrawCircleV(pt->pos, pt->size * alpha, c);
     }
 
+    // --- Deployables (ground level) ---
+    for (int i = 0; i < MAX_DEPLOYABLES; i++) {
+        Deployable *d = &g.deployables[i];
+        if (!d->active) continue;
+        float t = (float)GetTime();
+
+        switch (d->type) {
+        case DEPLOY_TURRET: {
+            // rotating triangle with line toward nearest enemy
+            float rot = t * 3.0f;
+            DrawCircleV(d->pos, 8.0f, Fade((Color)TURRET_COLOR, 0.3f));
+            for (int v = 0; v < 3; v++) {
+                float a0 = rot + v * (2.0f * PI / 3.0f);
+                float a1 = rot + (v + 1) * (2.0f * PI / 3.0f);
+                Vector2 p0 = Vector2Add(d->pos,
+                    (Vector2){ cosf(a0) * 10.0f, sinf(a0) * 10.0f });
+                Vector2 p1 = Vector2Add(d->pos,
+                    (Vector2){ cosf(a1) * 10.0f, sinf(a1) * 10.0f });
+                DrawLineEx(p0, p1, 2.0f, (Color)TURRET_COLOR);
+            }
+        } break;
+        case DEPLOY_MINE: {
+            float pulse = 0.6f + 0.4f * sinf(t * MINE_PULSE_SPEED);
+            DrawCircleV(d->pos, d->radius * pulse,
+                Fade((Color)MINE_COLOR, 0.15f));
+            DrawCircleLinesV(d->pos, 6.0f, (Color)MINE_COLOR);
+            DrawCircleV(d->pos, 3.0f,
+                Fade((Color)MINE_COLOR, pulse));
+        } break;
+        case DEPLOY_HEAL: {
+            float pulse = 0.7f + 0.3f * sinf(t * HEAL_PULSE_SPEED);
+            DrawCircleV(d->pos, d->radius * pulse,
+                Fade((Color)HEAL_COLOR, 0.1f));
+            DrawCircleLinesV(d->pos, d->radius * pulse,
+                Fade((Color)HEAL_COLOR, 0.4f));
+        } break;
+        case DEPLOY_FIRE: {
+            float flicker = 0.7f + 0.3f * sinf(t * FIRE_FLICKER_SPEED);
+            float flicker2 = 0.8f + 0.2f * sinf(t * FIRE_FLICKER_SPEED * 1.7f);
+            DrawCircleV(d->pos, d->radius * flicker,
+                Fade((Color)FIRE_COLOR, 0.12f));
+            DrawCircleV(d->pos, d->radius * 0.6f * flicker2,
+                Fade(ORANGE, 0.15f));
+            DrawCircleLinesV(d->pos, d->radius * flicker,
+                Fade((Color)FIRE_COLOR, 0.4f));
+        } break;
+        }
+    }
+
     // --- Projectiles ---
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         Projectile *b = &g.projectiles[i];
@@ -3526,6 +3847,26 @@ static void DrawWorld(void)
                 DrawLineEx(p0, p1, 1.5f,
                     Fade((Color)SHIELD_COLOR, shieldAlpha * 0.3f));
             }
+        }
+
+        // Ground Slam expanding shockwave
+        if (p->slam.vfxTimer > 0) {
+            float progress = 1.0f - (p->slam.vfxTimer / SLAM_VFX_DURATION);
+            float radius = SLAM_RADIUS * progress;
+            float alpha = 1.0f - progress;
+            DrawCircleLinesV(p->pos, radius,
+                Fade((Color)SLAM_COLOR, alpha));
+            DrawCircleLinesV(p->pos, radius * 0.8f,
+                Fade(WHITE, alpha * 0.5f));
+        }
+
+        // Parry active flash
+        if (p->parry.active) {
+            float alpha = p->parry.timer / PARRY_WINDOW;
+            DrawCircleLinesV(p->pos, p->size + 20.0f,
+                Fade((Color)PARRY_COLOR, alpha));
+            DrawCircleLinesV(p->pos, p->size + 16.0f,
+                Fade((Color)PARRY_COLOR, alpha * 0.5f));
         }
 
         // Gun barrel (heat-tinted)
@@ -3967,6 +4308,108 @@ static void DrawHUD(void)
         }
     }
 
+    // Slam cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color slColor = SLAM_COLOR;
+        if (p->slam.cooldownTimer > 0) {
+            float ratio = 1.0f - (p->slam.cooldownTimer / SLAM_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, slColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("SLAM", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, slColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("SLAM", cdLabelX, cdY, cdFontSize, slColor);
+        }
+    }
+
+    // Parry cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color paColor = PARRY_COLOR;
+        if (p->parry.active) {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("PARRY", cdLabelX, cdY, cdFontSize, WHITE);
+        } else if (p->parry.cooldownTimer > 0) {
+            float maxCd = p->parry.succeeded
+                ? PARRY_SUCCESS_COOLDOWN : PARRY_COOLDOWN;
+            float ratio = 1.0f - (p->parry.cooldownTimer / maxCd);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, paColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("PARRY", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, paColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("PARRY", cdLabelX, cdY, cdFontSize, paColor);
+        }
+    }
+
+    // Turret cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color tuColor = TURRET_COLOR;
+        if (p->turretCooldown > 0) {
+            float ratio = 1.0f - (p->turretCooldown / TURRET_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, tuColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("TURRT", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, tuColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("TURRT", cdLabelX, cdY, cdFontSize, tuColor);
+        }
+    }
+
+    // Mine cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color miColor = MINE_COLOR;
+        if (p->mineCooldown > 0) {
+            float ratio = 1.0f - (p->mineCooldown / MINE_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, miColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("MINE", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, miColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("MINE", cdLabelX, cdY, cdFontSize, miColor);
+        }
+    }
+
+    // Heal cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color heColor = HEAL_COLOR;
+        if (p->healCooldown > 0) {
+            float ratio = 1.0f - (p->healCooldown / HEAL_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, heColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("HEAL", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, heColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("HEAL", cdLabelX, cdY, cdFontSize, heColor);
+        }
+    }
+
+    // Fire cooldown
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color fiColor = FIRE_COLOR;
+        if (p->fireCooldown > 0) {
+            float ratio = 1.0f - (p->fireCooldown / FIRE_COOLDOWN);
+            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, fiColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("FIRE", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, fiColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("FIRE", cdLabelX, cdY, cdFontSize, fiColor);
+        }
+    }
+
     // Active reload/overheat arc (near player) ------------------------------ /
     Vector2 pScreen = GetWorldToScreen2D(p->pos, g.camera);
     pScreen.y += HUD_ARC_Y_OFFSET * ui;
@@ -4226,20 +4669,27 @@ static void DrawHUD(void)
             resumeFont,
             LIGHTGRAY);
 
-        // Keybinds — two columns
+        // Keybinds — three columns
         int pkFont = (int)(HUD_PAUSE_KEYS_FONT * ui);
         int pkSpacing = (int)(HUD_PAUSE_KEYS_SPACING * ui);
-        int pkColW = (int)(HUD_PAUSE_KEYS_COL_W * ui);
         int pkY = sh / 2 + (int)(HUD_PAUSE_KEYS_Y * ui);
-        int pkTabW = (int)(70 * ui);
+        int pkTabW = (int)(55 * ui);
 
         // Left column: core controls
-        const char *lKeys[] = { "WASD", "Space", "M1", "M2" };
-        const char *lDescs[] = { "Move", "Dash", "Weapon", "Alt Fire" };
-        int lCount = 4;
+        const char *lKeys[] = {
+            "WASD", "Space", "M1", "M2", "Ctrl", "P / Esc", "0"
+        };
+        const char *lDescs[] = {
+            "Move", "Dash", "Primary", "Alt Fire",
+            "Swap", "Pause", "Exit"
+        };
+        int lCount = 7;
 
-        int lColX = sw / 2 - pkColW;
-        int rColX = sw / 2 + (int)(20 * ui);
+        int totalW = (int)(600 * ui);
+        int colW = totalW / 3;
+        int lColX = sw / 2 - totalW / 2;
+        int mColX = lColX + colW;
+        int rColX = mColX + colW;
 
         for (int i = 0; i < lCount; i++) {
             int ky = pkY + i * pkSpacing;
@@ -4247,20 +4697,27 @@ static void DrawHUD(void)
             DrawText(lDescs[i], lColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
         }
 
-        // Right column: abilities from slots
-        int rRow = 0;
+        // Middle + Right columns: abilities from slots (split in half)
         Player *pp = &g.player;
+        int ablCount = 0;
+        int ablSlots[ABILITY_SLOTS];
         for (int i = 0; i < ABILITY_SLOTS; i++) {
-            const char *name = AbilityName(pp->slots[i].ability);
-            if (!name) continue;
-            int ky = pkY + rRow * pkSpacing;
-            DrawText(KeyName(pp->slots[i].key), rColX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
-            DrawText(name, rColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
-            rRow++;
+            if (AbilityName(pp->slots[i].ability))
+                ablSlots[ablCount++] = i;
+        }
+        int half = (ablCount + 1) / 2;
+        for (int a = 0; a < ablCount; a++) {
+            int si = ablSlots[a];
+            int colX = (a < half) ? mColX : rColX;
+            int row = (a < half) ? a : a - half;
+            int ky = pkY + row * pkSpacing;
+            DrawText(KeyName(pp->slots[si].key), colX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+            DrawText(AbilityName(pp->slots[si].ability),
+                colX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
         }
 
         // Fullscreen toggle
-        int maxRows = lCount > rRow ? lCount : rRow;
+        int maxRows = lCount > half ? lCount : half;
         int fsY = pkY + (maxRows + 1) * pkSpacing;
         const char *fsLabel = IsWindowFullscreen() ? "[F] Fullscreen: ON" : "[F] Fullscreen: OFF";
         int fsW = MeasureText(fsLabel, pkFont);

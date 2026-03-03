@@ -47,6 +47,12 @@ typedef enum AbilityID {
     ABL_RAILGUN,
     ABL_BFG,
     ABL_SHIELD,
+    ABL_TURRET,
+    ABL_MINE,
+    ABL_SLAM,
+    ABL_PARRY,
+    ABL_HEAL,
+    ABL_FIRE,
     ABL_COUNT,
 } AbilityID;
 
@@ -170,6 +176,37 @@ typedef struct Shield {
     float angle;        // facing direction (follows mouse)
 } Shield;
 
+// deployables -------------------------------------------------------------- /
+typedef enum DeployableType {
+    DEPLOY_TURRET,
+    DEPLOY_MINE,
+    DEPLOY_HEAL,
+    DEPLOY_FIRE,
+} DeployableType;
+
+#define MAX_DEPLOYABLES 8
+
+typedef struct Deployable {
+    Vector2 pos;
+    float timer;        // lifetime remaining
+    float actionTimer;  // shoot cd / damage tick / heal tick
+    float radius;       // effect radius
+    bool active;
+    DeployableType type;
+} Deployable;
+
+typedef struct GroundSlam {
+    float cooldownTimer;
+    float vfxTimer;     // expanding ring visual
+} GroundSlam;
+
+typedef struct Parry {
+    float timer;        // active window remaining
+    float cooldownTimer;
+    bool active;
+    bool succeeded;     // landed a parry this window
+} Parry;
+
 typedef struct Beam {
     Vector2 origin;
     Vector2 tip;
@@ -202,6 +239,12 @@ typedef struct Player {
     Sniper  sniper;
     Bfg     bfg;
     Shield  shield;
+    GroundSlam slam;
+    Parry   parry;
+    float turretCooldown;
+    float mineCooldown;
+    float healCooldown;
+    float fireCooldown;
     WeaponType primary;
     WeaponType secondary;
     AbilitySlot slots[ABILITY_SLOTS];
@@ -336,6 +379,8 @@ typedef struct Enemy {
     EnemyType type;
     float slowTimer;
     float slowFactor;
+    float rootTimer;    // can't move, CAN shoot
+    float stunTimer;    // can't move, CAN'T shoot
 } Enemy;
 
 // other -------------------------------------------------------------------- /
@@ -363,6 +408,7 @@ typedef struct GameState {
     Particle particles[MAX_PARTICLES];
     Explosive explosives[MAX_EXPLOSIVES];
     Beam beams[MAX_BEAMS];
+    Deployable deployables[MAX_DEPLOYABLES];
     LightningChain lightning;
     //
     Camera2D camera;
@@ -408,6 +454,8 @@ static void SpawnGrenade(Player *p, Vector2 toMouse);
 static void GrenadeExplode(Vector2 pos);
 static void TriggerLightningChain(Vector2 origin, int firstEnemyIdx);
 static void UpdateLightningChain(float dt);
+static void UpdateDeployables(float dt);
+static void SpawnDeployable(DeployableType type, Vector2 pos);
 
 // refactoring artifact
 static void UpdatePlayer(float dt);

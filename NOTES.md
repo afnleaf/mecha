@@ -99,7 +99,7 @@ pick a chassis type to start with
 - [x] mouse visible on top of crosshair on native (fixed)
 - [x] move reload and overheat bars somehwere more visible than the left side
 
-refactorin time
+### refactorin time
 - [x] ok let's do a header file and remake the build
 - [x] (user + claude) bullet to projectile or base struct
 - [x] (claude) big refactor of all hardcoded numbers
@@ -116,13 +116,13 @@ refactorin time
 - [] ~~~bullet pool scaling separation player and enemy, also ownership~~~
 - [] ~~~fix what dash follows, mouse or wasd? what takes prio?~~~
 
-other features
+### other features
 - [] (user) damage system design (not implementation, what is the math behind it)
 - [] (user) asset blob data design, how to parse? how to create?
 - [] shaders GLSL
 - [x] shadows under entity (the shadow is a 2d projection of the 3d player onto the game world, this is a meta concept of the game for players to figure out, it needs to work well. The shadow must slightly lag behind the player and be underneath them, to give a sense of depth. The shadows also need to be mathematically correct according to their shape. Enemies do not have 2d shadows as they are 2d objects.)
 
-enemy types
+### enemy types
 - [x] (claude) add a pentagon enemy type. they are a pentagon, neon green. They shoot two big rows of 5 bullets each.
 - [x] (claude) add rhombus enemy (chase)
 - [x] (claude) add hexagon enemy (fan shooter)
@@ -130,23 +130,14 @@ enemy types
 - [] add mini boss (shape?) multiple attacks
 - [] add big boss circle
 
-weapons
-- [x] (claude) shotgun (knockback)
-- [x] (user + claude) rocket launcher (explosion)
+### weapons
 - [x] laser (hitscan)
-- [x] railgun (histcan big damage with pierce)
 - [x] choose your weapon screen, you get 5 options (machine gun, laser, revolver, sword, ???)
 - [x] revolver (6 shooter) (m1, m2 fan the hammer)
-- [x] railgun (histcan big damage)
 - [x] sniper (no pierce critical damage, fast bullet, weakens opponent, slows them, long cd)
+- [x] rocket launcher (explosion)
 - [x] minigun (slows you down, wind up time, many bullets)
-- [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
-- [x] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
-- [x] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
-- [x] sniper over laser as primary?
 - [x] remove laser? (put on backburner, redefine something that feels good about it)
-- [x] shotgun bullets ricochet?
-- [x] fix dash slash
 - [x] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [x] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
 - [x] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
@@ -162,11 +153,18 @@ minigun could be the m2 for machine gun
 
 explosives as primary? is that possible? (yes)
 
-
-abilities
+### abilities
 - [x] dash
 - [x] super dash, like deadlock dash timing on the second dash gives you something
+- [x] fix dash slash
 - [x] are weapons just abilities in a mecha? buttons? (yes)
+- [x] (fix arc, not green but dark orange) grenade launcher (delayed explosion)
+- [x] big gun (BFG10k) (massive arc lighting that spreads likes tendrils to every enemy, from another enemy based on distance)
+- [x] bfg should charge up not as a cooldown but like an overwatch ultimate (maybe each character has one? or you can choose it? bfg is just like an epic ult you can pick, yeee that would sick)
+- [x] sniper over laser as primary?
+- [x] shotgun bullets ricochet?
+- [x] shotgun (knockback)
+- [x] railgun (histcan big damage with pierce)
 - [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - [x] spin that deflects bullets
 - [x] shield (delete projectiles in a radius around the player)
@@ -174,7 +172,15 @@ abilities
 - [] summons (npcs who take aggro for you) 
 - [] 
 
-players
+- [] turret needs to be targetable by enemies and healable by your field
+- [] root mines when exploded aoe effect
+- [] ground slam (what should this do?)
+- [] parry (longer?)
+- [] fire (more like a flamethrower that you can spread infront on the ground)
+- [] healing heal drone + heal field?
+
+
+### players
 - [x] tetrahedron
 - [x] cube
 - [x] octahedron

@@ -247,6 +247,65 @@
 #define SHIELD_COLOR            (Color){ 80, 160, 255, 180 }
 #define SHIELD_BROKEN_COOLDOWN  2.0f    // lockout when shield breaks
 
+// Ground Slam -------------------------------------------------------------- /
+#define SLAM_DAMAGE             50
+#define SLAM_RADIUS             140.0f
+#define SLAM_KNOCKBACK          350.0f
+#define SLAM_STUN_DURATION      0.8f
+#define SLAM_COOLDOWN           6.0f
+#define SLAM_VFX_DURATION       0.3f
+#define SLAM_COLOR              (Color){ 255, 200, 60, 255 }
+
+// Parry -------------------------------------------------------------------- /
+#define PARRY_WINDOW            0.25f   // active deflect window
+#define PARRY_COOLDOWN          3.0f    // normal cooldown
+#define PARRY_SUCCESS_COOLDOWN  1.5f    // reduced cooldown on success
+#define PARRY_IFRAMES           0.5f    // iframes granted on success
+#define PARRY_DEFLECT_MULT      3       // damage multiplier for deflected projectiles
+#define PARRY_DEFLECT_SPEED     1.8f    // speed multiplier for deflected projectiles
+#define PARRY_REFLECT_DAMAGE    30      // contact damage reflected to enemy
+#define PARRY_REFLECT_KNOCKBACK 400.0f  // knockback on reflected contact
+#define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
+
+// Turret ------------------------------------------------------------------- /
+#define TURRET_LIFETIME         10.0f
+#define TURRET_FIRE_RATE        0.5f    // seconds between shots
+#define TURRET_RANGE            300.0f
+#define TURRET_DAMAGE           15
+#define TURRET_BULLET_SPEED     800.0f
+#define TURRET_BULLET_LIFETIME  2.0f
+#define TURRET_BULLET_SIZE      3.0f
+#define TURRET_COOLDOWN         12.0f
+#define TURRET_MAX_ACTIVE       2
+#define TURRET_COLOR            (Color){ 100, 200, 255, 255 }
+
+// Root Mine ---------------------------------------------------------------- /
+#define MINE_LIFETIME           20.0f
+#define MINE_TRIGGER_RADIUS     40.0f
+#define MINE_ROOT_DURATION      3.0f
+#define MINE_COOLDOWN           5.0f
+#define MINE_MAX_ACTIVE         3
+#define MINE_COLOR              (Color){ 255, 100, 100, 255 }
+#define MINE_PULSE_SPEED        4.0f
+
+// Healing Field ------------------------------------------------------------ /
+#define HEAL_LIFETIME           8.0f
+#define HEAL_RADIUS             100.0f
+#define HEAL_PER_SEC            15.0f
+#define HEAL_COOLDOWN           15.0f
+#define HEAL_MAX_ACTIVE         1
+#define HEAL_COLOR              (Color){ 80, 255, 80, 120 }
+#define HEAL_PULSE_SPEED        3.0f
+
+// Fire Zone ---------------------------------------------------------------- /
+#define FIRE_LIFETIME           6.0f
+#define FIRE_RADIUS             80.0f
+#define FIRE_DAMAGE_PER_SEC     40.0f
+#define FIRE_COOLDOWN           8.0f
+#define FIRE_MAX_ACTIVE         2
+#define FIRE_COLOR              (Color){ 255, 120, 30, 150 }
+#define FIRE_FLICKER_SPEED      10.0f
+
 // Hitscan weapons ---------------------------------------------------------- /
 #if 0 // laser constants — preserved for future use
 // Laser (hold F, continuous DPS, terminates at first hit)
