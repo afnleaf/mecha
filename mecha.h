@@ -135,6 +135,7 @@ typedef struct Revolver {
 typedef struct Minigun {
     float spinUp;       // current spin-up progress (0.0 = idle, 1.0 = max speed)
     float cooldown;     // per-shot cooldown timer
+    float slowTimer;    // lingers after releasing M2
 } Minigun;
 
 typedef struct Laser {

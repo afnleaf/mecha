@@ -81,6 +81,7 @@
 #define MINIGUN_SPREAD_MIN       20
 #define MINIGUN_SPREAD_MAX       80
 #define MINIGUN_SLOW_FACTOR      0.4f
+#define MINIGUN_SLOW_LINGER      0.25f
 #define MINIGUN_TIP_OFFSET       14.0f
 #define MINIGUN_BARREL_THICKNESS 4.0f
 #define MINIGUN_MUZZLE_SPEED     100.0f
@@ -160,8 +161,8 @@
 #define REVOLVER_PROJECTILE_SIZE 4.0f
 #define REVOLVER_PRECISE_SPREAD  8
 // Active reload
-#define REVOLVER_RELOAD_SWEET_START 0.35f
-#define REVOLVER_RELOAD_SWEET_END   0.55f
+#define REVOLVER_RELOAD_SWEET_START 0.60f
+#define REVOLVER_RELOAD_SWEET_END   0.75f
 #define REVOLVER_RELOAD_FAST_TIME   0.08f
 #define REVOLVER_RELOAD_FAIL_PENALTY 0.5f
 
@@ -527,6 +528,17 @@
 #define HUD_CROSSHAIR_SIZE      4.0f
 #define HUD_CROSSHAIR_THICKNESS 1.0f
 #define HUD_CROSSHAIR_GAP       2.0f
+// Active reload/overheat arc (near player)
+#define HUD_ARC_INNER_R         16.0f
+#define HUD_ARC_OUTER_R         20.0f
+#define HUD_ARC_Y_OFFSET        4.0f
+#define HUD_ARC_START_DEG       30.0f
+#define HUD_ARC_END_DEG         150.0f
+#define HUD_ARC_SEGMENTS        24
+#define HUD_ARC_CURSOR_PAD      2.0f
+#define HUD_ARC_SEG_GAP         2.0f
+#define HUD_ARC_LABEL_FONT      8
+#define HUD_ARC_LABEL_PAD       4.0f
 // Info text
 #define HUD_BOTTOM_Y            20
 #define HUD_TITLE_FONT          12

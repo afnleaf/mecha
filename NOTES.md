@@ -96,8 +96,8 @@ pick a chassis type to start with
 - [x] launch screen shows keybinds
 - [x] sent to primary monitor on launch
 - [x] fullscreen, set toggle
-- [] mouse visible on top of crosshair on native
-- [] move reload and overheat bars somehwere more visible than the left side
+- [x] mouse visible on top of crosshair on native (fixed)
+- [x] move reload and overheat bars somehwere more visible than the left side
 
 refactorin time
 - [x] ok let's do a header file and remake the build
@@ -152,19 +152,19 @@ weapons
 - [x] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
 - [x] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
 - [x] decide what the actual 5? primary weapons should be? (sword, revolver, machine gun, sniper, ??? (mingun?, explosives?))
-- [] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
-- [] unbind all other keys except for the primary. s
+- [x] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
+- [x] unbind all other keys except for the primary.
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
 maybe each primary weapon should have a quirk where a basic other ability upgrades it or another mechanic exectured properly. a reload is kind of like this, overheat too. dash slash, fan the hammer is just an m2. We should think about what is m2 for the others. Machine Gun = gunner = two weapons on one arm? Sword = Special sword ability? Is spin for the sword only? Then we want something else on shift. 
 minigun could be the m2 for machine gun
 
-explosives as primary? is that possible?
+explosives as primary? is that possible? (yes)
 
-shield?
 
 abilities
+- [] shield
 - [x] dash
 - [x] super dash, like deadlock dash timing on the second dash gives you something
 - [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
@@ -183,7 +183,6 @@ players
 - [x] decide who gets which primary weapon
 - [] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
 
-
 levels
 - [] rounds/rooms
 - [] pick new item between rounds]
@@ -194,6 +193,7 @@ the different games idea, each chassis has one really powerful identity that ena
 
 what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons. 
 
+non changing controls
 - WASD - move
 - m1/m2 - main weapon 
     - [x] sword (short range)
@@ -218,21 +218,19 @@ what can you customize? all your buttons, its a mecha game... some remain for ba
         - quirk rocket jump (self-damage, half-dash push, scales with distance from center)
     - ~~laser~~
 - space - dash (2 charges)
-- shift - spin (lifesteal)
-- E - shotgun (2 blasts)
-- C - Grenade launcher
-- Z - railgun (pierce all)
-- Q - free
 - P / esc - pause
-- 4 - ult BGG10k 
 - 0 - quit
-- R - reload (works with revolver) (turn R into m1 easier)
-- X - free
-- F - free (parry)
-- ctrl - free
-- v, 1-3 - free
-- tab - free
-- alt - free
+- tab - free (score board?/map??/diagetic menu)
+- ctrl - free (modifer? movement ability?)
+- alt - free (modifier? level up?)
+
+customizeable controls, 11 normal abilities and 1 ult
+- shift - spin (lifesteal)
+- Q - shotgun (2 blasts)
+- C - Grenade launcher
+- E - railgun (pierce all)
+- F - ult BGG10k 
+- Q, R, X, V, 1-4 - free
 
 ## Research
 - [x] read many parts of raylib.h

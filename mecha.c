@@ -795,7 +795,7 @@ static void UpdatePlayer(float dt)
 
     if (!p->dash.active) {
         float moveSpeed = p->speed;
-        if (p->primary == WPN_GUN && p->minigun.spinUp > 0)
+        if (p->primary == WPN_GUN && p->minigun.slowTimer > 0)
             moveSpeed = p->speed * MINIGUN_SLOW_FACTOR;
         if (p->primary == WPN_GUN && p->gun.overheatBoostTimer > 0) {
             moveSpeed *= GUN_OVERHEAT_DASH_BOOST;
@@ -983,6 +983,7 @@ static void UpdatePlayer(float dt)
         // --- M2: Minigun mode — spin-up + high volume fire, slows movement ---
         p->minigun.cooldown -= dt;
         if (!p->gun.overheated && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+            p->minigun.slowTimer = MINIGUN_SLOW_LINGER;
             p->minigun.spinUp += dt / MINIGUN_SPIN_UP_TIME;
             if (p->minigun.spinUp > 1.0f) p->minigun.spinUp = 1.0f;
 
@@ -1012,6 +1013,8 @@ static void UpdatePlayer(float dt)
                 firing = true;
             }
         } else if (!p->gun.overheated) {
+            p->minigun.slowTimer -= dt;
+            if (p->minigun.slowTimer < 0) p->minigun.slowTimer = 0;
             p->minigun.spinUp -= dt / MINIGUN_SPIN_DOWN_TIME;
             if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
 
@@ -3594,23 +3597,6 @@ static void DrawHUD(void)
             p->dash.charges > 0 ? SKYBLUE : GRAY);
     }
 
-    // Spin
-    cdY += (int)(HUD_ROW_SPACING * ui); 
-    {
-        if (p->spin.cooldownTimer > 0) {
-            float cdRatio = p->spin.cooldownTimer / p->spin.cooldown;
-            DrawRectangle(cdX, cdY, 
-                (int)(cdBarW * (1.0f - cdRatio)), cdBarH, YELLOW);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("SPIN", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, YELLOW);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("SPIN", cdLabelX, cdY, cdFontSize, YELLOW);
-        }
-
-    }
-
     // Shotgun blasts (pip display like dash)
     cdY += (int)(HUD_ROW_SPACING * ui);
     {
@@ -3738,129 +3724,182 @@ static void DrawHUD(void)
         }
     }
 
-    // Revolver cylinder (only when revolver is equipped)
+    // Active reload/overheat arc (near player) ------------------------------ /
+    Vector2 pScreen = GetWorldToScreen2D(p->pos, g.camera);
+    pScreen.y += HUD_ARC_Y_OFFSET * ui;
+    float arcInner  = HUD_ARC_INNER_R * ui;
+    float arcOuter  = HUD_ARC_OUTER_R * ui;
+    float arcStart  = HUD_ARC_START_DEG;
+    float arcEnd    = HUD_ARC_END_DEG;
+    float arcSpan   = arcEnd - arcStart;
+    int   arcSegs   = HUD_ARC_SEGMENTS;
+    int   arcFont   = (int)(HUD_ARC_LABEL_FONT * ui);
+    float arcCurPad = HUD_ARC_CURSOR_PAD * ui;
+
+    // Revolver arc (always visible for revolver players)
     if (p->primary == WPN_REVOLVER) {
-        cdY += (int)(HUD_ROW_SPACING * ui);
-        int pipW = (int)(HUD_PIP_W * ui);
-        int pipGap = (int)(HUD_PIP_GAP * ui);
         Color revColor = (Color){ 220, 180, 80, 255 };
         Color bonusColor = GOLD;
-        bool buffed = p->revolver.bonusRounds > 0;
-        // Pulsing glow behind pips when buffed
-        if (buffed) {
-            float pulse = 0.3f + 0.2f * sinf(GetTime() * 8.0f);
-            int glowPad = (int)(3 * ui);
-            int totalW = REVOLVER_ROUNDS * (pipW + pipGap) - pipGap;
-            DrawRectangle(cdX - glowPad, cdY - glowPad,
-                totalW + glowPad * 2, cdBarH + glowPad * 2,
-                Fade(bonusColor, pulse));
-        }
+        float segGap = HUD_ARC_SEG_GAP;
+        float segAngle = (arcSpan
+            - (REVOLVER_ROUNDS - 1) * segGap) / REVOLVER_ROUNDS;
+
+        // 6 round segments
         for (int i = 0; i < REVOLVER_ROUNDS; i++) {
-            int pipX = cdX + i * (pipW + pipGap);
-            if (i < p->revolver.rounds) {
-                bool isBonusPip = i < p->revolver.bonusRounds;
-                DrawRectangle(pipX, cdY, pipW, cdBarH,
-                    isBonusPip ? bonusColor : revColor);
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
+            float sEnd = arcEnd - i * (segAngle + segGap);
+            float sStart = sEnd - segAngle;
+            bool loaded = i < p->revolver.rounds;
+            bool isBonus = i < p->revolver.bonusRounds;
+
+            if (loaded) {
+                // Bonus glow
+                if (isBonus) {
+                    float pulse = 0.3f
+                        + 0.2f * sinf(GetTime() * 8.0f);
+                    DrawRing(pScreen,
+                        arcInner - arcCurPad,
+                        arcOuter + arcCurPad,
+                        sStart, sEnd, arcSegs,
+                        Fade(bonusColor, pulse));
+                }
+                DrawRing(pScreen, arcInner, arcOuter,
+                    sStart, sEnd, arcSegs,
+                    isBonus ? bonusColor : revColor);
             } else {
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
+                DrawRing(pScreen, arcInner, arcOuter,
+                    sStart, sEnd, arcSegs,
+                    (Color){ 40, 40, 40, 160 });
             }
         }
-        int labelX = cdX
-            + REVOLVER_ROUNDS * (pipW + pipGap) + (int)(2 * ui);
+
+        // Reload overlay
         if (p->revolver.reloadTimer > 0) {
             float ratio = 1.0f
-                - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
+                - (p->revolver.reloadTimer
+                    / REVOLVER_RELOAD_TIME);
             if (ratio > 1.0f) ratio = 1.0f;
             if (ratio < 0.0f) ratio = 0.0f;
+
             // Sweet spot zone
-            int sweetX0 = labelX + (int)(cdBarW * REVOLVER_RELOAD_SWEET_START);
-            int sweetX1 = labelX + (int)(cdBarW * REVOLVER_RELOAD_SWEET_END);
+            float sweetSA = arcEnd
+                - REVOLVER_RELOAD_SWEET_END * arcSpan;
+            float sweetEA = arcEnd
+                - REVOLVER_RELOAD_SWEET_START * arcSpan;
             Color sweetColor;
             if (p->revolver.reloadLocked) {
-                // Already attempted — show result
-                bool hit = ratio <= REVOLVER_RELOAD_SWEET_END
-                    && p->revolver.reloadTimer <= REVOLVER_RELOAD_FAST_TIME + 0.01f;
-                sweetColor = hit ? (Color){ 60, 255, 60, 120 }
-                                 : (Color){ 255, 60, 60, 120 };
+                bool hit = p->revolver.reloadTimer
+                    <= REVOLVER_RELOAD_FAST_TIME + 0.01f;
+                sweetColor = hit
+                    ? (Color){ 60, 255, 60, 120 }
+                    : (Color){ 255, 60, 60, 120 };
             } else {
                 sweetColor = (Color){ 255, 255, 100, 100 };
             }
-            DrawRectangle(sweetX0, cdY, sweetX1 - sweetX0, cdBarH, sweetColor);
-            // Progress fill
-            DrawRectangle(labelX, cdY, (int)(cdBarW * ratio), cdBarH,
-                Fade(revColor, 0.4f));
-            DrawRectangleLines(labelX, cdY, cdBarW, cdBarH, GRAY);
-            // Cursor line at current progress
-            int cursorX = labelX + (int)(cdBarW * ratio);
-            DrawRectangle(cursorX, cdY - 1, (int)(2 * ui), cdBarH + 2, WHITE);
-            DrawText("RELOAD", labelX + cdBarW + (int)(4 * ui),
-                cdY, cdFontSize, GRAY);
-        } else {
-            DrawText(buffed ? "x2" : "REVLR", labelX, cdY, cdFontSize,
-                buffed ? bonusColor
-                    : (p->revolver.rounds > 0 ? revColor : GRAY));
+            DrawRing(pScreen, arcInner, arcOuter,
+                sweetSA, sweetEA, arcSegs, sweetColor);
+
+            // Progress sweep
+            float progressA = arcEnd - ratio * arcSpan;
+            DrawRing(pScreen, arcInner, arcOuter,
+                progressA, arcEnd, arcSegs,
+                Fade(SKYBLUE, 0.3f));
+
+            // Cursor line
+            float curRad = progressA * DEG2RAD;
+            Vector2 c1 = {
+                pScreen.x + (arcInner - arcCurPad)
+                    * cosf(curRad),
+                pScreen.y + (arcInner - arcCurPad)
+                    * sinf(curRad) };
+            Vector2 c2 = {
+                pScreen.x + (arcOuter + arcCurPad)
+                    * cosf(curRad),
+                pScreen.y + (arcOuter + arcCurPad)
+                    * sinf(curRad) };
+            DrawLineEx(c1, c2, 2.0f * ui, WHITE);
+
+            // Label
+            const char *rlText = "RELOAD";
+            int rlW = MeasureText(rlText, arcFont);
+            DrawText(rlText,
+                (int)pScreen.x - rlW / 2,
+                (int)(pScreen.y + arcOuter
+                    + HUD_ARC_LABEL_PAD * ui),
+                arcFont, GRAY);
         }
     }
 
-    // Minigun spin-up bar
-    if (p->primary == WPN_GUN && p->minigun.spinUp > 0) {
-        cdY += (int)(HUD_ROW_SPACING * ui);
-        Color miniColor = (Color){ 255, 100, 50, 255 };
-        float ratio = p->minigun.spinUp;
-        DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, miniColor);
-        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-        DrawText("SPIN", cdLabelX, cdY, cdFontSize, miniColor);
-    }
-
-    // Heat bar
-    if (p->primary == WPN_GUN && (p->gun.heat > 0 || p->gun.overheated)) {
-        cdY += (int)(HUD_ROW_SPACING * ui);
+    // Gun heat arc (always visible for gun players)
+    if (p->primary == WPN_GUN) {
         float h = p->gun.heat;
-        // Color: WHITE -> YELLOW -> RED based on heat
-        Color heatColor;
-        if (h < 0.5f) {
-            float t = h * 2.0f;
-            heatColor = (Color){
-                255,
-                255,
-                (u8)(255 - (int)(255 * t)),
-                255 };
-        } else {
-            float t = (h - 0.5f) * 2.0f;
-            heatColor = (Color){
-                255,
-                (u8)(255 - (int)(255 * t)),
-                0,
-                255 };
+
+        // Background arc (always present)
+        DrawRing(pScreen, arcInner, arcOuter,
+            arcStart, arcEnd, arcSegs, (Color){ 40, 40, 40, 160 });
+
+        // Heat fill — color gradient WHITE -> YELLOW -> RED
+        if (h > 0) {
+            Color heatColor;
+            if (h < 0.5f) {
+                float t = h * 2.0f;
+                heatColor = (Color){
+                    255, 255,
+                    (u8)(255 - (int)(255 * t)), 255 };
+            } else {
+                float t = (h - 0.5f) * 2.0f;
+                heatColor = (Color){
+                    255, (u8)(255 - (int)(255 * t)),
+                    0, 255 };
+            }
+            float heatA = arcEnd - h * arcSpan;
+            DrawRing(pScreen, arcInner, arcOuter,
+                heatA, arcEnd, arcSegs, Fade(heatColor, 0.6f));
         }
+
+        // Overheat QTE overlay
         if (p->gun.overheated) {
-            // QTE bar: dark background + sweet spot zone + cursor
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, (Color){ 40, 40, 40, 255 });
-            // Heat fill (decaying)
-            DrawRectangle(cdX, cdY, (int)(cdBarW * h), cdBarH, (Color){ 120, 30, 30, 180 });
             // Sweet spot zone
-            int zx = cdX + (int)(cdBarW * p->gun.ventZoneStart);
-            int zw = (int)(cdBarW * p->gun.ventZoneWidth);
+            float zSA = arcEnd
+                - (p->gun.ventZoneStart + p->gun.ventZoneWidth)
+                * arcSpan;
+            float zEA = arcEnd
+                - p->gun.ventZoneStart * arcSpan;
             Color zoneColor = (p->gun.ventResult == 1) ? GREEN
-                : (p->gun.ventResult == -1) ? (Color){ 80, 20, 20, 255 } : YELLOW;
-            DrawRectangle(zx, cdY, zw, cdBarH, zoneColor);
+                : (p->gun.ventResult == -1)
+                    ? (Color){ 80, 20, 20, 255 } : YELLOW;
+            DrawRing(pScreen, arcInner, arcOuter,
+                zSA, zEA, arcSegs, zoneColor);
+
             // Cursor line (only while pending)
             if (p->gun.ventResult == 0) {
-                int cx = cdX + (int)(cdBarW * p->gun.ventCursor);
-                DrawRectangle(cx - 1, cdY - 1, 3, cdBarH + 2, WHITE);
+                float curA = arcEnd
+                    - p->gun.ventCursor * arcSpan;
+                float curRad = curA * DEG2RAD;
+                Vector2 c1 = {
+                    pScreen.x + (arcInner - arcCurPad)
+                        * cosf(curRad),
+                    pScreen.y + (arcInner - arcCurPad)
+                        * sinf(curRad) };
+                Vector2 c2 = {
+                    pScreen.x + (arcOuter + arcCurPad)
+                        * cosf(curRad),
+                    pScreen.y + (arcOuter + arcCurPad)
+                        * sinf(curRad) };
+                DrawLineEx(c1, c2, 2.0f * ui, WHITE);
             }
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            // Label
-            const char *label = (p->gun.ventResult == 1) ? "VENT"
+
+            // QTE label
+            const char *ovLabel =
+                (p->gun.ventResult == 1) ? "VENT"
                 : (p->gun.ventResult == -1) ? "OVHT" : "[R]";
-            Color labelColor = (p->gun.ventResult == 1) ? GREEN
+            Color ovColor = (p->gun.ventResult == 1) ? GREEN
                 : (p->gun.ventResult == -1) ? RED : YELLOW;
-            DrawText(label, cdLabelX, cdY, cdFontSize, labelColor);
-        } else {
-            DrawRectangle(cdX, cdY, (int)(cdBarW * h), cdBarH, heatColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("HEAT", cdLabelX, cdY, cdFontSize, heatColor);
+            int ovW = MeasureText(ovLabel, arcFont);
+            DrawText(ovLabel,
+                (int)pScreen.x - ovW / 2,
+                (int)(pScreen.y + arcOuter
+                    + HUD_ARC_LABEL_PAD * ui),
+                arcFont, ovColor);
         }
     }
 
@@ -4048,6 +4087,8 @@ static void DrawGame(void)
 // ========================================================================== /
 void NextFrame(void)
 {
+    if (g.screen == SCREEN_PLAYING && !IsCursorHidden()) HideCursor();
+    if (g.screen != SCREEN_PLAYING &&  IsCursorHidden()) ShowCursor();
     UpdateGame();
     DrawGame();
 }
