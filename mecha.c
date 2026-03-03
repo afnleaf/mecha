@@ -64,6 +64,8 @@ static void InitGame(void)
     p->rocket.cooldown      = ROCKET_COOLDOWN;
     p->shotgun.blastsLeft   = SHOTGUN_BLASTS;
     p->revolver.rounds      = REVOLVER_ROUNDS;
+    p->shield.hp            = SHIELD_MAX_HP;
+    p->shield.maxHp         = SHIELD_MAX_HP;
 
     // ability slots — default layout
     p->slots[0]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
@@ -74,7 +76,7 @@ static void InitGame(void)
     p->slots[5]  = (AbilitySlot){ ABL_NONE,     KEY_THREE };
     p->slots[6]  = (AbilitySlot){ ABL_NONE,     KEY_FOUR };
     p->slots[7]  = (AbilitySlot){ ABL_NONE,     KEY_Z };
-    p->slots[8]  = (AbilitySlot){ ABL_NONE,     KEY_X };
+    p->slots[8]  = (AbilitySlot){ ABL_SHIELD,   KEY_X };
     p->slots[9]  = (AbilitySlot){ ABL_GRENADE,  KEY_C };
     p->slots[10] = (AbilitySlot){ ABL_NONE,     KEY_V };
     p->slots[11] = (AbilitySlot){ ABL_BFG,      KEY_F };
@@ -574,6 +576,15 @@ static bool IsAbilityPressed(Player *p, AbilityID ability) {
     return false;
 }
 
+static bool IsAbilityDown(Player *p, AbilityID ability) {
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        if (p->slots[i].ability == ability
+            && IsKeyDown(p->slots[i].key))
+            return true;
+    }
+    return false;
+}
+
 static const char* AbilityName(AbilityID id) {
     switch (id) {
         case ABL_SHOTGUN: return "Shotgun";
@@ -581,6 +592,7 @@ static const char* AbilityName(AbilityID id) {
         case ABL_GRENADE: return "Grenade";
         case ABL_RAILGUN: return "Railgun";
         case ABL_BFG:     return "BFG";
+        case ABL_SHIELD:  return "Shield";
         default:          return NULL;
     }
 }
@@ -866,6 +878,8 @@ static void UpdatePlayer(float dt)
         }
         if (p->primary == WPN_SNIPER && p->sniper.aiming)
             moveSpeed *= SNIPER_AIM_SLOW;
+        if (p->shield.active)
+            moveSpeed *= SHIELD_SLOW_FACTOR;
         p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, moveSpeed * dt));
     }
 
@@ -1602,6 +1616,43 @@ static void UpdatePlayer(float dt)
             BFG_MUZZLE_SIZE, BFG_MUZZLE_LIFETIME);
     }
 
+    // --- Shield (hold to maintain) ---
+    {
+        bool wantShield = IsAbilityDown(p, ABL_SHIELD)
+            && p->shield.hp > 0
+            && p->shield.regenTimer >= 0; // not broken (negative = broken cooldown)
+        if (wantShield) {
+            p->shield.active = true;
+            p->shield.angle = p->angle;
+            p->shield.regenTimer = 0;
+        } else {
+            if (p->shield.active) {
+                // just lowered — start regen delay
+                p->shield.regenTimer = SHIELD_REGEN_DELAY;
+            }
+            p->shield.active = false;
+            // Regen timer + HP regen
+            if (p->shield.regenTimer > 0) {
+                p->shield.regenTimer -= dt;
+                if (p->shield.regenTimer < 0)
+                    p->shield.regenTimer = 0;
+            } else if (p->shield.regenTimer >= 0
+                && p->shield.hp < p->shield.maxHp) {
+                p->shield.hp += SHIELD_REGEN_RATE * dt;
+                if (p->shield.hp > p->shield.maxHp)
+                    p->shield.hp = p->shield.maxHp;
+            }
+            // Broken cooldown recovery
+            if (p->shield.regenTimer < 0) {
+                p->shield.regenTimer += dt;
+                if (p->shield.regenTimer >= 0) {
+                    p->shield.regenTimer = 0;
+                    p->shield.hp = 1.0f; // start regen from 1hp
+                }
+            }
+        }
+    }
+
     // don't let player p leave map boundary
     if (p->pos.x < p->size) p->pos.x = p->size;
     if (p->pos.y < p->size) p->pos.y = p->size;
@@ -2072,6 +2123,32 @@ static void UpdateProjectiles(float dt) {
         }
 
         if (b->isEnemy) {
+            // Shield absorbs enemy projectiles
+            if (p->shield.active && p->shield.hp > 0) {
+                float dist = Vector2Distance(b->pos, p->pos);
+                if (dist < SHIELD_RADIUS + b->size) {
+                    // Check if projectile is within shield arc
+                    Vector2 toProj = Vector2Subtract(b->pos, p->pos);
+                    float projAngle = atan2f(toProj.y, toProj.x);
+                    float diff = fmodf(projAngle - p->shield.angle + 3*PI, 2*PI) - PI;
+                    if (fabsf(diff) <= SHIELD_ARC / 2.0f) {
+                        p->shield.hp -= (float)b->damage;
+                        // Shield break
+                        if (p->shield.hp <= 0) {
+                            p->shield.hp = 0;
+                            p->shield.active = false;
+                            p->shield.regenTimer = -SHIELD_BROKEN_COOLDOWN;
+                            SpawnParticles(p->pos, (Color)SHIELD_COLOR, 12);
+                        } else {
+                            // Absorb spark
+                            SpawnParticle(b->pos, (Vector2){ 0, 0 },
+                                (Color)SHIELD_COLOR, 3.0f, 0.15f);
+                        }
+                        b->active = false;
+                        continue;
+                    }
+                }
+            }
             // Enemy projectile — hit player
             float dist = Vector2Distance(b->pos, p->pos);
             if (dist < p->size + b->size && p->iFrames <= 0) {
@@ -2235,8 +2312,8 @@ static void UpdateGame(void)
             int my = GetMonitorHeight(mon);
             Vector2 pos = GetMonitorPosition(mon);
             SetWindowSize(SCREEN_W, SCREEN_H);
-            SetWindowPosition(pos.x + (mx - SCREEN_W) / 2,
-                              pos.y + (my - SCREEN_H) / 2);
+            SetWindowPosition(pos.x + (float)(mx - SCREEN_W) / 2,
+                              pos.y + (float)(my - SCREEN_H) / 2);
         }
     }
 
@@ -3417,6 +3494,40 @@ static void DrawWorld(void)
         };
         DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f, shadowPos, SHADOW_ALPHA);
 
+        // Shield arc
+        if (p->shield.active && p->shield.hp > 0) {
+            float shieldAlpha = p->shield.hp / p->shield.maxHp;
+            float startAngle = p->shield.angle - SHIELD_ARC / 2.0f;
+            for (int si = 0; si < SHIELD_SEGMENTS; si++) {
+                float t0 = (float)si / SHIELD_SEGMENTS;
+                float t1 = (float)(si + 1) / SHIELD_SEGMENTS;
+                float a0 = startAngle + SHIELD_ARC * t0;
+                float a1 = startAngle + SHIELD_ARC * t1;
+                Vector2 p0 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a0) * SHIELD_RADIUS,
+                               sinf(a0) * SHIELD_RADIUS });
+                Vector2 p1 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a1) * SHIELD_RADIUS,
+                               sinf(a1) * SHIELD_RADIUS });
+                DrawLineEx(p0, p1, 3.0f,
+                    Fade((Color)SHIELD_COLOR, shieldAlpha));
+            }
+            // Inner glow arc
+            for (int si = 0; si < SHIELD_SEGMENTS; si++) {
+                float t0 = (float)si / SHIELD_SEGMENTS;
+                float t1 = (float)(si + 1) / SHIELD_SEGMENTS;
+                float a0 = startAngle + SHIELD_ARC * t0;
+                float a1 = startAngle + SHIELD_ARC * t1;
+                float innerR = SHIELD_RADIUS * 0.85f;
+                Vector2 p0 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a0) * innerR, sinf(a0) * innerR });
+                Vector2 p1 = Vector2Add(p->pos,
+                    (Vector2){ cosf(a1) * innerR, sinf(a1) * innerR });
+                DrawLineEx(p0, p1, 1.5f,
+                    Fade((Color)SHIELD_COLOR, shieldAlpha * 0.3f));
+            }
+        }
+
         // Gun barrel (heat-tinted)
         float ca = cosf(p->angle), sa = sinf(p->angle);
         // Barrel color lerps DARKGRAY -> RED based on heat
@@ -3830,6 +3941,32 @@ static void DrawHUD(void)
         }
     }
 
+    // Shield HP bar
+    cdY += (int)(HUD_ROW_SPACING * ui);
+    {
+        Color shColor = (Color)SHIELD_COLOR;
+        float hpRatio = p->shield.hp / p->shield.maxHp;
+        bool broken = p->shield.regenTimer < 0;
+        if (broken) {
+            // Show broken cooldown
+            float cd = -p->shield.regenTimer / SHIELD_BROKEN_COOLDOWN;
+            DrawRectangle(cdX, cdY,
+                (int)(cdBarW * (1.0f - cd)), cdBarH,
+                Fade(RED, 0.6f));
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("SHLD", cdLabelX, cdY, cdFontSize, RED);
+        } else if (hpRatio < 1.0f) {
+            DrawRectangle(cdX, cdY,
+                (int)(cdBarW * hpRatio), cdBarH, shColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
+            DrawText("SHLD", cdLabelX, cdY, cdFontSize, GRAY);
+        } else {
+            DrawRectangle(cdX, cdY, cdBarW, cdBarH, shColor);
+            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
+            DrawText("SHLD", cdLabelX, cdY, cdFontSize, shColor);
+        }
+    }
+
     // Active reload/overheat arc (near player) ------------------------------ /
     Vector2 pScreen = GetWorldToScreen2D(p->pos, g.camera);
     pScreen.y += HUD_ARC_Y_OFFSET * ui;
@@ -4219,8 +4356,8 @@ int main(void)
         int mx = GetMonitorWidth(monitor);
         int my = GetMonitorHeight(monitor);
         Vector2 pos = GetMonitorPosition(monitor);
-        SetWindowPosition(pos.x + (mx - SCREEN_W) / 2,
-                          pos.y + (my - SCREEN_H) / 2);
+        SetWindowPosition(pos.x + (float)(mx - SCREEN_W) / 2,
+                          pos.y + (float)(my - SCREEN_H) / 2);
     }
 #endif
     SetExitKey(KEY_ZERO);

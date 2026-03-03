@@ -46,6 +46,7 @@ typedef enum AbilityID {
     ABL_GRENADE,
     ABL_RAILGUN,
     ABL_BFG,
+    ABL_SHIELD,
     ABL_COUNT,
 } AbilityID;
 
@@ -161,6 +162,14 @@ typedef struct Bfg {
     bool  active;       // true while projectile or lightning chain is active
 } Bfg;
 
+typedef struct Shield {
+    float hp;           // current shield health
+    float maxHp;        // max shield health
+    bool  active;       // true while held up
+    float regenTimer;   // time since shield was lowered (regen starts after delay)
+    float angle;        // facing direction (follows mouse)
+} Shield;
+
 typedef struct Beam {
     Vector2 origin;
     Vector2 tip;
@@ -192,6 +201,7 @@ typedef struct Player {
     Railgun railgun;
     Sniper  sniper;
     Bfg     bfg;
+    Shield  shield;
     WeaponType primary;
     WeaponType secondary;
     AbilitySlot slots[ABILITY_SLOTS];

@@ -164,15 +164,15 @@ explosives as primary? is that possible? (yes)
 
 
 abilities
-- [] shield
 - [x] dash
 - [x] super dash, like deadlock dash timing on the second dash gives you something
+- [x] are weapons just abilities in a mecha? buttons? (yes)
 - [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
-- [x] spin
-- [] shield/parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
 - [x] spin that deflects bullets
+- [x] shield (delete projectiles in a radius around the player)
+- [] parry (able to parry contact damage from melee enemies?)
 - [] summons (npcs who take aggro for you) 
-- are weapons just abilities in a mecha? buttons?
+- [] 
 
 players
 - [x] tetrahedron
@@ -218,10 +218,10 @@ non changing controls
         - quirk rocket jump (self-damage, half-dash push, scales with distance from center)
     - ~~laser~~
 - space - dash (2 charges)
+- ctrl - switch weapon formes
 - P / esc - pause
 - 0 - quit
 - tab - free (score board?/map??/diagetic menu)
-- ctrl - free (modifer? movement ability?)
 - alt - free (modifier? level up?)
 
 customizeable controls, 11 normal abilities and 1 ult
@@ -230,7 +230,8 @@ customizeable controls, 11 normal abilities and 1 ult
 - C - Grenade launcher
 - E - railgun (pierce all)
 - F - ult BGG10k 
-- Q, R, X, V, 1-4 - free
+- X - projectile shield
+- Z, R, V, 1-4 - free
 
 ## Research
 - [x] read many parts of raylib.h

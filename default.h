@@ -236,6 +236,17 @@
 #define BFG_PULSE_SPEED             15.0f
 #define BFG_PULSE_AMOUNT            2.0f
 
+// Shield ------------------------------------------------------------------- /
+#define SHIELD_MAX_HP           200.0f
+#define SHIELD_REGEN_DELAY      1.5f    // seconds after lowering before regen starts
+#define SHIELD_REGEN_RATE       50.0f   // hp/sec regeneration
+#define SHIELD_ARC              PI      // half circle (180 degrees)
+#define SHIELD_RADIUS           60.0f   // distance from player center
+#define SHIELD_SLOW_FACTOR      0.5f    // movement multiplier while shielding
+#define SHIELD_SEGMENTS         16      // draw segments for the arc
+#define SHIELD_COLOR            (Color){ 80, 160, 255, 180 }
+#define SHIELD_BROKEN_COOLDOWN  2.0f    // lockout when shield breaks
+
 // Hitscan weapons ---------------------------------------------------------- /
 #if 0 // laser constants — preserved for future use
 // Laser (hold F, continuous DPS, terminates at first hit)
