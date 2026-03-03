@@ -176,12 +176,18 @@ typedef struct Shield {
     float angle;        // facing direction (follows mouse)
 } Shield;
 
+typedef struct Flamethrower {
+    float fuel;          // current fuel (0 to FLAME_FUEL_MAX)
+    float regenDelay;    // countdown before regen kicks in
+    float sprayTimer;    // time until next patch spawn
+    bool  active;        // currently spraying
+} Flamethrower;
+
 // deployables -------------------------------------------------------------- /
 typedef enum DeployableType {
     DEPLOY_TURRET,
     DEPLOY_MINE,
     DEPLOY_HEAL,
-    DEPLOY_FIRE,
 } DeployableType;
 
 #define MAX_DEPLOYABLES 8
@@ -239,12 +245,12 @@ typedef struct Player {
     Sniper  sniper;
     Bfg     bfg;
     Shield  shield;
+    Flamethrower flame;
     GroundSlam slam;
     Parry   parry;
     float turretCooldown;
     float mineCooldown;
     float healCooldown;
-    float fireCooldown;
     WeaponType primary;
     WeaponType secondary;
     AbilitySlot slots[ABILITY_SLOTS];
@@ -395,6 +401,14 @@ typedef struct Particle {
 } Particle;
 
 
+typedef struct FirePatch {
+    Vector2 pos;
+    float timer;        // lifetime remaining
+    float actionTimer;  // damage tick countdown
+    float radius;
+    bool active;
+} FirePatch;
+
 // state -------------------------------------------------------------------- /
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
@@ -409,6 +423,7 @@ typedef struct GameState {
     Explosive explosives[MAX_EXPLOSIVES];
     Beam beams[MAX_BEAMS];
     Deployable deployables[MAX_DEPLOYABLES];
+    FirePatch firePatches[MAX_FIRE_PATCHES];
     LightningChain lightning;
     //
     Camera2D camera;
@@ -456,6 +471,8 @@ static void TriggerLightningChain(Vector2 origin, int firstEnemyIdx);
 static void UpdateLightningChain(float dt);
 static void UpdateDeployables(float dt);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
+static void SpawnFirePatch(Vector2 pos);
+static void UpdateFirePatches(float dt);
 
 // refactoring artifact
 static void UpdatePlayer(float dt);

@@ -297,14 +297,23 @@
 #define HEAL_COLOR              (Color){ 80, 255, 80, 120 }
 #define HEAL_PULSE_SPEED        3.0f
 
-// Fire Zone ---------------------------------------------------------------- /
-#define FIRE_LIFETIME           6.0f
-#define FIRE_RADIUS             80.0f
-#define FIRE_DAMAGE_PER_SEC     40.0f
-#define FIRE_COOLDOWN           8.0f
-#define FIRE_MAX_ACTIVE         2
-#define FIRE_COLOR              (Color){ 255, 120, 30, 150 }
-#define FIRE_FLICKER_SPEED      10.0f
+// Flamethrower ------------------------------------------------------------- /
+#define FLAME_FUEL_MAX          100.0f
+#define FLAME_DRAIN_RATE        25.0f    // fuel/sec while firing
+#define FLAME_REGEN_RATE        15.0f    // fuel/sec regen
+#define FLAME_REGEN_DELAY       0.5f     // seconds after release before regen starts
+#define FLAME_SPRAY_INTERVAL    0.12f    // seconds between patch spawns
+#define FLAME_RANGE             150.0f   // max distance patches land from player
+#define FLAME_RANGE_MIN         40.0f    // min distance (near player)
+#define FLAME_SPREAD            0.35f    // radians of cone spread
+#define FLAME_SLOW_FACTOR       0.7f     // move speed while spraying
+#define FLAME_PATCH_LIFETIME    5.0f     // seconds each ground patch lasts
+#define FLAME_PATCH_RADIUS      20.0f    // damage radius per patch
+#define FLAME_PATCH_DPS         30.0f    // damage per second per patch
+#define FLAME_PATCH_TICK        0.2f     // damage tick interval
+#define FLAME_COLOR             (Color){ 255, 120, 30, 150 }
+#define FLAME_FLICKER_SPEED     10.0f
+#define MAX_FIRE_PATCHES        64
 
 // Hitscan weapons ---------------------------------------------------------- /
 #if 0 // laser constants — preserved for future use

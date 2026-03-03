@@ -66,6 +66,7 @@ static void InitGame(void)
     p->revolver.rounds      = REVOLVER_ROUNDS;
     p->shield.hp            = SHIELD_MAX_HP;
     p->shield.maxHp         = SHIELD_MAX_HP;
+    p->flame.fuel           = FLAME_FUEL_MAX;
 
     // ability slots — default layout
     p->slots[0]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
@@ -600,7 +601,7 @@ static const char* AbilityName(AbilityID id) {
         case ABL_SLAM:    return "Slam";
         case ABL_PARRY:   return "Parry";
         case ABL_HEAL:    return "Heal";
-        case ABL_FIRE:    return "Fire";
+        case ABL_FIRE:    return "Flame";
         default:          return NULL;
     }
 }
@@ -892,6 +893,8 @@ static void UpdatePlayer(float dt)
             moveSpeed *= SNIPER_AIM_SLOW;
         if (p->shield.active)
             moveSpeed *= SHIELD_SLOW_FACTOR;
+        if (p->flame.active)
+            moveSpeed *= FLAME_SLOW_FACTOR;
         p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, moveSpeed * dt));
     }
 
@@ -1771,16 +1774,47 @@ static void UpdatePlayer(float dt)
         }
     }
 
-    // --- Fire Zone deploy ---
-    if (p->fireCooldown > 0) p->fireCooldown -= dt;
-    if (IsAbilityPressed(p, ABL_FIRE) && p->fireCooldown <= 0) {
-        int count = 0;
-        for (int i = 0; i < MAX_DEPLOYABLES; i++)
-            if (g.deployables[i].active
-                && g.deployables[i].type == DEPLOY_FIRE) count++;
-        if (count < FIRE_MAX_ACTIVE) {
-            SpawnDeployable(DEPLOY_FIRE, p->pos);
-            p->fireCooldown = FIRE_COOLDOWN;
+    // --- Flamethrower ---
+    bool wantFlame = IsAbilityDown(p, ABL_FIRE) && p->flame.fuel > 0;
+    if (wantFlame) {
+        p->flame.active = true;
+        p->flame.fuel -= FLAME_DRAIN_RATE * dt;
+        if (p->flame.fuel < 0) p->flame.fuel = 0;
+        p->flame.regenDelay = FLAME_REGEN_DELAY;
+
+        // spray patches at interval
+        p->flame.sprayTimer -= dt;
+        if (p->flame.sprayTimer <= 0) {
+            p->flame.sprayTimer = FLAME_SPRAY_INTERVAL;
+            float baseAngle = p->angle;
+            float spread = ((float)GetRandomValue(-1000, 1000) / 1000.0f) * FLAME_SPREAD;
+            float dist = FLAME_RANGE_MIN + (float)GetRandomValue(0, 1000) / 1000.0f
+                         * (FLAME_RANGE - FLAME_RANGE_MIN);
+            float a = baseAngle + spread;
+            Vector2 patchPos = Vector2Add(p->pos,
+                (Vector2){ cosf(a) * dist, sinf(a) * dist });
+            SpawnFirePatch(patchPos);
+
+            // spray particles along the path
+            for (int i = 0; i < 3; i++) {
+                float pa = baseAngle + ((float)GetRandomValue(-1000, 1000) / 1000.0f) * FLAME_SPREAD;
+                float pd = (float)GetRandomValue(200, 600) / 10.0f;
+                Vector2 ppos = Vector2Add(p->pos,
+                    (Vector2){ cosf(pa) * pd, sinf(pa) * pd });
+                Vector2 pvel = { cosf(pa) * 30.0f, sinf(pa) * 30.0f };
+                Color c = (GetRandomValue(0, 1) == 0) ? ORANGE : YELLOW;
+                SpawnParticle(ppos, pvel, c, 2.0f, 0.3f);
+            }
+        }
+    } else {
+        p->flame.active = false;
+        // regen fuel after delay
+        if (p->flame.regenDelay > 0) {
+            p->flame.regenDelay -= dt;
+        } else if (p->flame.fuel < FLAME_FUEL_MAX) {
+            p->flame.fuel += FLAME_REGEN_RATE * dt;
+            if (p->flame.fuel > FLAME_FUEL_MAX)
+                p->flame.fuel = FLAME_FUEL_MAX;
         }
     }
 
@@ -2125,10 +2159,6 @@ static void SpawnDeployable(DeployableType type, Vector2 pos) {
                     d->timer = HEAL_LIFETIME;
                     d->radius = HEAL_RADIUS;
                     break;
-                case DEPLOY_FIRE:
-                    d->timer = FIRE_LIFETIME;
-                    d->radius = FIRE_RADIUS;
-                    break;
             }
             break;
         }
@@ -2202,22 +2232,44 @@ static void UpdateDeployables(float dt) {
             }
         } break;
 
-        case DEPLOY_FIRE: {
-            d->actionTimer -= dt;
-            if (d->actionTimer <= 0) {
-                d->actionTimer = 0.25f; // damage tick rate
-                for (int j = 0; j < MAX_ENEMIES; j++) {
-                    Enemy *e = &g.enemies[j];
-                    if (!e->active) continue;
-                    float dist = Vector2Distance(d->pos, e->pos);
-                    if (dist < d->radius + e->size) {
-                        DamageEnemy(j,
-                            (int)(FIRE_DAMAGE_PER_SEC * 0.25f),
-                            DMG_ABILITY, HIT_AOE);
-                    }
+        }
+    }
+}
+
+// fire patches ------------------------------------------------------------ /
+static void SpawnFirePatch(Vector2 pos) {
+    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
+        if (!g.firePatches[i].active) {
+            g.firePatches[i] = (FirePatch){
+                .pos = pos,
+                .timer = FLAME_PATCH_LIFETIME,
+                .actionTimer = 0,
+                .radius = FLAME_PATCH_RADIUS,
+                .active = true,
+            };
+            return;
+        }
+    }
+}
+
+static void UpdateFirePatches(float dt) {
+    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
+        FirePatch *fp = &g.firePatches[i];
+        if (!fp->active) continue;
+        fp->timer -= dt;
+        if (fp->timer <= 0) { fp->active = false; continue; }
+        fp->actionTimer -= dt;
+        if (fp->actionTimer <= 0) {
+            fp->actionTimer = FLAME_PATCH_TICK;
+            for (int j = 0; j < MAX_ENEMIES; j++) {
+                Enemy *e = &g.enemies[j];
+                if (!e->active) continue;
+                if (Vector2Distance(fp->pos, e->pos) < fp->radius + e->size) {
+                    DamageEnemy(j,
+                        (int)(FLAME_PATCH_DPS * FLAME_PATCH_TICK),
+                        DMG_ABILITY, HIT_AOE);
                 }
             }
-        } break;
         }
     }
 }
@@ -2602,6 +2654,7 @@ static void UpdateGame(void)
     UpdateParticles(dt);
     UpdateBeams(dt);
     UpdateDeployables(dt);
+    UpdateFirePatches(dt);
 
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
         if (!g.explosives[i].active) continue;
@@ -3478,6 +3531,46 @@ static void DrawWorld(void)
         DrawCircleV(pt->pos, pt->size * alpha, c);
     }
 
+    // --- Fire patches ---
+    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
+        FirePatch *fp = &g.firePatches[i];
+        if (!fp->active) continue;
+        float t = (float)GetTime();
+        float life = fp->timer / FLAME_PATCH_LIFETIME;
+        float fade = (life > 0.3f) ? 1.0f : life / 0.3f;
+        float r = fp->radius;
+        // scatter embers — deterministic offsets from patch index
+        int embers = 6;
+        for (int j = 0; j < embers; j++) {
+            float seed = i * 7.13f + j * 3.71f;
+            // each ember drifts in a small loop
+            float ox = sinf(seed + t * 1.5f) * r * 0.6f
+                     + cosf(seed * 2.3f) * r * 0.3f;
+            float oy = cosf(seed * 1.7f + t * 1.8f) * r * 0.5f
+                     - (1.0f - life) * r * 0.4f; // drift upward as patch ages
+            float eSize = r * (0.3f + 0.25f * sinf(seed * 5.1f + t * FLAME_FLICKER_SPEED));
+            Vector2 ep = { fp->pos.x + ox, fp->pos.y + oy };
+            // color: outer embers red/orange, inner ones yellow
+            float heat = 1.0f - (fabsf(ox) + fabsf(oy)) / (r * 1.2f);
+            if (heat < 0) heat = 0;
+            Color c;
+            if (heat > 0.6f)
+                c = YELLOW;
+            else if (heat > 0.3f)
+                c = ORANGE;
+            else
+                c = (Color){ 255, 80, 20, 255 };
+            DrawCircleV(ep, eSize, Fade(c, 0.22f * fade));
+        }
+        // soft glow underneath
+        DrawCircleV(fp->pos, r * 0.8f,
+            Fade((Color){ 255, 60, 10, 255 }, 0.08f * fade));
+        // bright core flicker
+        float coreFlicker = 0.6f + 0.4f * sinf(t * 14.0f + i * 2.0f);
+        DrawCircleV(fp->pos, r * 0.2f * coreFlicker,
+            Fade(YELLOW, 0.35f * fade));
+    }
+
     // --- Deployables (ground level) ---
     for (int i = 0; i < MAX_DEPLOYABLES; i++) {
         Deployable *d = &g.deployables[i];
@@ -3513,16 +3606,6 @@ static void DrawWorld(void)
                 Fade((Color)HEAL_COLOR, 0.1f));
             DrawCircleLinesV(d->pos, d->radius * pulse,
                 Fade((Color)HEAL_COLOR, 0.4f));
-        } break;
-        case DEPLOY_FIRE: {
-            float flicker = 0.7f + 0.3f * sinf(t * FIRE_FLICKER_SPEED);
-            float flicker2 = 0.8f + 0.2f * sinf(t * FIRE_FLICKER_SPEED * 1.7f);
-            DrawCircleV(d->pos, d->radius * flicker,
-                Fade((Color)FIRE_COLOR, 0.12f));
-            DrawCircleV(d->pos, d->radius * 0.6f * flicker2,
-                Fade(ORANGE, 0.15f));
-            DrawCircleLinesV(d->pos, d->radius * flicker,
-                Fade((Color)FIRE_COLOR, 0.4f));
         } break;
         }
     }
@@ -4394,20 +4477,16 @@ static void DrawHUD(void)
         }
     }
 
-    // Fire cooldown
+    // Fuel bar
     cdY += (int)(HUD_ROW_SPACING * ui);
     {
-        Color fiColor = FIRE_COLOR;
-        if (p->fireCooldown > 0) {
-            float ratio = 1.0f - (p->fireCooldown / FIRE_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, fiColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("FIRE", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, fiColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("FIRE", cdLabelX, cdY, cdFontSize, fiColor);
-        }
+        Color fiColor = FLAME_COLOR;
+        float ratio = p->flame.fuel / FLAME_FUEL_MAX;
+        DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, fiColor);
+        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH,
+            p->flame.active ? WHITE : GRAY);
+        DrawText("FUEL", cdLabelX, cdY, cdFontSize,
+            (p->flame.fuel > 0) ? fiColor : RED);
     }
 
     // Active reload/overheat arc (near player) ------------------------------ /
