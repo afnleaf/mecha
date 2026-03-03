@@ -2794,7 +2794,7 @@ static void DrawTetra2D(
     float size, float rotY, float rotX, float alpha,
     Vector2 shadowPos, float shadowAlpha)
 {
-    float s = size;
+    float s = size / 1.73f; // normalize: vertices at (±s,±s,±s) → distance = s*√3
 
     // 4 tetrahedron vertices in local 3D space (regular tetrahedron)
     float vtx[4][3] = {
@@ -2961,7 +2961,7 @@ static void DrawCube2D(
     float size, float rotY, float rotX, float alpha,
     Vector2 shadowPos, float shadowAlpha)
 {
-    float s = size;
+    float s = size / 1.73f; // normalize: vertices at (±s,±s,±s) → distance = s*√3
 
     // 8 cube vertices in local 3D space
     float vtx[8][3] = {
@@ -4899,11 +4899,11 @@ static void DrawHUD(void)
         int pkFont = (int)(HUD_PAUSE_KEYS_FONT * ui);
         int pkSpacing = (int)(HUD_PAUSE_KEYS_SPACING * ui);
         int pkY = sh / 2 + (int)(HUD_PAUSE_KEYS_Y * ui);
-        int pkTabW = (int)(55 * ui);
+        int pkTabW = (int)(62 * ui);
 
         // Left column: core controls
         const char *lKeys[] = {
-            "WASD", "Space", "M1", "M2", "Ctrl", "P / Esc", "0"
+            "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0"
         };
         const char *lDescs[] = {
             "Move", "Dash", "Primary", "Alt Fire",
@@ -4911,7 +4911,7 @@ static void DrawHUD(void)
         };
         int lCount = 7;
 
-        int totalW = (int)(600 * ui);
+        int totalW = (int)(420 * ui);
         int colW = totalW / 3;
         int lColX = sw / 2 - totalW / 2;
         int mColX = lColX + colW;
