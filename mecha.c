@@ -1552,7 +1552,7 @@ static void UpdatePlayer(float dt)
                 // player heals on spin attack
                 // 5% lifesteal
                 float heal = SPIN_DAMAGE * SPIN_LIFESTEAL;
-                p->hp = p->hp + (int)heal;
+                p->hp = p->hp + heal;
                 if (p->hp > p->maxHp) p->hp = p->maxHp;
                 // animation of ability throughout
                 //SpawnParticles(p->pos, GREEN, 64);
@@ -2277,8 +2277,17 @@ static void UpdateDeployables(float dt) {
         case DEPLOY_HEAL: {
             float dist = Vector2Distance(d->pos, p->pos);
             if (dist < d->radius && p->hp < p->maxHp) {
-                p->hp += (int)(HEAL_PER_SEC * dt);
+                p->hp += HEAL_PER_SEC * dt;
                 if (p->hp > p->maxHp) p->hp = p->maxHp;
+            }
+            // heal turrets in range
+            for (int j = 0; j < MAX_DEPLOYABLES; j++) {
+                Deployable *t = &g.deployables[j];
+                if (!t->active || t->type != DEPLOY_TURRET) continue;
+                if (Vector2Distance(d->pos, t->pos) < d->radius && t->hp < TURRET_HP) {
+                    t->hp += HEAL_PER_SEC * dt;
+                    if (t->hp > TURRET_HP) t->hp = TURRET_HP;
+                }
             }
         } break;
 
@@ -3690,7 +3699,7 @@ static void DrawWorld(void)
             float pulse = 0.7f + 0.3f * sinf(t * HEAL_PULSE_SPEED);
             DrawCircleV(d->pos, d->radius * pulse,
                 Fade((Color)HEAL_COLOR, 0.1f));
-            DrawCircleLinesV(d->pos, d->radius * pulse,
+            DrawCircleLinesV(d->pos, d->radius,
                 Fade((Color)HEAL_COLOR, 0.4f));
         } break;
         }
@@ -4291,7 +4300,7 @@ static void DrawHUD(void)
     DrawRectangle(hpBarX, hpBarY, (int)(hpBarW * hpRatio), hpBarH, hpColor);
     DrawRectangleLines(hpBarX, hpBarY, hpBarW, hpBarH, WHITE);
     DrawText(
-        TextFormat("HP: %d/%d", p->hp, p->maxHp), 
+        TextFormat("HP: %d/%d", (int)p->hp, (int)p->maxHp),
         hpBarX + (int)(HUD_HP_TEXT_PAD_X * ui), hpBarY + (int)(HUD_HP_TEXT_PAD_Y * ui), (int)(HUD_HP_FONT * ui), WHITE);
 
     // Score

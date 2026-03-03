@@ -197,7 +197,7 @@ typedef struct Deployable {
     float timer;        // lifetime remaining
     float actionTimer;  // shoot cd / damage tick / heal tick
     float radius;       // effect radius
-    int hp;             // turret health (0 = not damageable)
+    float hp;           // turret health (0 = not damageable)
     bool active;
     DeployableType type;
 } Deployable;
@@ -230,7 +230,7 @@ typedef struct Player {
     float angle;
     float speed;
     float size;
-    int hp, maxHp;
+    float hp, maxHp;
     float iFrames;
     Gun gun;
     Sword sword;
