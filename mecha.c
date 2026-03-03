@@ -211,6 +211,7 @@ static void SpawnEnemy(void)
             e->slowFactor = 1.0f;
             e->rootTimer = 0;
             e->stunTimer = 0;
+            e->aggroIdx = -1;
 
             // Roll for enemy type — priority table, TRI fallback
             EnemyType type = TRI;
@@ -428,10 +429,12 @@ static bool LineSegOBB(
 // ========================================================================== /
 // OBB collision helpers (for RECT enemy hitbox)
 // ========================================================================== /
-// Get the enemy facing angle (faces player shadow / decoy)
+// Get the enemy facing angle (faces aggro target or player shadow)
 static float EnemyAngle(Enemy *e) {
-    Vector2 toPlayer = Vector2Subtract(g.player.shadowPos, e->pos);
-    return atan2f(toPlayer.y, toPlayer.x);
+    Vector2 target = (e->aggroIdx >= 0)
+        ? g.deployables[e->aggroIdx].pos : g.player.shadowPos;
+    Vector2 toTarget = Vector2Subtract(target, e->pos);
+    return atan2f(toTarget.y, toTarget.x);
 }
 
 // Check if a point is inside an oriented bounding box
@@ -1725,7 +1728,12 @@ static void UpdatePlayer(float dt)
             if (g.deployables[i].active
                 && g.deployables[i].type == DEPLOY_TURRET) count++;
         if (count < TURRET_MAX_ACTIVE) {
-            SpawnDeployable(DEPLOY_TURRET, p->pos);
+            float mouseDist = Vector2Length(toMouse);
+            float placeDist = (mouseDist < 100.0f) ? mouseDist : 100.0f;
+            Vector2 placePos = (mouseDist > 1.0f)
+                ? Vector2Add(p->pos, Vector2Scale(toMouse, placeDist / mouseDist))
+                : p->pos;
+            SpawnDeployable(DEPLOY_TURRET, placePos);
             p->turretCooldown = TURRET_COOLDOWN;
         }
     }
@@ -1845,13 +1853,25 @@ static void UpdateEnemies(float dt) {
 
         bool rooted = e->rootTimer > 0 || e->stunTimer > 0;
 
-        // Chase player shadow (HEXA strafes instead)
+        // Clear aggro if target deployable is gone
+        if (e->aggroIdx >= 0) {
+            Deployable *ad = &g.deployables[e->aggroIdx];
+            if (!ad->active || ad->type != DEPLOY_TURRET)
+                e->aggroIdx = -1;
+        }
+
+        // Chase target: turret if aggroed, otherwise player shadow
+        Vector2 target = (e->aggroIdx >= 0)
+            ? g.deployables[e->aggroIdx].pos : p->shadowPos;
+        Vector2 toTarget = Vector2Subtract(target, e->pos);
+        float dist = Vector2Length(toTarget);
+        // toPlayer still needed for shooting AI
         Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
-        float dist = Vector2Length(toPlayer);
+        float distToPlayer = Vector2Length(toPlayer);
         if (!rooted && dist > 1.0f) {
-            Vector2 chaseDir = Vector2Scale(toPlayer, 1.0f / dist);
+            Vector2 chaseDir = Vector2Scale(toTarget, 1.0f / dist);
             Vector2 desired;
-            if (e->type == HEXA) {
+            if (e->type == HEXA && e->aggroIdx < 0) {
                 float strafeDir = (i % 2 == 0) ? 1.0f : -1.0f;
                 Vector2 perp = { -chaseDir.y * strafeDir,
                                   chaseDir.x * strafeDir };
@@ -1884,12 +1904,16 @@ static void UpdateEnemies(float dt) {
 
         bool stunned = e->stunTimer > 0;
 
+        // Shoot target: turret if aggroed, otherwise player
+        Vector2 toShoot = (e->aggroIdx >= 0) ? toTarget : toPlayer;
+        float distToShoot = (e->aggroIdx >= 0) ? dist : distToPlayer;
+
         // RECT shooting AI
         if (e->type == RECT && !stunned) {
             e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && dist > 1.0f) {
+            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
                 e->shootTimer = RECT_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
+                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
                 Vector2 muzzle = Vector2Add(e->pos,
                     Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
                 SpawnProjectile(muzzle, shootDir, RECT_BULLET_SPEED,
@@ -1905,9 +1929,9 @@ static void UpdateEnemies(float dt) {
         // PENTA shooting AI — two parallel rows of 5 bullets
         if (e->type == PENTA && !stunned) {
             e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && dist > 1.0f) {
+            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
                 e->shootTimer = PENTA_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
+                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
                 Vector2 perp = { -shootDir.y, shootDir.x };
 
                 for (int r = -1; r <= 1; r += 2) {
@@ -1942,9 +1966,9 @@ static void UpdateEnemies(float dt) {
         // HEXA shooting AI — fan of 5 bullets
         if (e->type == HEXA && !stunned) {
             e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && dist > 1.0f) {
+            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
                 e->shootTimer = HEXA_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toPlayer, 1.0f / dist);
+                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
                 float baseAngle = atan2f(shootDir.y, shootDir.x);
                 float halfSpread = HEXA_FAN_SPREAD / 2.0f;
                 float step = HEXA_FAN_SPREAD / (HEXA_FAN_COUNT - 1);
@@ -1978,7 +2002,7 @@ static void UpdateEnemies(float dt) {
                 e->stunTimer = PARRY_STUN_DURATION;
                 p->parry.succeeded = true;
                 SpawnParticles(e->pos, WHITE, 8);
-                if (dist > 1.0f) {
+                if (distToPlayer > 1.0f) {
                     Vector2 kb = Vector2Scale(
                         Vector2Normalize(Vector2Subtract(e->pos, p->pos)),
                         PARRY_KNOCKBACK);
@@ -1987,8 +2011,29 @@ static void UpdateEnemies(float dt) {
             } else {
                 DamagePlayer(e->contactDamage, DMG_BLUNT, HIT_MELEE);
                 // Knockback enemy
-                if (dist > 1.0f) {
+                if (distToPlayer > 1.0f) {
                     Vector2 kb = Vector2Scale(Vector2Normalize(Vector2Subtract(e->pos, p->pos)), ENEMY_CONTACT_KNOCKBACK);
+                    e->vel = kb;
+                }
+            }
+        }
+
+        // Collide with aggroed turret
+        if (e->aggroIdx >= 0) {
+            Deployable *ad = &g.deployables[e->aggroIdx];
+            float turretDist = Vector2Distance(e->pos, ad->pos);
+            if (turretDist < e->size + 10.0f) {
+                ad->hp -= e->contactDamage;
+                if (ad->hp <= 0) {
+                    ad->active = false;
+                    SpawnParticles(ad->pos, (Color)TURRET_COLOR, 12);
+                    e->aggroIdx = -1;
+                }
+                // Knockback enemy off turret
+                if (turretDist > 1.0f) {
+                    Vector2 kb = Vector2Scale(
+                        Vector2Normalize(Vector2Subtract(e->pos, ad->pos)),
+                        ENEMY_CONTACT_KNOCKBACK);
                     e->vel = kb;
                 }
             }
@@ -2128,10 +2173,12 @@ static void SpawnDeployable(DeployableType type, Vector2 pos) {
             d->pos = pos;
             d->type = type;
             d->actionTimer = 0;
+            d->hp = 0;
             switch (type) {
                 case DEPLOY_TURRET:
                     d->timer = TURRET_LIFETIME;
                     d->radius = TURRET_RANGE;
+                    d->hp = TURRET_HP;
                     break;
                 case DEPLOY_MINE:
                     d->timer = MINE_LIFETIME;
@@ -2186,6 +2233,7 @@ static void UpdateDeployables(float dt) {
                     SpawnParticle(muzzle,
                         Vector2Scale(dir, 80.0f),
                         (Color)TURRET_COLOR, 2.0f, 0.08f);
+                    g.enemies[best].aggroIdx = (i8)i;
                     d->actionTimer = TURRET_FIRE_RATE;
                 }
             }
@@ -2454,6 +2502,26 @@ static void UpdateProjectiles(float dt) {
                     }
                 }
             }
+            // Enemy projectile — hit turrets
+            bool hitTurret = false;
+            for (int j = 0; j < MAX_DEPLOYABLES; j++) {
+                Deployable *d = &g.deployables[j];
+                if (!d->active || d->type != DEPLOY_TURRET) continue;
+                float td = Vector2Distance(b->pos, d->pos);
+                if (td < 10.0f + b->size) {
+                    d->hp -= b->damage;
+                    SpawnParticle(b->pos, (Vector2){ 0, 0 },
+                        (Color)TURRET_COLOR, 2.0f, 0.1f);
+                    if (d->hp <= 0) {
+                        d->active = false;
+                        SpawnParticles(d->pos, (Color)TURRET_COLOR, 12);
+                    }
+                    b->active = false;
+                    hitTurret = true;
+                    break;
+                }
+            }
+            if (hitTurret) continue;
             // Enemy projectile — hit player
             float dist = Vector2Distance(b->pos, p->pos);
             if (dist < p->size + b->size && p->iFrames <= 0) {
@@ -3573,6 +3641,15 @@ static void DrawWorld(void)
                     (Vector2){ cosf(a1) * 10.0f, sinf(a1) * 10.0f });
                 DrawLineEx(p0, p1, 2.0f, (Color)TURRET_COLOR);
             }
+            // HP bar
+            float hpFrac = (float)d->hp / TURRET_HP;
+            float barW = 16.0f, barH = 2.0f;
+            Vector2 barPos = { d->pos.x - barW * 0.5f, d->pos.y + 13.0f };
+            DrawRectangleV(barPos, (Vector2){ barW, barH },
+                Fade(DARKGRAY, 0.5f));
+            Color hpColor = (hpFrac > 0.5f) ? (Color)TURRET_COLOR : ORANGE;
+            if (hpFrac < 0.25f) hpColor = RED;
+            DrawRectangleV(barPos, (Vector2){ barW * hpFrac, barH }, hpColor);
         } break;
         case DEPLOY_MINE: {
             float pulse = 0.6f + 0.4f * sinf(t * MINE_PULSE_SPEED);
@@ -3697,8 +3774,7 @@ static void DrawWorld(void)
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
 
-        Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
-        float eAngle = atan2f(toPlayer.y, toPlayer.x);
+        float eAngle = EnemyAngle(e);
         Color eColor = (e->hitFlash > 0) ? WHITE : RED;
         // Icy tint when slowed
         if (e->slowTimer > 0 && e->hitFlash <= 0) {

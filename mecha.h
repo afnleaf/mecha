@@ -197,6 +197,7 @@ typedef struct Deployable {
     float timer;        // lifetime remaining
     float actionTimer;  // shoot cd / damage tick / heal tick
     float radius;       // effect radius
+    int hp;             // turret health (0 = not damageable)
     bool active;
     DeployableType type;
 } Deployable;
@@ -387,6 +388,7 @@ typedef struct Enemy {
     float slowFactor;
     float rootTimer;    // can't move, CAN shoot
     float stunTimer;    // can't move, CAN'T shoot
+    i8 aggroIdx;        // deployable index to chase (-1 = player)
 } Enemy;
 
 // other -------------------------------------------------------------------- /

@@ -266,10 +266,11 @@
 #define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
 
 // Turret ------------------------------------------------------------------- /
-#define TURRET_LIFETIME         10.0f
+#define TURRET_LIFETIME         24.0f
 #define TURRET_FIRE_RATE        0.5f    // seconds between shots
-#define TURRET_RANGE            300.0f
+#define TURRET_RANGE            500.0f
 #define TURRET_DAMAGE           15
+#define TURRET_HP               60
 #define TURRET_BULLET_SPEED     800.0f
 #define TURRET_BULLET_LIFETIME  2.0f
 #define TURRET_BULLET_SIZE      3.0f
