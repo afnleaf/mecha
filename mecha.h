@@ -36,11 +36,38 @@ typedef enum GameScreen {
     SCREEN_PLAYING,
 } GameScreen;
 
+// ability slots ------------------------------------------------------------- /
+#define ABILITY_SLOTS     12
+
+typedef enum AbilityID {
+    ABL_NONE,
+    ABL_SHOTGUN,
+    ABL_SPIN,
+    ABL_GRENADE,
+    ABL_RAILGUN,
+    ABL_BFG,
+    ABL_COUNT,
+} AbilityID;
+
+typedef struct AbilitySlot {
+    AbilityID ability;
+    int key;            // raylib KeyboardKey
+} AbilitySlot;
+
 // player ------------------------------------------------------------------- /
 // declare abilities above player
 typedef struct Gun {
     float cooldown;
     float fireRate;
+    float heat;              // 0.0 to 1.0 (normalized)
+    float heatDecayWait;     // seconds since last shot, decay starts after threshold
+    bool  overheated;        // locked out when true
+    float overheatBoostTimer; // movespeed buff remaining after dash-during-overheat
+    // QTE vent
+    float ventCursor;        // 0..1 sweeping indicator position
+    float ventZoneStart;     // 0..1 sweet spot left edge
+    float ventZoneWidth;     // width of sweet spot (normalized)
+    i8    ventResult;        // 0=pending, 1=hit, -1=miss
 } Gun;
 
 typedef struct Sword {
@@ -50,6 +77,7 @@ typedef struct Sword {
     float arc;
     float radius;
     bool dashSlash;
+    bool lunge;
     float lastHitAngle[MAX_ENEMIES];
 } Sword;
 
@@ -86,12 +114,9 @@ typedef struct Shotgun {
 } Shotgun;
 
 typedef struct Rocket {
-    // this isn't getting used?
-    // maybe thats ok?
-    int rocketsLeft;
     float cooldown;
-    // wht does Rocket have a cooldown
     float cooldownTimer;
+    bool inFlight;
 } Rocket;
 
 typedef struct Grenade {
@@ -125,6 +150,9 @@ typedef struct Railgun {
 
 typedef struct Sniper {
     float cooldownTimer;
+    bool  aiming;           // true while M2 held (ADS mode)
+    bool  superShotReady;   // dash timing grants next aimed shot bonus
+    bool  adsDuringDash;    // M2 was pressed (not held) during active dash
 } Sniper;
 
 typedef struct Bfg {
@@ -164,6 +192,7 @@ typedef struct Player {
     Sniper  sniper;
     Bfg     bfg;
     WeaponType primary;
+    AbilitySlot slots[ABILITY_SLOTS];
     Vector2 shadowPos;
 } Player;
 

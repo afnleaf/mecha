@@ -52,11 +52,28 @@
 #define GUN_TIP_OFFSET          12.0f
 #define GUN_BARREL_THICKNESS    3.0f
 
+// Overheat (shared M1/M2 heat resource)
+#define GUN_HEAT_PER_SHOT        0.03f    // M1
+#define MINIGUN_HEAT_PER_SHOT    0.004f   // M2
+#define GUN_HEAT_DECAY           0.3f     // passive heat loss per second
+#define GUN_HEAT_DECAY_DELAY     0.4f     // seconds after last shot before heat decays
+#define GUN_OVERHEAT_DECAY       0.5f     // heat loss/sec while overheated (normal/miss)
+#define GUN_OVERHEAT_THRESHOLD   1.0f     // heat level that triggers overheat
+#define GUN_OVERHEAT_CLEAR       0.0f     // heat must reach this to unlock
+// QTE vent
+#define GUN_VENT_CURSOR_SPEED    1.0f     // cursor sweeps 0->1 in 1/speed seconds
+#define GUN_VENT_ZONE_WIDTH      0.12f    // sweet spot width (fraction of bar)
+#define GUN_VENT_ZONE_MIN        0.6f     // earliest sweet spot left edge
+#define GUN_VENT_ZONE_MAX        0.78f    // latest sweet spot left edge (max + width <= 1)
+#define GUN_VENT_HIT_DECAY       5.0f     // heat loss/sec on perfect vent
+#define GUN_OVERHEAT_DASH_BOOST  1.4f     // movespeed multiplier after dash during overheat
+#define GUN_OVERHEAT_BOOST_DUR   3.0f     // seconds the dash-vent movespeed buff lasts
+
 // Minigun
 #define MINIGUN_MAX_FIRE_RATE    40.0f
 #define MINIGUN_MIN_FIRE_RATE    4.0f
 #define MINIGUN_SPIN_UP_TIME     0.8f
-#define MINIGUN_SPIN_DOWN_TIME   0.5f
+#define MINIGUN_SPIN_DOWN_TIME   1.6f
 #define MINIGUN_BULLET_SPEED     1000.0f
 #define MINIGUN_BULLET_LIFETIME  1.5f
 #define MINIGUN_BULLET_DAMAGE    6
@@ -79,6 +96,17 @@
 #define DASH_SLASH_ARC_MULT     1.3f
 #define DASH_SLASH_RADIUS_MULT  1.5f
 #define SWORD_DRAW_SEGMENTS     12
+
+// Lunge (M2 for sword)
+#define LUNGE_DURATION          0.18f
+#define LUNGE_RANGE             150.0f
+#define LUNGE_CONE_HALF         0.30f
+#define LUNGE_DAMAGE            30
+#define LUNGE_DASH_DAMAGE       50
+#define LUNGE_SPEED             600.0f
+#define LUNGE_DASH_RANGE_MULT   1.5f
+#define LUNGE_DASH_SPEED_MULT   1.6f
+#define LUNGE_DRAW_SEGMENTS     8
 
 // Dash
 #define DASH_SPEED              1600.0f
@@ -147,9 +175,11 @@
 #define ROCKET_COOLDOWN         0.915f
 #define ROCKET_SIZE             6.0f
 #define ROCKET_PROJECTILE_SIZE  6.0f
+#define ROCKET_JUMP_DAMAGE      4
+#define ROCKET_JUMP_FORCE       800.0f
+#define ROCKET_JUMP_FRICTION    5.0f
 
 // Grenade Launcher
-#define GRENADE_KEY                 KEY_C
 #define GRENADE_SPEED               500.0f
 #define GRENADE_DRAG                1.5f
 #define GRENADE_LIFETIME            2.5f
@@ -173,7 +203,6 @@
 #define GRENADE_MUZZLE_LIFETIME     0.1f
 
 // BFG10k ------------------------------------------------------------------- /
-#define BFG_KEY                     KEY_FOUR
 #define BFG_SPEED                   600.0f
 #define BFG_LIFETIME                3.0f
 #define BFG_PROJECTILE_SIZE         14.0f
@@ -218,7 +247,6 @@
 #endif
 
 // Railgun (press Z, pierce all, long cooldown)
-#define RAILGUN_KEY                 KEY_Z
 #define RAILGUN_DAMAGE              200
 #define RAILGUN_RANGE               3000.0f
 #define RAILGUN_COOLDOWN            4.0f
@@ -231,7 +259,6 @@
 #define RAILGUN_MUZZLE_PARTICLES    8
 
 // Sniper (press X, single fast projectile, slows target, long cooldown)
-#define SNIPER_KEY              KEY_X
 #define SNIPER_DAMAGE           120
 #define SNIPER_BULLET_SPEED     2400.0f
 #define SNIPER_BULLET_LIFETIME  1.5f
@@ -244,6 +271,24 @@
 #define SNIPER_MUZZLE_SPEED     120.0f
 #define SNIPER_MUZZLE_SIZE      4.0f
 #define SNIPER_MUZZLE_LIFETIME  0.1f
+// Sniper — M1 hip fire
+#define SNIPER_HIP_DAMAGE        70
+#define SNIPER_HIP_SPREAD        80       // wide spread (80/1000 rad)
+#define SNIPER_HIP_COOLDOWN      0.45f    // fast semi-auto
+#define SNIPER_HIP_BULLET_SPEED  2000.0f  // slightly slower than aimed
+
+// Sniper — M2 aimed shot (hold M2 + click M1)
+#define SNIPER_AIM_DAMAGE        160
+#define SNIPER_AIM_SPREAD        2        // near-zero
+#define SNIPER_AIM_COOLDOWN      1.2f     // punishing on miss
+#define SNIPER_AIM_BULLET_SPEED  2800.0f  // faster travel
+#define SNIPER_AIM_SLOW          0.35f    // movement multiplier while ADS
+
+// Sniper — super shot (dash timing + M2)
+#define SNIPER_SUPER_DAMAGE      300      // massive payoff
+#define SNIPER_SUPER_SLOW_DUR    4.0f     // longer debuff on target
+#define SNIPER_SUPER_SLOW_FACTOR 0.2f     // stronger slow (vs normal 0.4)
+
 #define SNIPER_COLOR            (Color){ 180, 220, 255, 255 }
 #define SNIPER_BULLET_LENGTH    5.0f
 #define SNIPER_BULLET_WIDTH     1.1f
