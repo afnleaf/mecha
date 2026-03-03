@@ -96,6 +96,8 @@ pick a chassis type to start with
 - [x] launch screen shows keybinds
 - [x] sent to primary monitor on launch
 - [x] fullscreen, set toggle
+- [] mouse visible on top of crosshair on native
+- [] move reload and overheat bars somehwere more visible than the left side
 
 refactorin time
 - [x] ok let's do a header file and remake the build
@@ -147,10 +149,11 @@ weapons
 - [x] fix dash slash
 - [x] "reloading" like active reload mechanic from deadlock (press button timing = bonus)
 - [x] revolver reload timing m1 regular buff dash bonus buff (hidden quirks with weapon on dash?)
-- [] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
-- [] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
-- [] decide what the actual 5? primary weapons should be? (sword, revolver, machine gun, sniper, ??? (mingun?, explosives?))
+- [x] "overheat" mechanic for infinite shooting guns, with a reheat mechanic?
+- [x] gun modifier button (ctrl+m1/m2) (maybe not there is a decision to make here)
+- [x] decide what the actual 5? primary weapons should be? (sword, revolver, machine gun, sniper, ??? (mingun?, explosives?))
 - [] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
+- [] unbind all other keys except for the primary. s
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -193,39 +196,39 @@ what can you customize? all your buttons, its a mecha game... some remain for ba
 
 - WASD - move
 - m1/m2 - main weapon 
-    - sword (short range)
+    - [x] sword (short range)
         - m1 sweep (hold m1 = spin?)
         - m2 lunge (pierces through enemies forward cone) (hold m2 == ?)
         - quirk dash slash + dash lunge
-    - revolver (mid range precision)
+    - [x] revolver (mid range precision)
         - m1 shoot regular
         - m2 fan the hammer
         - quirk reload timing (r + dash bonus)
-    - machine gun (mid range power)
+    - [x] machine gun (mid range power)
         - m1 normal shooting (short overheat)
         - m2 mini gun (should this be m2 for machine gun?) (longer overheat + movement penalty)
-        - quirk overheat mechanics (r + dash bonus)
-    - sniper (long range precision)
+        - quirk overheat mechanics (r + dash bonus=movespeed buff)
+    - [x] sniper (long range precision)
         - m1 hip fire less accurate
         - m2 slow down like aiming down sights, more accurate more damage?
         - quirk debuff (critical opening or slowness?) (dash into m2 timing = super duper shot hidden mechanic)
-    - rocket (area denial)
-        - m1 rocket
-        - m2 make rocket explode where it is
-        - quirk?
+    - [x] rocket (area denial)
+        - m1 rocket (one in flight at a time)
+        - m2 detonate in-flight rocket
+        - quirk rocket jump (self-damage, half-dash push, scales with distance from center)
     - ~~laser~~
 - space - dash (2 charges)
 - shift - spin (lifesteal)
 - E - shotgun (2 blasts)
-- Q - rocket
-- Z - railgun (pierce all)
-- X - sniper
-- P / esc - pause
-- R - reload (works with revolver)
-- 0 - quit
-- F - free (parry)
 - C - Grenade launcher
-- 4 - BGG10k
+- Z - railgun (pierce all)
+- Q - free
+- P / esc - pause
+- 4 - ult BGG10k 
+- 0 - quit
+- R - reload (works with revolver) (turn R into m1 easier)
+- X - free
+- F - free (parry)
 - ctrl - free
 - v, 1-3 - free
 - tab - free
