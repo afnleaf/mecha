@@ -1710,28 +1710,10 @@ static void UpdatePlayer(float dt)
 
     if (p->parry.active) {
         p->parry.timer -= dt;
-        // deflect enemy bullets (tighter window, higher mult than spin)
-        for (int i = 0; i < MAX_PROJECTILES; i++) {
-            Projectile *b = &g.projectiles[i];
-            if (!b->active || !b->isEnemy) continue;
-            float dist = Vector2Distance(b->pos, p->pos);
-            if (dist < p->size + 30.0f) {
-                b->isEnemy = false;
-                b->damage *= PARRY_DEFLECT_MULT;
-                Vector2 away = Vector2Normalize(
-                    Vector2Subtract(b->pos, p->pos));
-                float speed = Vector2Length(b->vel) * PARRY_DEFLECT_SPEED;
-                b->vel = Vector2Scale(away, speed);
-                SpawnParticles(b->pos, WHITE, 6);
-                p->parry.succeeded = true;
-            }
-        }
         if (p->parry.timer <= 0) {
             p->parry.active = false;
             p->parry.cooldownTimer = p->parry.succeeded
                 ? PARRY_SUCCESS_COOLDOWN : PARRY_COOLDOWN;
-            if (p->parry.succeeded)
-                p->iFrames = PARRY_IFRAMES;
         }
     }
 
@@ -1991,15 +1973,15 @@ static void UpdateEnemies(float dt) {
         // Collide with player
         bool contact = EnemyHitCircle(e, p->pos, p->size);
         if (contact && p->iFrames <= 0) {
-            // Parry reflects contact damage back to enemy
+            // Parry stuns enemy and prevents damage
             if (p->parry.active) {
-                DamageEnemy(i, PARRY_REFLECT_DAMAGE, DMG_BLUNT, HIT_MELEE);
+                e->stunTimer = PARRY_STUN_DURATION;
                 p->parry.succeeded = true;
                 SpawnParticles(e->pos, WHITE, 8);
                 if (dist > 1.0f) {
                     Vector2 kb = Vector2Scale(
                         Vector2Normalize(Vector2Subtract(e->pos, p->pos)),
-                        PARRY_REFLECT_KNOCKBACK);
+                        PARRY_KNOCKBACK);
                     e->vel = kb;
                 }
             } else {

@@ -67,12 +67,12 @@ Key documentation: `claude_review.md` (persistent code review state), `NOTES.md`
 - Don't over-engineer for hypothetical edge cases
 
 ### Commit Messages
-Use `git commit -m "short sentence"`. No co-author line — the user is the sole author.
+Use `git commit -m "short sentence"` — always a single `-m` with a one-line string, no heredocs or multi-line. No co-author line — the user is the sole author.
 Prefixes:
 - Updated:
 - Added:
 - Fixed:
-- Refactored
+- Refactored:
 - Removed:
 - In progress:
 etc

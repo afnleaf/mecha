@@ -170,15 +170,13 @@ explosives as primary? is that possible? (yes)
 - [x] shield (delete projectiles in a radius around the player)
 - [] parry (able to parry contact damage from melee enemies?)
 - [] summons (npcs who take aggro for you) 
-- [] 
-
 - [] turret needs to be targetable by enemies and healable by your field
 - [] root mines when exploded aoe effect
-- [] ground slam (what should this do?)
-- [] parry (longer?)
-- [] fire (more like a flamethrower that you can spread infront on the ground)
+- [] ground slam (what should this do?) less damage more stun
+- [x] parry (longer?) kinda works like deadlock melee parry
+- [x] fire (more like a flamethrower that you can spread infront on the ground)
 - [] healing heal drone + heal field?
-
+- [] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
 
 ### players
 - [x] tetrahedron

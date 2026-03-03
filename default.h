@@ -257,14 +257,12 @@
 #define SLAM_COLOR              (Color){ 255, 200, 60, 255 }
 
 // Parry -------------------------------------------------------------------- /
-#define PARRY_WINDOW            0.25f   // active deflect window
-#define PARRY_COOLDOWN          3.0f    // normal cooldown
-#define PARRY_SUCCESS_COOLDOWN  1.5f    // reduced cooldown on success
+#define PARRY_WINDOW            0.75f   // active deflect window
+#define PARRY_COOLDOWN          4.0f    // normal cooldown
+#define PARRY_SUCCESS_COOLDOWN  2.0f    // reduced cooldown on success
 #define PARRY_IFRAMES           0.5f    // iframes granted on success
-#define PARRY_DEFLECT_MULT      3       // damage multiplier for deflected projectiles
-#define PARRY_DEFLECT_SPEED     1.8f    // speed multiplier for deflected projectiles
-#define PARRY_REFLECT_DAMAGE    30      // contact damage reflected to enemy
-#define PARRY_REFLECT_KNOCKBACK 400.0f  // knockback on reflected contact
+#define PARRY_STUN_DURATION     2.75f   // stun applied to enemies on parry
+#define PARRY_KNOCKBACK         400.0f  // knockback on parried contact
 #define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
 
 // Turret ------------------------------------------------------------------- /
