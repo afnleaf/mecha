@@ -2241,15 +2241,35 @@ static void UpdateDeployables(float dt) {
 
         case DEPLOY_MINE: {
             // mine trigger check: proximity to any enemy
+            bool triggered = false;
             for (int j = 0; j < MAX_ENEMIES; j++) {
                 Enemy *e = &g.enemies[j];
                 if (!e->active) continue;
-                float dist = Vector2Distance(d->pos, e->pos);
-                if (dist < d->radius + e->size) {
-                    e->rootTimer = MINE_ROOT_DURATION;
-                    d->active = false;
-                    SpawnParticles(d->pos, (Color)MINE_COLOR, 10);
+                if (Vector2Distance(d->pos, e->pos) < d->radius + e->size) {
+                    triggered = true;
                     break;
+                }
+            }
+            if (triggered) {
+                // root all enemies in AOE (no move, can still shoot)
+                for (int j = 0; j < MAX_ENEMIES; j++) {
+                    Enemy *e = &g.enemies[j];
+                    if (!e->active) continue;
+                    if (Vector2Distance(d->pos, e->pos) < MINE_ROOT_RADIUS)
+                        e->rootTimer = MINE_ROOT_DURATION;
+                }
+                d->active = false;
+                SpawnParticles(d->pos, (Color)MINE_COLOR, 10);
+                // spawn web VFX
+                for (int j = 0; j < MAX_MINE_WEBS; j++) {
+                    if (!g.mineWebs[j].active) {
+                        g.mineWebs[j] = (MineWebVfx){
+                            .pos = d->pos,
+                            .timer = MINE_WEB_DURATION,
+                            .active = true,
+                        };
+                        break;
+                    }
                 }
             }
         } break;
@@ -2263,6 +2283,13 @@ static void UpdateDeployables(float dt) {
         } break;
 
         }
+    }
+
+    // tick mine web VFX
+    for (int i = 0; i < MAX_MINE_WEBS; i++) {
+        if (!g.mineWebs[i].active) continue;
+        g.mineWebs[i].timer -= dt;
+        if (g.mineWebs[i].timer <= 0) g.mineWebs[i].active = false;
     }
 }
 
@@ -3666,6 +3693,35 @@ static void DrawWorld(void)
             DrawCircleLinesV(d->pos, d->radius * pulse,
                 Fade((Color)HEAL_COLOR, 0.4f));
         } break;
+        }
+    }
+
+    // --- Mine Web VFX ---
+    for (int i = 0; i < MAX_MINE_WEBS; i++) {
+        MineWebVfx *w = &g.mineWebs[i];
+        if (!w->active) continue;
+        float progress = 1.0f - (w->timer / MINE_WEB_DURATION);
+        float alpha = 1.0f - progress;
+        float r = MINE_ROOT_RADIUS;
+        // spokes
+        for (int s = 0; s < MINE_WEB_SPOKES; s++) {
+            float a = s * (2.0f * PI / MINE_WEB_SPOKES);
+            Vector2 tip = { w->pos.x + cosf(a) * r,
+                            w->pos.y + sinf(a) * r };
+            DrawLineEx(w->pos, tip, 1.0f, Fade(WHITE, alpha * 0.6f));
+        }
+        // concentric rings connecting the spokes
+        for (int ring = 1; ring <= MINE_WEB_RINGS; ring++) {
+            float rr = r * ring / (float)MINE_WEB_RINGS;
+            for (int s = 0; s < MINE_WEB_SPOKES; s++) {
+                float a0 = s * (2.0f * PI / MINE_WEB_SPOKES);
+                float a1 = (s + 1) * (2.0f * PI / MINE_WEB_SPOKES);
+                Vector2 p0 = { w->pos.x + cosf(a0) * rr,
+                               w->pos.y + sinf(a0) * rr };
+                Vector2 p1 = { w->pos.x + cosf(a1) * rr,
+                               w->pos.y + sinf(a1) * rr };
+                DrawLineEx(p0, p1, 1.0f, Fade(WHITE, alpha * 0.4f));
+            }
         }
     }
 

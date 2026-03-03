@@ -414,6 +414,14 @@ typedef struct FirePatch {
 // state -------------------------------------------------------------------- /
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
+typedef struct MineWebVfx {
+    Vector2 pos;
+    float timer;
+    bool active;
+} MineWebVfx;
+
+#define MAX_MINE_WEBS 4
+
 typedef struct GameState {
     // the player entity
     Player player;
@@ -425,6 +433,7 @@ typedef struct GameState {
     Explosive explosives[MAX_EXPLOSIVES];
     Beam beams[MAX_BEAMS];
     Deployable deployables[MAX_DEPLOYABLES];
+    MineWebVfx mineWebs[MAX_MINE_WEBS];
     FirePatch firePatches[MAX_FIRE_PATCHES];
     LightningChain lightning;
     //

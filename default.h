@@ -269,8 +269,8 @@
 #define TURRET_LIFETIME         24.0f
 #define TURRET_FIRE_RATE        0.5f    // seconds between shots
 #define TURRET_RANGE            500.0f
-#define TURRET_DAMAGE           15
-#define TURRET_HP               60
+#define TURRET_DAMAGE           12
+#define TURRET_HP               80
 #define TURRET_BULLET_SPEED     800.0f
 #define TURRET_BULLET_LIFETIME  2.0f
 #define TURRET_BULLET_SIZE      3.0f
@@ -281,11 +281,15 @@
 // Root Mine ---------------------------------------------------------------- /
 #define MINE_LIFETIME           20.0f
 #define MINE_TRIGGER_RADIUS     40.0f
+#define MINE_ROOT_RADIUS        100.0f
 #define MINE_ROOT_DURATION      3.0f
 #define MINE_COOLDOWN           5.0f
 #define MINE_MAX_ACTIVE         3
 #define MINE_COLOR              (Color){ 255, 100, 100, 255 }
 #define MINE_PULSE_SPEED        4.0f
+#define MINE_WEB_DURATION       MINE_ROOT_DURATION
+#define MINE_WEB_SPOKES         8
+#define MINE_WEB_RINGS          3
 
 // Healing Field ------------------------------------------------------------ /
 #define HEAL_LIFETIME           8.0f
