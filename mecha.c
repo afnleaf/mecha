@@ -736,20 +736,20 @@ static void DrawSelect(void)
 
     // Hint (below title)
     int hintFont = (int)(SELECT_HINT_FONT * ui);
-    const char *hint = "W/S to navigate — Enter or M1 to confirm";
+    const char *hint = "W/S to navigate - Enter or M1 to confirm";
     int hintW = MeasureText(hint, hintFont);
     DrawText(hint, sw / 2 - hintW / 2,
         titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
 
     // Keybinds — two columns on left side
-    const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "Ctrl", "P / Esc", "0" };
+    const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0" };
     const char *coreDescs[] = { "Move", "Dash", "Primary", "Alt Fire", "Swap Weapon", "Pause", "Exit" };
     int coreCount = 7;
     int keyFont = (int)(SELECT_KEYS_FONT * ui);
     int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
     int keyX = (int)(sw * SELECT_KEYS_X);
     int keyBaseY = (int)(sh * SELECT_KEYS_Y);
-    int keyTabW = (int)(50 * ui);
+    int keyTabW = (int)(60 * ui);
 
     // Column 1: core controls
     for (int i = 0; i < coreCount; i++) {
@@ -774,11 +774,11 @@ static void DrawSelect(void)
     // Weapons (right column) — ordered by solid face count (4→6→8→12→20)
     const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
     const char *descs[] = {
-        "Click to swing — melee arc slash",
-        "Precise single shots — fan the hammer with M2",
-        "Hold to fire — rapid ballistic rounds",
-        "Click to fire — high damage, slows targets",
-        "Fire rockets — M2 detonates mid-flight",
+        "M1 sweep, M2 lunge, dash slash",
+        "M1 single, M2 fan hammer, dash reload",
+        "M1 burst, M2 minigun, overheat QTE",
+        "M1 hip fire, M2 ADS, dash super shot",
+        "M1 rocket, M2 detonate, rocket jump",
     };
     // Map display index → WeaponType
     WeaponType selectWeapons[] = {

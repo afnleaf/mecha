@@ -651,7 +651,7 @@
 #define SELECT_TITLE_FONT       40
 #define SELECT_TITLE_Y          0.08f
 #define SELECT_OPTION_FONT      24
-#define SELECT_DESC_FONT        14
+#define SELECT_DESC_FONT        12
 #define SELECT_OPTION_SPACING   60
 #define SELECT_OPTIONS_Y        0.25f
 #define SELECT_DESC_GAP         6
@@ -661,9 +661,9 @@
 #define SELECT_HINT_GAP         10
 #define SELECT_BG_COLOR         (Color){ 15, 15, 25, 255 }
 #define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
-#define SELECT_KEYS_X           0.05f
+#define SELECT_KEYS_X           0.02f
 #define SELECT_KEYS_Y           0.25f
 #define SELECT_KEYS_FONT        14
-#define SELECT_KEYS_SPACING     22
-#define SELECT_WEAPONS_X        0.95f
+#define SELECT_KEYS_SPACING     26
+#define SELECT_WEAPONS_X        0.98f
 
