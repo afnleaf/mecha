@@ -31,6 +31,9 @@
 #define ENEMY_CONTACT_KNOCKBACK 200.0f
 #define SPAWN_INITIAL_DELAY     1.0f
 
+// Weapon Swap
+#define WEAPON_SWAP_KEY         KEY_LEFT_CONTROL
+
 // Mecha ------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
@@ -119,7 +122,7 @@
 #define DASH_GHOST_ROT_STEP     0.15f
 #define DASH_BURST_PARTICLES    5
 #define DASH_SUPER_WINDOW       0.12f
-#define DECOY_DURATION          1.0f
+#define DECOY_DURATION          1.6f
 #define DECOY_PULSE_SPEED       8.0f
 #define DECOY_MIN_ALPHA         0.15f
 #define DECOY_MAX_ALPHA         0.45f

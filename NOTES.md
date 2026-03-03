@@ -169,7 +169,7 @@ abilities
 - [x] super dash, like deadlock dash timing on the second dash gives you something
 - [x] decoy (you leave your shadow on the ground, and the enemies aggro it)
 - [x] spin
-- [] parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
+- [] shield/parry (delete projectiles in a radius around the player, maybe able to parry contact damage from melee enemies, )
 - [x] spin that deflects bullets
 - [] summons (npcs who take aggro for you) 
 - are weapons just abilities in a mecha? buttons?
@@ -181,7 +181,7 @@ players
 - [x] dodecahedron
 - [x] icosahedron
 - [x] decide who gets which primary weapon
-- [] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
+- [x] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
 
 levels
 - [] rounds/rooms

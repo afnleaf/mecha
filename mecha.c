@@ -90,6 +90,7 @@ static void InitGame(void)
 
     g.screen          = SCREEN_SELECT;
     g.selectIndex     = 0;
+    g.selectPhase     = 0;
 }
 
 // ========================================================================== /
@@ -594,11 +595,23 @@ static const char* KeyName(int key) {
         case KEY_C:           return "C";
         case KEY_V:           return "V";
         case KEY_LEFT_SHIFT:  return "Shift";
+        case KEY_LEFT_CONTROL: return "Ctrl";
         case KEY_ONE:         return "1";
         case KEY_TWO:         return "2";
         case KEY_THREE:       return "3";
         case KEY_FOUR:        return "4";
         default:              return "?";
+    }
+}
+
+static const char* WeaponName(WeaponType w) {
+    switch (w) {
+        case WPN_GUN:      return "GUN";
+        case WPN_SWORD:    return "SWORD";
+        case WPN_REVOLVER: return "REVLVR";
+        case WPN_SNIPER:   return "SNIPER";
+        case WPN_ROCKET:   return "ROCKET";
+        default:           return "???";
     }
 }
 
@@ -643,17 +656,40 @@ static Vector2 mouse() {
 // ========================================================================== /
 static void UpdateSelect(void)
 {
-    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))
-        g.selectIndex = (g.selectIndex + 4) % 5; // wrap up
-    if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))
-        g.selectIndex = (g.selectIndex + 1) % 5; // wrap down
-    // Display order: SWORD, REVOLVER, GUN, SNIPER, MINIGUN (face count ascending)
+    // Display order: SWORD, REVOLVER, GUN, SNIPER, ROCKET (face count ascending)
     WeaponType selectWeapons[] = {
         WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
     };
+
+    // Navigation — skip already-chosen primary in phase 1
+    int dir = 0;
+    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))   dir = -1;
+    if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))  dir = 1;
+    if (dir) {
+        int next = g.selectIndex;
+        for (int tries = 0; tries < 5; tries++) {
+            next = (next + dir + 5) % 5;
+            if (g.selectPhase == 1
+                && selectWeapons[next] == g.player.primary)
+                continue;
+            break;
+        }
+        g.selectIndex = next;
+    }
+
     if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        g.player.primary = selectWeapons[g.selectIndex];
-        g.screen = SCREEN_PLAYING;
+        if (g.selectPhase == 0) {
+            g.player.primary = selectWeapons[g.selectIndex];
+            g.selectPhase = 1;
+            // Move cursor to next available slot
+            int next = (g.selectIndex + 1) % 5;
+            if (selectWeapons[next] == g.player.primary)
+                next = (next + 1) % 5;
+            g.selectIndex = next;
+        } else {
+            g.player.secondary = selectWeapons[g.selectIndex];
+            g.screen = SCREEN_PLAYING;
+        }
     }
 }
 
@@ -666,9 +702,10 @@ static void DrawSelect(void)
     BeginDrawing();
     ClearBackground(SELECT_BG_COLOR);
 
-    // Title
+    // Title — changes per phase
     int titleFont = (int)(SELECT_TITLE_FONT * ui);
-    const char *title = "CHOOSE YOUR WEAPON";
+    const char *title = g.selectPhase == 0
+        ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
     int titleW = MeasureText(title, titleFont);
     int titleY = (int)(sh * SELECT_TITLE_Y);
     DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
@@ -681,9 +718,9 @@ static void DrawSelect(void)
         titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
 
     // Keybinds (left column)
-    const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "P / Esc", "0" };
-    const char *coreDescs[] = { "Move", "Dash", "Primary Weapon", "Alt Fire", "Pause", "Exit" };
-    int coreCount = 6;
+    const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "Ctrl", "P / Esc", "0" };
+    const char *coreDescs[] = { "Move", "Dash", "Primary Weapon", "Alt Fire", "Swap Weapon", "Pause", "Exit" };
+    int coreCount = 7;
     int keyFont = (int)(SELECT_KEYS_FONT * ui);
     int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
     int keyX = (int)(sw * SELECT_KEYS_X);
@@ -735,29 +772,50 @@ static void DrawSelect(void)
         DrawIcosa2D,    // Icosahedron  (20) — ROCKET
     };
 
-    // magic number
     for (int i = 0; i < 5; i++) {
         int y = baseY + i * spacing;
-        Color nameColor = (i == g.selectIndex) ? SELECT_HIGHLIGHT_COLOR : GRAY;
-        Color descColor = (i == g.selectIndex) ? WHITE : DARKGRAY;
+        // Phase 1: gray out already-chosen primary
+        bool locked = (g.selectPhase == 1
+            && selectWeapons[i] == g.player.primary);
+        Color nameColor, descColor;
+        if (locked) {
+            nameColor = Fade(GREEN, 0.4f);
+            descColor = Fade(GREEN, 0.25f);
+        } else if (i == g.selectIndex) {
+            nameColor = SELECT_HIGHLIGHT_COLOR;
+            descColor = WHITE;
+        } else {
+            nameColor = GRAY;
+            descColor = DARKGRAY;
+        }
 
         int nameW = MeasureText(names[i], optFont);
         int nameX = weaponRightX - nameW;
         DrawText(names[i], nameX, y, optFont, nameColor);
 
         // Selection highlight box
-        if (i == g.selectIndex) {
+        if (i == g.selectIndex && !locked) {
             int pad = (int)(SELECT_CURSOR_PAD * ui);
             DrawRectangleLinesEx(
                 (Rectangle){ nameX - pad, y - pad,
                     nameW + pad * 2, optFont + pad * 2 },
                 SELECT_CURSOR_THICK * ui, SELECT_HIGHLIGHT_COLOR);
         }
+        // Locked indicator for chosen primary
+        if (locked) {
+            int pad = (int)(SELECT_CURSOR_PAD * ui);
+            DrawRectangleLinesEx(
+                (Rectangle){ nameX - pad, y - pad,
+                    nameW + pad * 2, optFont + pad * 2 },
+                SELECT_CURSOR_THICK * ui, Fade(GREEN, 0.4f));
+        }
 
         // Solid preview next to weapon name
         float solidSize = optFont * 0.35f;
-        float previewAlpha = (i == g.selectIndex) ? 1.0f : 0.3f;
-        float shadowAlpha = (i == g.selectIndex) ? SHADOW_ALPHA : SHADOW_ALPHA * 0.3f;
+        float previewAlpha = locked ? 0.4f :
+            (i == g.selectIndex) ? 1.0f : 0.3f;
+        float shadowAlpha = locked ? SHADOW_ALPHA * 0.2f :
+            (i == g.selectIndex) ? SHADOW_ALPHA : SHADOW_ALPHA * 0.3f;
         float t = (float)GetTime();
         Vector2 solidPos = { nameX - optFont * 1.0f, y + optFont * 0.5f };
         Vector2 shadowP = { solidPos.x + SHADOW_OFFSET_X, solidPos.y + SHADOW_OFFSET_Y };
@@ -919,6 +977,43 @@ static void UpdatePlayer(float dt)
                 p->sniper.adsDuringDash = false;
             }
         }
+    }
+
+    // --- Weapon swap (Ctrl) ---
+    if (IsKeyPressed(WEAPON_SWAP_KEY)) {
+        WeaponType tmp = p->primary;
+        p->primary = p->secondary;
+        p->secondary = tmp;
+        // Reset active states on swap-out
+        p->sniper.aiming = false;
+        p->minigun.slowTimer = 0;
+        p->revolver.fanning = false;
+    }
+
+    // --- Holstered weapon passive timers ---
+    if (p->primary != WPN_SNIPER && p->sniper.cooldownTimer > 0)
+        p->sniper.cooldownTimer -= dt;
+    if (p->primary != WPN_REVOLVER) {
+        if (p->revolver.reloadTimer > 0) {
+            p->revolver.reloadTimer -= dt;
+            if (p->revolver.reloadTimer <= 0) {
+                p->revolver.rounds = REVOLVER_ROUNDS;
+                p->revolver.reloadTimer = 0;
+                p->revolver.reloadLocked = false;
+            }
+        }
+    }
+    if (p->primary != WPN_GUN) {
+        // Passive heat decay while holstered
+        if (p->gun.heat > 0) {
+            p->gun.heat -= GUN_HEAT_DECAY * dt;
+            if (p->gun.heat <= 0) {
+                p->gun.heat = 0;
+                p->gun.overheated = false;
+            }
+        }
+        p->minigun.spinUp -= dt / MINIGUN_SPIN_DOWN_TIME;
+        if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
     }
 
     // --- M1 weapon dispatch ---
@@ -3558,12 +3653,23 @@ static void DrawHUD(void)
         TextFormat("Kills: %d", g.enemiesKilled),
         (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
 
+    // Weapon swap indicator
+    {
+        int wFont = (int)(HUD_CD_FONT * ui);
+        int wX = (int)(HUD_MARGIN * ui);
+        int wY = (int)(HUD_CD_Y * ui) - (int)(20 * ui);
+        const char *pri = WeaponName(p->primary);
+        const char *sec = WeaponName(p->secondary);
+        DrawText(pri, wX, wY, wFont, SELECT_HIGHLIGHT_COLOR);
+        int secX = wX + MeasureText(pri, wFont) + (int)(6 * ui);
+        DrawText(TextFormat("/ %s", sec), secX, wY, wFont,
+            Fade(WHITE, 0.35f));
+        int ctrlX = secX + MeasureText(TextFormat("/ %s", sec), wFont)
+            + (int)(6 * ui);
+        DrawText("[Ctrl]", ctrlX, wY, wFont, Fade(WHITE, 0.2f));
+    }
+
     // Cooldown indicators
-    // this needs to be refactored
-    // different from dash, diff CDs 
-    // also its a UI thing that will be redesigned eventually
-    // spin??
-    // spin bar?
     int cdBarW = (int)(HUD_CD_W * ui);
     int cdBarH = (int)(HUD_CD_H * ui);
     int cdX = (int)(HUD_MARGIN * ui);
@@ -3657,8 +3763,8 @@ static void DrawHUD(void)
         }
     }
 
-    // Sniper cooldown (only when sniper is primary)
-    if (p->primary == WPN_SNIPER) {
+    // Sniper cooldown (when sniper is equipped)
+    if (p->primary == WPN_SNIPER || p->secondary == WPN_SNIPER) {
     cdY += (int)(HUD_ROW_SPACING * ui);
     {
         // Label and color change with mode

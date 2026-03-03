@@ -193,6 +193,7 @@ typedef struct Player {
     Sniper  sniper;
     Bfg     bfg;
     WeaponType primary;
+    WeaponType secondary;
     AbilitySlot slots[ABILITY_SLOTS];
     Vector2 shadowPos;
 } Player;
@@ -365,6 +366,7 @@ typedef struct GameState {
     bool paused;
     GameScreen screen;
     int selectIndex;
+    int selectPhase;    // 0 = picking primary, 1 = picking secondary
 } GameState;
 
 // ========================================================================== /
