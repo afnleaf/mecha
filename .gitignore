@@ -13,6 +13,10 @@ mecha.js
 .claude/
 .garry/
 
+# Superseded by STATE.md
+claude_review.md
+CLAUDE_THOUGHTS.md
+
 # # Prerequisites
 *.d
 
