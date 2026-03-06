@@ -113,7 +113,7 @@ asset loader
 - [x] (user + claude) bullet to projectile or base struct
 - [x] (claude) big refactor of all hardcoded numbers
 - [x] figure out how to do hitscan, what are the other weapon types?
-- [] time to make src/ folder and split up the project?
+- [x] time to make src/ folder and split up the project?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [] enemy debuff whack
 - [] understand particles better (this is an art thing...)
