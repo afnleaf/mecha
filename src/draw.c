@@ -904,7 +904,7 @@ static void DrawWorld(void)
 
     // --- Particles (behind entities) ---
     for (int i = 0; i < MAX_PARTICLES; i++) {
-        Particle *pt = &g.particles[i];
+        Particle *pt = &g.vfx.particles[i];
         if (!pt->active) continue;
         float alpha = pt->lifetime / pt->maxLifetime;
         Color c = Fade(pt->color, alpha);
@@ -1001,7 +1001,7 @@ static void DrawWorld(void)
 
     // --- Mine Web VFX ---
     for (int i = 0; i < MAX_MINE_WEBS; i++) {
-        MineWebVfx *w = &g.mineWebs[i];
+        MineWebVfx *w = &g.vfx.mineWebs[i];
         if (!w->active) continue;
         float progress = 1.0f - (w->timer / MINE_WEB_DURATION);
         float alpha = 1.0f - progress;
@@ -1083,7 +1083,7 @@ static void DrawWorld(void)
 
     // --- Explosion rings ---
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        Explosive *ex = &g.explosives[i];
+        Explosive *ex = &g.vfx.explosives[i];
         if (!ex->active) continue;
         float t = ex->timer / ex->duration;
         float alpha = t * 0.7f;
@@ -1449,7 +1449,7 @@ static void DrawWorld(void)
 
     // --- Beam pool (railgun lingering flash) ---
     for (int i = 0; i < MAX_BEAMS; i++) {
-        Beam *b = &g.beams[i];
+        Beam *b = &g.vfx.beams[i];
         if (!b->active) continue;
         float t = b->timer / b->duration;
         Color glow = { RAILGUN_GLOW_COLOR.r, RAILGUN_GLOW_COLOR.g,

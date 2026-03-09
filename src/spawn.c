@@ -213,14 +213,14 @@ void SpawnParticle(
     Color color, float size, float lifetime)
 {
     for (int i = 0; i < MAX_PARTICLES; i++) {
-        if (!g.particles[i].active) {
-            g.particles[i].active = true;
-            g.particles[i].pos = pos;
-            g.particles[i].vel = vel;
-            g.particles[i].color = color;
-            g.particles[i].size = size;
-            g.particles[i].lifetime = lifetime;
-            g.particles[i].maxLifetime = lifetime;
+        if (!g.vfx.particles[i].active) {
+            g.vfx.particles[i].active = true;
+            g.vfx.particles[i].pos = pos;
+            g.vfx.particles[i].vel = vel;
+            g.vfx.particles[i].color = color;
+            g.vfx.particles[i].size = size;
+            g.vfx.particles[i].lifetime = lifetime;
+            g.vfx.particles[i].maxLifetime = lifetime;
             return;
         }
     }
@@ -243,7 +243,7 @@ void SpawnBeam(Vector2 origin, Vector2 tip,
     float duration, Color color, float width)
 {
     for (int i = 0; i < MAX_BEAMS; i++) {
-        Beam *b = &g.beams[i];
+        Beam *b = &g.vfx.beams[i];
         if (b->active) continue;
         b->origin   = origin;
         b->tip      = tip;

@@ -1414,11 +1414,11 @@ static void RocketExplode(Vector2 pos) {
     }
     // spawn radius ring
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.explosives[i].active) {
-            g.explosives[i].active = true;
-            g.explosives[i].pos = pos;
-            g.explosives[i].timer = EXPLOSION_VFX_DURATION;
-            g.explosives[i].duration = EXPLOSION_VFX_DURATION;
+        if (!g.vfx.explosives[i].active) {
+            g.vfx.explosives[i].active = true;
+            g.vfx.explosives[i].pos = pos;
+            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
+            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
             break;
         }
     }
@@ -1467,11 +1467,11 @@ static void GrenadeExplode(Vector2 pos) {
     }
     // spawn radius ring
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.explosives[i].active) {
-            g.explosives[i].active = true;
-            g.explosives[i].pos = pos;
-            g.explosives[i].timer = EXPLOSION_VFX_DURATION;
-            g.explosives[i].duration = EXPLOSION_VFX_DURATION;
+        if (!g.vfx.explosives[i].active) {
+            g.vfx.explosives[i].active = true;
+            g.vfx.explosives[i].pos = pos;
+            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
+            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
             break;
         }
     }
@@ -1575,8 +1575,8 @@ static void UpdateDeployables(float dt) {
                 SpawnParticles(d->pos, (Color)MINE_COLOR, 10);
                 // spawn web VFX
                 for (int j = 0; j < MAX_MINE_WEBS; j++) {
-                    if (!g.mineWebs[j].active) {
-                        g.mineWebs[j] = (MineWebVfx){
+                    if (!g.vfx.mineWebs[j].active) {
+                        g.vfx.mineWebs[j] = (MineWebVfx){
                             .pos = d->pos,
                             .timer = MINE_WEB_DURATION,
                             .active = true,
@@ -1609,9 +1609,9 @@ static void UpdateDeployables(float dt) {
 
     // tick mine web VFX
     for (int i = 0; i < MAX_MINE_WEBS; i++) {
-        if (!g.mineWebs[i].active) continue;
-        g.mineWebs[i].timer -= dt;
-        if (g.mineWebs[i].timer <= 0) g.mineWebs[i].active = false;
+        if (!g.vfx.mineWebs[i].active) continue;
+        g.vfx.mineWebs[i].timer -= dt;
+        if (g.vfx.mineWebs[i].timer <= 0) g.vfx.mineWebs[i].active = false;
     }
 }
 
@@ -1946,7 +1946,7 @@ static void UpdateParticles(float dt)
 {
     // --- Particles ---
     for (int i = 0; i < MAX_PARTICLES; i++) {
-        Particle *pt = &g.particles[i];
+        Particle *pt = &g.vfx.particles[i];
         if (!pt->active) continue;
         pt->pos = Vector2Add(pt->pos, Vector2Scale(pt->vel, dt));
         pt->vel = Vector2Scale(pt->vel, 1.0f - PARTICLE_DRAG * dt);
@@ -1959,7 +1959,7 @@ static void UpdateParticles(float dt)
 static void UpdateBeams(float dt)
 {
     for (int i = 0; i < MAX_BEAMS; i++) {
-        Beam *b = &g.beams[i];
+        Beam *b = &g.vfx.beams[i];
         if (!b->active) continue;
         b->timer -= dt;
         if (b->timer <= 0) b->active = false;
@@ -2056,10 +2056,10 @@ void UpdateGame(void)
     UpdateFirePatches(dt);
 
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.explosives[i].active) continue;
-        g.explosives[i].timer -= dt;
-        if (g.explosives[i].timer <= 0)
-            g.explosives[i].active = false;
+        if (!g.vfx.explosives[i].active) continue;
+        g.vfx.explosives[i].timer -= dt;
+        if (g.vfx.explosives[i].timer <= 0)
+            g.vfx.explosives[i].active = false;
     }
 
     MoveCamera(dt);

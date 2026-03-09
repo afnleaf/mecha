@@ -412,9 +412,7 @@ typedef struct FirePatch {
     bool active;
 } FirePatch;
 
-// state -------------------------------------------------------------------- /
-// this is THE piece of data that we are operating on
-// it sits inside of our pipeline
+// vfx ---------------------------------------------------------------------- /
 typedef struct MineWebVfx {
     Vector2 pos;
     float timer;
@@ -423,25 +421,29 @@ typedef struct MineWebVfx {
 
 #define MAX_MINE_WEBS 4
 
+typedef struct VfxState {
+    Particle particles[MAX_PARTICLES];
+    Beam beams[MAX_BEAMS];
+    Explosive explosives[MAX_EXPLOSIVES];
+    MineWebVfx mineWebs[MAX_MINE_WEBS];
+} VfxState;
+
+// state -------------------------------------------------------------------- /
+// this is THE piece of data that we are operating on
+// it sits inside of our pipeline
 typedef struct GameState {
     // the player entity
     Player player;
     Projectile projectiles[MAX_PROJECTILES];
-    // separate enemy bullets?
     Enemy enemies[MAX_ENEMIES];
-    //
-    Particle particles[MAX_PARTICLES];
-    Explosive explosives[MAX_EXPLOSIVES];
-    Beam beams[MAX_BEAMS];
     Deployable deployables[MAX_DEPLOYABLES];
-    MineWebVfx mineWebs[MAX_MINE_WEBS];
     FirePatch firePatches[MAX_FIRE_PATCHES];
     LightningChain lightning;
+    // vfx event buffer — update writes, draw reads
+    VfxState vfx;
     //
     Camera2D camera;
     int score;
-    // maybe I can combine some of this into a u64? u32? bit pack
-    // especially the bools
     float spawnTimer;
     float spawnInterval;
     int enemiesKilled;
