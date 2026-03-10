@@ -446,6 +446,7 @@ typedef struct GameState {
     GameScreen screen;
     int selectIndex;
     int selectPhase;    // 0 = picking primary, 1 = picking secondary
+    float selectDemoTimer;
 } GameState;
 
 #endif // MECHA_H

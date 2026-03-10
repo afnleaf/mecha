@@ -755,20 +755,25 @@
 // Weapon Select Screen ----------------------------------------------------- /
 #define SELECT_TITLE_FONT       40
 #define SELECT_TITLE_Y          0.08f
-#define SELECT_OPTION_FONT      24
 #define SELECT_DESC_FONT        12
-#define SELECT_OPTION_SPACING   60
-#define SELECT_OPTIONS_Y        0.25f
 #define SELECT_DESC_GAP         6
-#define SELECT_CURSOR_PAD       8
-#define SELECT_CURSOR_THICK     2.0f
 #define SELECT_HINT_FONT        14
 #define SELECT_HINT_GAP         10
-#define SELECT_BG_COLOR         (Color){ 15, 15, 25, 255 }
+#define SELECT_BG_COLOR         (Color){ 12, 12, 20, 255 }
 #define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
-#define SELECT_KEYS_X           0.02f
-#define SELECT_KEYS_Y           0.25f
-#define SELECT_KEYS_FONT        14
-#define SELECT_KEYS_SPACING     26
-#define SELECT_WEAPONS_X        0.98f
+// Diegetic arena
+#define SELECT_ARENA_SIZE       800.0f
+#define SELECT_ARENA_CENTER     400.0f
+#define SELECT_PEDESTAL_RADIUS  250.0f
+#define SELECT_SOLID_SIZE       40.0f
+#define SELECT_INTERACT_RADIUS  80.0f
+#define SELECT_PLAYER_SPEED     250.0f
+#define SELECT_DEMO_INTERVAL    0.3f
+#define SELECT_RING_PULSE_SPEED 4.0f
+#define SELECT_RING_RADIUS      60.0f
+#define SELECT_LABEL_FONT       20
+#define SELECT_PROMPT_FONT      14
+#define SELECT_GRID_STEP_SEL    80.0f
+#define SELECT_GRID_COLOR_SEL   (Color){ 30, 30, 45, 255 }
+#define SELECT_FLOOR_COLOR      (Color){ 12, 12, 20, 255 }
 

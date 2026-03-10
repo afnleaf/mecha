@@ -15,15 +15,19 @@ void InitGame(void)
     InitPlayer();
 
     g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
-    g.camera.target   = g.player.pos;
+    g.camera.target   = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER };
     g.camera.zoom     = 1.0f;
 
     g.spawnInterval   = SPAWN_INTERVAL;
     g.spawnTimer      = SPAWN_INITIAL_DELAY;
 
     g.screen          = SCREEN_SELECT;
-    g.selectIndex     = 0;
+    g.selectIndex     = -1;
     g.selectPhase     = 0;
+
+    // start player at arena center for select screen
+    g.player.pos      = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER };
+    g.player.shadowPos = g.player.pos;
 }
 
 // seperate for ease of maintainability

@@ -1610,56 +1610,12 @@ static void DrawSelect(void)
     int sw = GetScreenWidth();
     int sh = GetScreenHeight();
     float ui = (float)sh / HUD_SCALE_REF;
+    Player *p = &g.player;
+    float t = (float)GetTime();
 
-    BeginDrawing();
-    ClearBackground(SELECT_BG_COLOR);
-
-    // Title — changes per phase
-    int titleFont = (int)(SELECT_TITLE_FONT * ui);
-    const char *title = g.selectPhase == 0
-        ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
-    int titleW = MeasureText(title, titleFont);
-    int titleY = (int)(sh * SELECT_TITLE_Y);
-    DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
-
-    // Hint (below title)
-    int hintFont = (int)(SELECT_HINT_FONT * ui);
-    const char *hint = "W/S to navigate - Enter or M1 to confirm";
-    int hintW = MeasureText(hint, hintFont);
-    DrawText(hint, sw / 2 - hintW / 2,
-        titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
-
-    // Keybinds — two columns on left side
-    const char *coreKeys[]  = { "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0" };
-    const char *coreDescs[] = { "Move", "Dash", "Primary", "Alt Fire", "Swap Weapon", "Pause", "Exit" };
-    int coreCount = 7;
-    int keyFont = (int)(SELECT_KEYS_FONT * ui);
-    int keySpacing = (int)(SELECT_KEYS_SPACING * ui);
-    int keyX = (int)(sw * SELECT_KEYS_X);
-    int keyBaseY = (int)(sh * SELECT_KEYS_Y);
-    int keyTabW = (int)(60 * ui);
-
-    // Column 1: core controls
-    for (int i = 0; i < coreCount; i++) {
-        int ky = keyBaseY + i * keySpacing;
-        DrawText(coreKeys[i], keyX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
-        DrawText(coreDescs[i], keyX + keyTabW, ky, keyFont, Fade(WHITE, 0.6f));
-    }
-
-    // Column 2: abilities (starts to the right of column 1)
-    int ablX = keyX + (int)(160 * ui);
-    Player *sp = &g.player;
-    int ablRow = 0;
-    for (int i = 0; i < ABILITY_SLOTS; i++) {
-        const char *name = AbilityName(sp->slots[i].ability);
-        if (!name) continue;
-        int ky = keyBaseY + ablRow * keySpacing;
-        DrawText(KeyName(sp->slots[i].key), ablX, ky, keyFont, SELECT_HIGHLIGHT_COLOR);
-        DrawText(name, ablX + keyTabW, ky, keyFont, Fade(WHITE, 0.6f));
-        ablRow++;
-    }
-
-    // Weapons (right column) — ordered by solid face count (4→6→8→12→20)
+    WeaponType selectWeapons[] = {
+        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
+    };
     const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
     const char *descs[] = {
         "M1 sweep, M2 lunge, dash slash",
@@ -1668,78 +1624,142 @@ static void DrawSelect(void)
         "M1 hip fire, M2 ADS, dash super shot",
         "M1 rocket, M2 detonate, rocket jump",
     };
-    // Map display index → WeaponType
-    WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
-    };
-    int optFont = (int)(SELECT_OPTION_FONT * ui);
-    int descFont = (int)(SELECT_DESC_FONT * ui);
-    int spacing = (int)(SELECT_OPTION_SPACING * ui);
-    int baseY = (int)(sh * SELECT_OPTIONS_Y);
-    int weaponRightX = (int)(sw * SELECT_WEAPONS_X);
 
-    // Draw function per display slot (face count order)
     typedef void (*DrawSolidFn)(Vector2, float, float, float, float, Vector2, float);
     DrawSolidFn solidFns[] = {
-        DrawTetra2D,    // Tetrahedron  (4)  — SWORD
-        DrawCube2D,     // Cube         (6)  — REVOLVER
-        DrawOcta2D,     // Octahedron   (8)  — GUN
-        DrawDodeca2D,   // Dodecahedron (12) — SNIPER
-        DrawIcosa2D,    // Icosahedron  (20) — ROCKET
+        DrawTetra2D, DrawCube2D, DrawOcta2D, DrawDodeca2D, DrawIcosa2D,
     };
 
+    // Pedestal positions (pentagon layout)
+    Vector2 pedestals[5];
     for (int i = 0; i < 5; i++) {
-        int y = baseY + i * spacing;
-        // Phase 1: gray out already-chosen primary
-        bool locked = (g.selectPhase == 1
-            && selectWeapons[i] == g.player.primary);
-        Color nameColor, descColor;
-        if (locked) {
-            nameColor = Fade(GREEN, 0.4f);
-            descColor = Fade(GREEN, 0.25f);
-        } else if (i == g.selectIndex) {
-            nameColor = SELECT_HIGHLIGHT_COLOR;
-            descColor = WHITE;
+        float a = i * (2.0f * PI / 5.0f) - PI / 2.0f;
+        pedestals[i] = (Vector2){
+            SELECT_ARENA_CENTER + cosf(a) * SELECT_PEDESTAL_RADIUS,
+            SELECT_ARENA_CENTER + sinf(a) * SELECT_PEDESTAL_RADIUS
+        };
+    }
+
+    BeginDrawing();
+    ClearBackground(SELECT_BG_COLOR);
+
+    // --- World space ---
+    BeginMode2D(g.camera);
+
+    // Arena grid
+    for (float x = 0; x <= SELECT_ARENA_SIZE; x += SELECT_GRID_STEP_SEL) {
+        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, SELECT_ARENA_SIZE }, SELECT_GRID_COLOR_SEL);
+    }
+    for (float y = 0; y <= SELECT_ARENA_SIZE; y += SELECT_GRID_STEP_SEL) {
+        DrawLineV((Vector2){ 0, y }, (Vector2){ SELECT_ARENA_SIZE, y }, SELECT_GRID_COLOR_SEL);
+    }
+    // Arena border
+    DrawRectangleLinesEx((Rectangle){ 0, 0, SELECT_ARENA_SIZE, SELECT_ARENA_SIZE },
+        MAP_BORDER_THICKNESS, Fade(SELECT_HIGHLIGHT_COLOR, 0.3f));
+
+    // Particles (behind everything)
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        Particle *pt = &g.vfx.particles[i];
+        if (!pt->active) continue;
+        float alpha = pt->lifetime / pt->maxLifetime;
+        DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
+    }
+
+    // Pedestals
+    for (int i = 0; i < 5; i++) {
+        bool locked = (g.selectPhase == 1 && selectWeapons[i] == p->primary);
+        bool highlighted = (i == g.selectIndex);
+
+        // Ground ring
+        float ringR = SELECT_RING_RADIUS;
+        if (highlighted) {
+            float pulse = 1.0f + 0.15f * sinf(t * SELECT_RING_PULSE_SPEED);
+            ringR *= pulse;
+            DrawCircleLines(pedestals[i].x, pedestals[i].y, ringR,
+                SELECT_HIGHLIGHT_COLOR);
+            DrawCircleLines(pedestals[i].x, pedestals[i].y, ringR - 2.0f,
+                Fade(SELECT_HIGHLIGHT_COLOR, 0.4f));
+        } else if (locked) {
+            DrawCircleLines(pedestals[i].x, pedestals[i].y, ringR,
+                Fade(GREEN, 0.4f));
         } else {
-            nameColor = GRAY;
-            descColor = DARKGRAY;
+            DrawCircleLines(pedestals[i].x, pedestals[i].y, ringR,
+                Fade(WHITE, 0.2f));
         }
 
-        int nameW = MeasureText(names[i], optFont);
-        int nameX = weaponRightX - nameW;
-        DrawText(names[i], nameX, y, optFont, nameColor);
-
-        // Selection highlight box
-        if (i == g.selectIndex && !locked) {
-            int pad = (int)(SELECT_CURSOR_PAD * ui);
-            DrawRectangleLinesEx(
-                (Rectangle){ nameX - pad, y - pad,
-                    nameW + pad * 2, optFont + pad * 2 },
-                SELECT_CURSOR_THICK * ui, SELECT_HIGHLIGHT_COLOR);
-        }
-        // Locked indicator for chosen primary
-        if (locked) {
-            int pad = (int)(SELECT_CURSOR_PAD * ui);
-            DrawRectangleLinesEx(
-                (Rectangle){ nameX - pad, y - pad,
-                    nameW + pad * 2, optFont + pad * 2 },
-                SELECT_CURSOR_THICK * ui, Fade(GREEN, 0.4f));
-        }
-
-        // Solid preview next to weapon name
-        float solidSize = optFont * 0.35f;
-        float previewAlpha = locked ? 0.4f :
-            (i == g.selectIndex) ? 1.0f : 0.3f;
+        // Rotating solid
+        float solidSize = highlighted ? SELECT_SOLID_SIZE * 1.2f : SELECT_SOLID_SIZE;
+        float solidAlpha = locked ? 0.35f : highlighted ? 1.0f : 0.6f;
         float shadowAlpha = locked ? SHADOW_ALPHA * 0.2f :
-            (i == g.selectIndex) ? SHADOW_ALPHA : SHADOW_ALPHA * 0.3f;
-        float t = (float)GetTime();
-        Vector2 solidPos = { nameX - optFont * 1.0f, y + optFont * 0.5f };
-        Vector2 shadowP = { solidPos.x + SHADOW_OFFSET_X, solidPos.y + SHADOW_OFFSET_Y };
-        solidFns[i](solidPos, solidSize, t * PLAYER_ROT_SPEED, PLAYER_ROT_TILT, previewAlpha, shadowP, shadowAlpha);
+            highlighted ? SHADOW_ALPHA : SHADOW_ALPHA * 0.3f;
+        Vector2 shadowP = { pedestals[i].x + SHADOW_OFFSET_X,
+                            pedestals[i].y + SHADOW_OFFSET_Y };
+        solidFns[i](pedestals[i], solidSize, t * PLAYER_ROT_SPEED, PLAYER_ROT_TILT,
+            solidAlpha, shadowP, shadowAlpha);
+    }
 
-        int descW = MeasureText(descs[i], descFont);
-        DrawText(descs[i], weaponRightX - descW,
-            y + optFont + (int)(SELECT_DESC_GAP * ui), descFont, descColor);
+    // Player
+    if (g.selectPhase == 0) {
+        // RGB hue-cycling circle
+        float hue = fmodf(t * 60.0f, 360.0f);
+        Color rgb = ColorFromHSV(hue, 0.9f, 1.0f);
+        // Shadow
+        DrawCircleV(p->shadowPos, p->size, Fade(BLACK, SHADOW_ALPHA));
+        DrawCircleV(p->pos, p->size, rgb);
+        DrawCircleV(p->pos, p->size * 0.5f, Fade(WHITE, 0.4f));
+    } else {
+        // After primary chosen, draw as that solid
+        float rotY = t * PLAYER_ROT_SPEED;
+        float rotX = PLAYER_ROT_TILT;
+        Vector2 shadowPos = { p->shadowPos.x + SHADOW_OFFSET_X,
+                              p->shadowPos.y + SHADOW_OFFSET_Y };
+        DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f, shadowPos, SHADOW_ALPHA);
+    }
+
+    EndMode2D();
+
+    // --- Screen space overlay ---
+    // Title
+    int titleFont = (int)(SELECT_TITLE_FONT * ui);
+    const char *title = g.selectPhase == 0
+        ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
+    int titleW = MeasureText(title, titleFont);
+    int titleY = (int)(sh * SELECT_TITLE_Y);
+    DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
+
+    // Hint
+    int hintFont = (int)(SELECT_HINT_FONT * ui);
+    const char *hint = "walk to a weapon and click to select";
+    int hintW = MeasureText(hint, hintFont);
+    DrawText(hint, sw / 2 - hintW / 2,
+        titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
+
+    // Weapon name/desc near highlighted pedestal
+    if (g.selectIndex >= 0) {
+        int idx = g.selectIndex;
+        Vector2 screenPos = GetWorldToScreen2D(pedestals[idx], g.camera);
+        int labelFont = (int)(SELECT_LABEL_FONT * ui);
+        int descFont = (int)(SELECT_DESC_FONT * ui);
+        int nameW = MeasureText(names[idx], labelFont);
+        DrawText(names[idx], (int)screenPos.x - nameW / 2,
+            (int)screenPos.y - (int)(SELECT_RING_RADIUS * 1.3f), labelFont, SELECT_HIGHLIGHT_COLOR);
+        int descW = MeasureText(descs[idx], descFont);
+        DrawText(descs[idx], (int)screenPos.x - descW / 2,
+            (int)screenPos.y - (int)(SELECT_RING_RADIUS * 1.3f) + labelFont + (int)(SELECT_DESC_GAP * ui),
+            descFont, WHITE);
+    }
+
+    // Locked primary label
+    if (g.selectPhase == 1) {
+        for (int i = 0; i < 5; i++) {
+            if (selectWeapons[i] != p->primary) continue;
+            Vector2 screenPos = GetWorldToScreen2D(pedestals[i], g.camera);
+            int lblFont = (int)(SELECT_PROMPT_FONT * ui);
+            const char *lbl = "PRIMARY";
+            int lblW = MeasureText(lbl, lblFont);
+            DrawText(lbl, (int)screenPos.x - lblW / 2,
+                (int)screenPos.y + (int)(SELECT_RING_RADIUS * 0.8f), lblFont, Fade(GREEN, 0.6f));
+        }
     }
 
     EndDrawing();

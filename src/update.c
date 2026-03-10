@@ -7,6 +7,7 @@
 static void RocketExplode(Vector2 pos);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
 static void SpawnFirePatch(Vector2 pos);
+static void UpdateParticles(float dt);
 
 
 // Hitscan ------------------------------------------------------------------ /
@@ -122,42 +123,131 @@ static Vector2 mouse() {
 // Weapon Select Screen ----------------------------------------------------- /
 static void UpdateSelect(void)
 {
-    // Display order: SWORD, REVOLVER, GUN, SNIPER, ROCKET (face count ascending)
+    float dt = GetFrameTime();
+    if (dt > DT_MAX) dt = DT_MAX;
+    Player *p = &g.player;
+
     WeaponType selectWeapons[] = {
         WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
     };
 
-    // Navigation — skip already-chosen primary in phase 1
-    int dir = 0;
-    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))   dir = -1;
-    if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))  dir = 1;
-    if (dir) {
-        int next = g.selectIndex;
-        for (int tries = 0; tries < 5; tries++) {
-            next = (next + dir + 5) % 5;
-            if (g.selectPhase == 1
-                && selectWeapons[next] == g.player.primary)
-                continue;
-            break;
-        }
-        g.selectIndex = next;
+    // WASD movement
+    Vector2 moveDir = { 0, 0 };
+    if (IsKeyDown(KEY_W)) moveDir.y -= 1;
+    if (IsKeyDown(KEY_S)) moveDir.y += 1;
+    if (IsKeyDown(KEY_A)) moveDir.x -= 1;
+    if (IsKeyDown(KEY_D)) moveDir.x += 1;
+    float moveLen = Vector2Length(moveDir);
+    if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
+    p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, SELECT_PLAYER_SPEED * dt));
+
+    // Clamp to arena bounds
+    float margin = p->size;
+    if (p->pos.x < margin) p->pos.x = margin;
+    if (p->pos.y < margin) p->pos.y = margin;
+    if (p->pos.x > SELECT_ARENA_SIZE - margin) p->pos.x = SELECT_ARENA_SIZE - margin;
+    if (p->pos.y > SELECT_ARENA_SIZE - margin) p->pos.y = SELECT_ARENA_SIZE - margin;
+
+    // Mouse aim
+    Vector2 screenMouse = GetMousePosition();
+    Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
+    Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
+    p->angle = atan2f(toMouse.y, toMouse.x);
+
+    // Pedestal positions (pentagon layout)
+    Vector2 pedestals[5];
+    for (int i = 0; i < 5; i++) {
+        float a = i * (2.0f * PI / 5.0f) - PI / 2.0f;
+        pedestals[i] = (Vector2){
+            SELECT_ARENA_CENTER + cosf(a) * SELECT_PEDESTAL_RADIUS,
+            SELECT_ARENA_CENTER + sinf(a) * SELECT_PEDESTAL_RADIUS
+        };
     }
 
-    if (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Find nearest pedestal within interact radius
+    g.selectIndex = -1;
+    float bestDist = SELECT_INTERACT_RADIUS;
+    for (int i = 0; i < 5; i++) {
+        // Phase 1: skip already-chosen primary
+        if (g.selectPhase == 1 && selectWeapons[i] == p->primary) continue;
+        float d = Vector2Distance(p->pos, pedestals[i]);
+        if (d < bestDist) {
+            bestDist = d;
+            g.selectIndex = i;
+        }
+    }
+
+    // M1 selects weapon
+    if (g.selectIndex >= 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         if (g.selectPhase == 0) {
-            g.player.primary = selectWeapons[g.selectIndex];
+            p->primary = selectWeapons[g.selectIndex];
             g.selectPhase = 1;
-            // Move cursor to next available slot
-            int next = (g.selectIndex + 1) % 5;
-            if (selectWeapons[next] == g.player.primary)
-                next = (next + 1) % 5;
-            g.selectIndex = next;
         } else {
-            g.player.secondary = selectWeapons[g.selectIndex];
+            p->secondary = selectWeapons[g.selectIndex];
+            // Transition to gameplay
+            p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
+            p->shadowPos = p->pos;
+            // Clear particles
+            for (int i = 0; i < MAX_PARTICLES; i++)
+                g.vfx.particles[i].active = false;
             g.screen = SCREEN_PLAYING;
             g.level = 1;
         }
     }
+
+    // Attack demo particles
+    g.selectDemoTimer -= dt;
+    if (g.selectDemoTimer <= 0) {
+        g.selectDemoTimer += SELECT_DEMO_INTERVAL;
+        for (int i = 0; i < 5; i++) {
+            Vector2 base = pedestals[i];
+            switch (i) {
+                case 0: { // SWORD — circular sweep
+                    float a = (float)GetTime() * 3.0f;
+                    for (int j = 0; j < 6; j++) {
+                        float sa = a + j * (2.0f * PI / 6.0f);
+                        Vector2 vel = { cosf(sa) * 80.0f, sinf(sa) * 80.0f };
+                        SpawnParticle(base, vel, (Color){255,160,50,200}, 3.0f, 0.4f);
+                    }
+                } break;
+                case 1: { // REVOLVER — six-shot fan
+                    for (int j = 0; j < 6; j++) {
+                        float sa = -PI/2.0f + (j - 2.5f) * 0.3f;
+                        Vector2 vel = { cosf(sa) * 120.0f, sinf(sa) * 120.0f };
+                        SpawnParticle(base, vel, (Color){255,220,80,200}, 2.5f, 0.35f);
+                    }
+                } break;
+                case 2: { // GUN — rapid stream
+                    float sa = (float)GetTime() * 2.0f;
+                    for (int j = 0; j < 4; j++) {
+                        Vector2 vel = { cosf(sa) * (150.0f + j * 30.0f),
+                                        sinf(sa) * (150.0f + j * 30.0f) };
+                        SpawnParticle(base, vel, (Color){255,80,60,200}, 2.0f, 0.3f);
+                    }
+                } break;
+                case 3: { // SNIPER — single fast streak
+                    float sa = (float)GetTime() * 1.5f;
+                    Vector2 vel = { cosf(sa) * 250.0f, sinf(sa) * 250.0f };
+                    SpawnParticle(base, vel, (Color){140,200,255,220}, 3.5f, 0.25f);
+                } break;
+                case 4: { // ROCKET — explosion burst
+                    for (int j = 0; j < 8; j++) {
+                        float sa = j * (2.0f * PI / 8.0f) + (float)GetTime();
+                        float spd = 60.0f + (j % 3) * 30.0f;
+                        Vector2 vel = { cosf(sa) * spd, sinf(sa) * spd };
+                        Color c = (j % 2) ? (Color){255,120,30,200} : (Color){255,60,20,200};
+                        SpawnParticle(base, vel, c, 3.0f, 0.45f);
+                    }
+                } break;
+            }
+        }
+    }
+
+    // Update particles, shadow lag, camera
+    UpdateParticles(dt);
+    p->shadowPos = Vector2Lerp(p->shadowPos, p->pos, SHADOW_LAG * dt);
+    g.camera.target = Vector2Lerp(g.camera.target, p->pos, CAMERA_LERP_RATE * dt);
+    g.camera.offset = (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
 }
 
 // player inputs and mechanics
