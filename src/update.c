@@ -155,6 +155,7 @@ static void UpdateSelect(void)
         } else {
             g.player.secondary = selectWeapons[g.selectIndex];
             g.screen = SCREEN_PLAYING;
+            g.level = 1;
         }
     }
 }
@@ -1153,13 +1154,75 @@ static void UpdatePlayer(float dt)
 static void UpdateEnemies(float dt) {
     Player *p = &g.player;
     
-    // --- Enemies ---
-    g.spawnTimer -= dt;
-    if (g.spawnTimer <= 0) {
-        SpawnEnemy();
-        g.spawnTimer = g.spawnInterval;
-        // Ramp up spawn rate
-        if (g.spawnInterval > SPAWN_MIN_INTERVAL) g.spawnInterval *= SPAWN_RAMP;
+    // --- Boss phase state machine ---
+    if (g.phase == 0
+        && g.enemiesKilled >= TRAP_SPAWN_KILLS * g.level) {
+        g.phase = 1;
+    }
+    if (g.phase == 1) {
+        bool anyAlive = false;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (g.enemies[i].active) { anyAlive = true; break; }
+        }
+        if (!anyAlive) {
+            // Spawn TRAP at map edge
+            for (int i = 0; i < MAX_ENEMIES; i++) {
+                if (!g.enemies[i].active) {
+                    Enemy *boss = &g.enemies[i];
+                    boss->active = true;
+                    boss->type = TRAP;
+                    boss->size = TRAP_SIZE;
+                    boss->speed = TRAP_SPEED_MIN;
+                    boss->hp = TRAP_HP;
+                    boss->maxHp = TRAP_HP;
+                    boss->contactDamage = TRAP_CONTACT_DAMAGE;
+                    boss->score = TRAP_SCORE;
+                    boss->hitFlash = 0;
+                    boss->shootTimer = TRAP_ATTACK_INTERVAL;
+                    boss->slowTimer = 0;
+                    boss->slowFactor = 1.0f;
+                    boss->rootTimer = 0;
+                    boss->stunTimer = 0;
+                    boss->aggroIdx = -1;
+                    boss->attackPhase = 0;
+                    boss->chargeTimer = 0;
+                    boss->chargeDir = (Vector2){ 0, 0 };
+                    boss->vel = (Vector2){ 0, 0 };
+                    int edge = GetRandomValue(0, 3);
+                    switch (edge) {
+                    case 0: boss->pos = (Vector2){
+                        (float)GetRandomValue(0, MAP_SIZE),
+                        p->pos.y - SPAWN_MARGIN }; break;
+                    case 1: boss->pos = (Vector2){
+                        (float)GetRandomValue(0, MAP_SIZE),
+                        p->pos.y + SPAWN_MARGIN }; break;
+                    case 2: boss->pos = (Vector2){
+                        p->pos.x - SPAWN_MARGIN,
+                        (float)GetRandomValue(0, MAP_SIZE) }; break;
+                    case 3: boss->pos = (Vector2){
+                        p->pos.x + SPAWN_MARGIN,
+                        (float)GetRandomValue(0, MAP_SIZE) }; break;
+                    }
+                    if (boss->pos.x < 0) boss->pos.x = 0;
+                    if (boss->pos.x > MAP_SIZE) boss->pos.x = MAP_SIZE;
+                    if (boss->pos.y < 0) boss->pos.y = 0;
+                    if (boss->pos.y > MAP_SIZE) boss->pos.y = MAP_SIZE;
+                    break;
+                }
+            }
+            g.phase = 2;
+        }
+    }
+
+    // --- Normal enemy spawning (phase 0 and 2) ---
+    if (g.phase != 1) {
+        g.spawnTimer -= dt;
+        if (g.spawnTimer <= 0) {
+            SpawnEnemy();
+            g.spawnTimer = g.spawnInterval;
+            if (g.spawnInterval > SPAWN_MIN_INTERVAL)
+                g.spawnInterval *= SPAWN_RAMP;
+        }
     }
 
     for (int i = 0; i < MAX_ENEMIES; i++) {
@@ -1188,7 +1251,28 @@ static void UpdateEnemies(float dt) {
         // toPlayer still needed for shooting AI
         Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
         float distToPlayer = Vector2Length(toPlayer);
-        if (!rooted && dist > 1.0f) {
+        // TRAP charge movement — committed direction, no lerp
+        if (e->type == TRAP && e->chargeTimer > 0) {
+            e->chargeTimer -= dt;
+            e->vel = Vector2Scale(e->chargeDir, TRAP_CHARGE_SPEED);
+            if (e->chargeTimer <= 0) {
+                // Slam AoE at end of charge
+                float playerDist = Vector2Distance(e->pos, p->pos);
+                if (playerDist <= TRAP_SLAM_RADIUS) {
+                    DamagePlayer(TRAP_SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
+                }
+                SpawnParticles(e->pos, TRAP_COLOR, 16);
+                for (int v = 0; v < MAX_EXPLOSIVES; v++) {
+                    if (!g.vfx.explosives[v].active) {
+                        g.vfx.explosives[v].active = true;
+                        g.vfx.explosives[v].pos = e->pos;
+                        g.vfx.explosives[v].timer = EXPLOSION_VFX_DURATION;
+                        g.vfx.explosives[v].duration = EXPLOSION_VFX_DURATION;
+                        break;
+                    }
+                }
+            }
+        } else if (!rooted && dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toTarget, 1.0f / dist);
             Vector2 desired;
             if (e->type == HEXA && e->aggroIdx < 0) {
@@ -1308,6 +1392,63 @@ static void UpdateEnemies(float dt) {
                 SpawnParticle(muzzle,
                     Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
                     HEXA_COLOR, HEXA_MUZZLE_SIZE, HEXA_MUZZLE_LIFETIME);
+            }
+        }
+
+        // TRAP boss AI — cycles: burst, ring, charge
+        if (e->type == TRAP && !stunned && e->chargeTimer <= 0) {
+            e->shootTimer -= dt;
+            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
+                int pattern = e->attackPhase % 3;
+                switch (pattern) {
+                case 0: { // Aimed burst — cone at player
+                    Vector2 shootDir = Vector2Scale(
+                        toShoot, 1.0f / distToShoot);
+                    float baseAngle = atan2f(shootDir.y, shootDir.x);
+                    float halfSpread = TRAP_BURST_SPREAD / 2.0f;
+                    float step = TRAP_BURST_SPREAD
+                        / (TRAP_BURST_COUNT - 1);
+                    for (int b = 0; b < TRAP_BURST_COUNT; b++) {
+                        float a = baseAngle - halfSpread + step * b;
+                        Vector2 dir = { cosf(a), sinf(a) };
+                        Vector2 muzzle = Vector2Add(e->pos,
+                            Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+                        SpawnProjectile(muzzle, dir,
+                            TRAP_BULLET_SPEED, TRAP_BULLET_DAMAGE,
+                            TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
+                            true, false, PROJ_BULLET, DMG_BALLISTIC);
+                    }
+                    Vector2 muzzle = Vector2Add(e->pos,
+                        Vector2Scale(shootDir,
+                            e->size + MUZZLE_OFFSET));
+                    SpawnParticle(muzzle,
+                        Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+                        TRAP_COLOR, PENTA_MUZZLE_SIZE,
+                        PENTA_MUZZLE_LIFETIME);
+                } break;
+                case 1: { // Ring shot — bullets in all directions
+                    float step = 2.0f * PI / TRAP_RING_COUNT;
+                    for (int b = 0; b < TRAP_RING_COUNT; b++) {
+                        float a = step * b;
+                        Vector2 dir = { cosf(a), sinf(a) };
+                        Vector2 muzzle = Vector2Add(e->pos,
+                            Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+                        SpawnProjectile(muzzle, dir,
+                            TRAP_RING_SPEED, TRAP_RING_DAMAGE,
+                            TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
+                            true, false, PROJ_BULLET, DMG_BALLISTIC);
+                    }
+                    SpawnParticles(e->pos, TRAP_COLOR, 12);
+                } break;
+                case 2: { // Charge at player
+                    Vector2 shootDir = Vector2Scale(
+                        toShoot, 1.0f / distToShoot);
+                    e->chargeDir = shootDir;
+                    e->chargeTimer = TRAP_CHARGE_DURATION;
+                } break;
+                }
+                e->attackPhase++;
+                e->shootTimer = TRAP_ATTACK_INTERVAL;
             }
         }
 

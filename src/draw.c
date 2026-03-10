@@ -1234,7 +1234,29 @@ static void DrawWorld(void)
             DrawPolyLines(e->pos, 8, e->size, eAngle * RAD2DEG, OCTA_OUTLINE_COLOR);
         } break;
         case TRAP: {
-            break;
+            Color tFill = (e->hitFlash > 0) ? WHITE : TRAP_COLOR;
+            float s = e->size;
+            float ca = cosf(eAngle), sa = sinf(eAngle);
+            float fw = s * TRAP_FRONT_WIDTH;
+            float bw = s * TRAP_BACK_WIDTH;
+            float hl = s * TRAP_LENGTH;
+            // Narrow front (toward player)
+            Vector2 fl = { e->pos.x + ca*hl - sa*fw,
+                           e->pos.y + sa*hl + ca*fw };
+            Vector2 fr = { e->pos.x + ca*hl + sa*fw,
+                           e->pos.y + sa*hl - ca*fw };
+            // Wide back (away from player)
+            Vector2 bl = { e->pos.x - ca*hl - sa*bw,
+                           e->pos.y - sa*hl + ca*bw };
+            Vector2 br = { e->pos.x - ca*hl + sa*bw,
+                           e->pos.y - sa*hl - ca*bw };
+            DrawTriangle(br, fl, fr, tFill);
+            DrawTriangle(br, bl, fl, tFill);
+            // Outline
+            DrawLineV(fr, fl, TRAP_OUTLINE_COLOR);
+            DrawLineV(fl, bl, TRAP_OUTLINE_COLOR);
+            DrawLineV(bl, br, TRAP_OUTLINE_COLOR);
+            DrawLineV(br, fr, TRAP_OUTLINE_COLOR);
         } break;
         case CIRC: {
             break;
@@ -1752,6 +1774,9 @@ static void DrawHUD(void)
     DrawText(
         TextFormat("Kills: %d", g.enemiesKilled),
         (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
+    DrawText(
+        TextFormat("Level: %d", g.level),
+        (int)(HUD_MARGIN * ui), (int)(HUD_LEVEL_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
 
     // Weapon swap indicator
     {

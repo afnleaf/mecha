@@ -24,6 +24,9 @@ static const EnemyDef ENEMY_DEFS[] = {
     [OCTA]  = { OCTA_SIZE,   OCTA_HP,  OCTA_SPEED_MIN,  OCTA_SPEED_VAR,
                 OCTA_CONTACT_DAMAGE,   OCTA_SPAWN_KILLS, OCTA_SPAWN_CHANCE,
                 OCTA_SCORE },
+    [TRAP]  = { TRAP_SIZE,   TRAP_HP,  TRAP_SPEED_MIN,  TRAP_SPEED_VAR,
+                TRAP_CONTACT_DAMAGE,   TRAP_SPAWN_KILLS, TRAP_SPAWN_CHANCE,
+                TRAP_SCORE },
 };
 
 // checked in order, first to pass wins. TRI is fallback.
@@ -144,6 +147,9 @@ void SpawnEnemy(void)
             e->rootTimer = 0;
             e->stunTimer = 0;
             e->aggroIdx = -1;
+            e->attackPhase = 0;
+            e->chargeTimer = 0;
+            e->chargeDir = (Vector2){ 0, 0 };
 
             // Roll for enemy type — priority table, TRI fallback
             EnemyType type = TRI;
@@ -282,6 +288,11 @@ void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method)
         e->active = false;
         g.score += e->score;
         g.enemiesKilled++;
+        // Boss kill — advance level
+        if (e->type == TRAP) {
+            g.level++;
+            g.phase = 0;
+        }
         // fire/explosion
         SpawnParticles(e->pos, RED, DEATH_PARTICLES);
         SpawnParticles(e->pos, ORANGE, DEATH_PARTICLES);

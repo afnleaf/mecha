@@ -6,6 +6,12 @@
 #define SCREEN_W                1443
 #define SCREEN_H                1000
 
+// misc
+#define ABILITY_SLOTS           12
+#define MAX_DEPLOYABLES         1024
+#define MAX_EXPLOSIVES          8
+#define MAX_MINE_WEBS           64
+
 // Entities
 #define MAX_PROJECTILES         1024
 #define MAX_ENEMIES             1024
@@ -32,7 +38,7 @@
 // Weapon Swap
 #define WEAPON_SWAP_KEY         KEY_LEFT_CONTROL
 
-// Mecha ------------------------------------------------------------------- /
+// Mecha -------------------------------------------------------------------- /
 // Player
 #define PLAYER_SPEED            300.0f
 #define PLAYER_SIZE             16.0f
@@ -284,7 +290,7 @@
 #define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
 
 // Turret ------------------------------------------------------------------- /
-#define TURRET_LIFETIME         24.0f
+#define TURRET_LIFETIME         1024.0f
 #define TURRET_FIRE_RATE        0.5f    // seconds between shots
 #define TURRET_RANGE            500.0f
 #define TURRET_DAMAGE           12
@@ -292,8 +298,8 @@
 #define TURRET_BULLET_SPEED     800.0f
 #define TURRET_BULLET_LIFETIME  2.0f
 #define TURRET_BULLET_SIZE      3.0f
-#define TURRET_COOLDOWN         12.0f
-#define TURRET_MAX_ACTIVE       2
+#define TURRET_COOLDOWN         1.0f
+#define TURRET_MAX_ACTIVE       1024
 #define TURRET_PLACEMENT_DIST   100.0f
 #define TURRET_MUZZLE_OFFSET    10.0f
 #define TURRET_MUZZLE_SPEED     80.0f
@@ -508,6 +514,40 @@
 #define OCTA_COLOR              (Color){ 255, 0, 0, 255 }
 #define OCTA_OUTLINE_COLOR      (Color){ 180, 100, 10, 255 }
 
+// Enemy — Trapezoid (mini boss)
+#define TRAP_SIZE               36.0f
+#define TRAP_HP                 800
+#define TRAP_SPEED_MIN          70.0f
+#define TRAP_SPEED_VAR          0
+#define TRAP_CONTACT_DAMAGE     30
+#define TRAP_SPAWN_KILLS        200
+#define TRAP_SPAWN_CHANCE       0       // not random-spawned
+#define TRAP_SCORE              5000
+#define TRAP_COLOR              (Color){ 255, 200, 50, 255 }
+#define TRAP_OUTLINE_COLOR      (Color){ 180, 120, 20, 255 }
+// Shape proportions
+#define TRAP_FRONT_WIDTH        0.5f    // narrow front half-width (× size)
+#define TRAP_BACK_WIDTH         1.0f    // wide back half-width (× size)
+#define TRAP_LENGTH             1.2f    // half-length front to back (× size)
+// Attack timing
+#define TRAP_ATTACK_INTERVAL    2.5f
+// Aimed burst
+#define TRAP_BURST_COUNT        5
+#define TRAP_BURST_SPREAD       0.5f
+#define TRAP_BULLET_SPEED       400.0f
+#define TRAP_BULLET_DAMAGE      15
+#define TRAP_PROJECTILE_SIZE    5.0f
+#define TRAP_BULLET_LIFETIME    8.0f
+// Ring shot
+#define TRAP_RING_COUNT         12
+#define TRAP_RING_SPEED         300.0f
+#define TRAP_RING_DAMAGE        12
+// Charge + slam
+#define TRAP_CHARGE_SPEED       600.0f
+#define TRAP_CHARGE_DURATION    0.6f
+#define TRAP_SLAM_RADIUS        120.0f
+#define TRAP_SLAM_DAMAGE        25
+
 // Particles ---------------------------------------------------------------- /
 // Default burst (SpawnParticles)
 #define PARTICLE_BURST_SPEED_MIN    50
@@ -663,6 +703,7 @@
 #define HUD_SCORE_FONT          20
 #define HUD_KILLS_Y             58
 #define HUD_KILLS_FONT          16
+#define HUD_LEVEL_Y             78
 // Cooldown bars
 #define HUD_CD_W                28
 #define HUD_CD_H                10

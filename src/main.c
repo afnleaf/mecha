@@ -21,6 +21,7 @@ int main(void)
                           pos.y + (float)(my - SCREEN_H) / 2);
     }
 #endif
+    // this zero key could be set better?
     SetExitKey(KEY_ZERO);
     InitGame();
 #ifdef PLATFORM_WEB
@@ -31,6 +32,7 @@ int main(void)
     // internal game logic fps vs draw fps? internal 120? 240? light game...
     //SetTargetFPS(60);
     SetTargetFPS(240);
+    // also in firefox on linux the game doesn't go above 60 fps
     while (!WindowShouldClose()) {
         NextFrame();
     }

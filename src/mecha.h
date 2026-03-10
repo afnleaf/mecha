@@ -31,8 +31,6 @@ typedef enum GameScreen {
 } GameScreen;
 
 // ability slots ------------------------------------------------------------- /
-#define ABILITY_SLOTS     12
-
 typedef enum AbilityID {
     ABL_NONE,
     ABL_SHOTGUN,
@@ -184,7 +182,6 @@ typedef enum DeployableType {
     DEPLOY_HEAL,
 } DeployableType;
 
-#define MAX_DEPLOYABLES 8
 
 typedef struct Deployable {
     Vector2 pos;
@@ -309,7 +306,6 @@ typedef struct Projectile {
     float heightVel;    // visual-only: vertical velocity for bounce arc
 } Projectile;
 
-#define MAX_EXPLOSIVES 8
 typedef struct Explosive {
     Vector2 pos;
     float timer;
@@ -384,6 +380,9 @@ typedef struct Enemy {
     float rootTimer;    // can't move, CAN shoot
     float stunTimer;    // can't move, CAN'T shoot
     i8 aggroIdx;        // deployable index to chase (-1 = player)
+    u8 attackPhase;     // boss attack cycle counter
+    float chargeTimer;  // boss charge duration remaining
+    Vector2 chargeDir;  // committed charge direction
 } Enemy;
 
 // other -------------------------------------------------------------------- /
@@ -413,7 +412,6 @@ typedef struct MineWebVfx {
     bool active;
 } MineWebVfx;
 
-#define MAX_MINE_WEBS 4
 
 typedef struct VfxState {
     Particle particles[MAX_PARTICLES];
@@ -441,6 +439,8 @@ typedef struct GameState {
     float spawnTimer;
     float spawnInterval;
     int enemiesKilled;
+    int phase;      // 0=normal, 1=clearing, 2=boss fight
+    int level;
     bool gameOver;
     bool paused;
     GameScreen screen;

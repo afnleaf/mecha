@@ -308,6 +308,9 @@ idea: a docker image for dev environment (0QUAY)
 - all build tools auto installed
 - ??? (it works were in it right now)
 
+## Levels
+we have one level. level 0 is where you can pick your weapon diagetically. every menu in the game should be a level.
+
 ## Music Flow
 rooms = zones = objectives, a level to challenge your mechanics against
 
