@@ -25,8 +25,8 @@ void InitGame(void)
     g.selectIndex     = -1;
     g.selectPhase     = 0;
 
-    // start player at arena center for select screen
-    g.player.pos      = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER };
+    // start player above the pedestal U curve
+    g.player.pos      = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER - 80.0f };
     g.player.shadowPos = g.player.pos;
 }
 

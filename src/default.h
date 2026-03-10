@@ -392,7 +392,7 @@
 // Sniper — M1 hip fire
 #define SNIPER_HIP_DAMAGE        70
 #define SNIPER_HIP_SPREAD        80       // wide spread (80/1000 rad)
-#define SNIPER_HIP_COOLDOWN      0.45f    // fast semi-auto
+#define SNIPER_HIP_COOLDOWN      0.915f    // fast semi-auto
 #define SNIPER_HIP_BULLET_SPEED  2000.0f  // slightly slower than aimed
 
 // Sniper — M2 aimed shot (hold M2 + click M1)
@@ -639,6 +639,9 @@
 #define SHAPE_SAT_DEFAULT       1.0f
 #define SHAPE_SAT_CUBE          0.85f
 #define SHAPE_SAT_DODECA        0.85f
+// Sphere (weapon select unselected player)
+#define SPHERE_SLICES           12
+#define SPHERE_STACKS           8
 
 // Turret visuals
 #define TURRET_VIS_ROT_SPEED    3.0f
@@ -765,10 +768,11 @@
 #define SELECT_ARENA_SIZE       800.0f
 #define SELECT_ARENA_CENTER     400.0f
 #define SELECT_PEDESTAL_RADIUS  250.0f
+#define SELECT_PEDESTAL_Y       540.0f
+#define SELECT_PEDESTAL_CURVE   100.0f
 #define SELECT_SOLID_SIZE       40.0f
 #define SELECT_INTERACT_RADIUS  80.0f
 #define SELECT_PLAYER_SPEED     250.0f
-#define SELECT_DEMO_INTERVAL    0.3f
 #define SELECT_RING_PULSE_SPEED 4.0f
 #define SELECT_RING_RADIUS      60.0f
 #define SELECT_LABEL_FONT       20

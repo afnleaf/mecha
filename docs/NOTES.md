@@ -189,24 +189,24 @@ explosives as primary? is that possible? (yes)
 - [] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
 
 ### players
-- [x] tetrahedron
-- [x] cube
-- [x] octahedron
-- [x] dodecahedron
-- [x] icosahedron
+each chassis is a platonic solid and has an associated element (sacred geometry)
+- [x] tetrahedron (fire)
+- [x] cube (earth)
+- [x] octahedron (air)
+- [x] dodecahedron (aether)
+- [x] icosahedron (water)
 - [x] decide who gets which primary weapon
 - [x] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
 - [x] consistent player size depending on shape
+- [] fix player shadow not rotating properly or being the direct shadow shape
 
-levels
-- [] rounds/rooms
-- [] pick new item between rounds]
 
 idea: two characters? the cube and the tetrahedron? rest of platonic solids: octahedron, dodecahedron, icosahedron. Make the animation it rolling on each side? (I like this). 2d shapes vs 3d shape, you leave your shadow in this 2d world.
 
 the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
 
 what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons. 
+
 
 non changing controls
 - WASD - move
@@ -247,6 +247,16 @@ customizeable controls, 11 normal abilities and 1 ult
 - F - ult BGG10k 
 - X - projectile shield
 - Z, R, V, 1-4 - free
+
+## Levels
+we have one level. level 0 is where you can pick your weapon diagetically. every menu in the game should be a level.
+
+regarding the current weapon select menu. The player character should be a sphere. When you walk up close to a weapon, it should fire its attack.
+
+levels
+- [x] weapon select
+- [] rounds/rooms
+- [] pick new item between rounds]
 
 ## Research
 - [x] read many parts of raylib.h
@@ -307,9 +317,6 @@ idea: a docker image for dev environment (0QUAY)
 - nvim, tmux
 - all build tools auto installed
 - ??? (it works were in it right now)
-
-## Levels
-we have one level. level 0 is where you can pick your weapon diagetically. every menu in the game should be a level.
 
 ## Music Flow
 rooms = zones = objectives, a level to challenge your mechanics against

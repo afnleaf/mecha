@@ -8,6 +8,7 @@ static void RocketExplode(Vector2 pos);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
 static void SpawnFirePatch(Vector2 pos);
 static void UpdateParticles(float dt);
+static void UpdateProjectiles(float dt);
 
 
 // Hitscan ------------------------------------------------------------------ /
@@ -139,7 +140,38 @@ static void UpdateSelect(void)
     if (IsKeyDown(KEY_D)) moveDir.x += 1;
     float moveLen = Vector2Length(moveDir);
     if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
-    p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, SELECT_PLAYER_SPEED * dt));
+
+    if (!p->dash.active)
+        p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, SELECT_PLAYER_SPEED * dt));
+
+    // Dash
+    if (p->dash.charges < p->dash.maxCharges) {
+        p->dash.rechargeTimer -= dt;
+        if (p->dash.rechargeTimer <= 0) {
+            p->dash.charges++;
+            if (p->dash.charges < p->dash.maxCharges)
+                p->dash.rechargeTimer = p->dash.rechargeTime;
+        }
+    }
+    if (IsKeyPressed(KEY_SPACE) && !p->dash.active && p->dash.charges > 0) {
+        p->dash.active = true;
+        p->dash.timer = p->dash.duration;
+        bool wasFull = (p->dash.charges == p->dash.maxCharges);
+        p->dash.charges--;
+        if (wasFull) p->dash.rechargeTimer = p->dash.rechargeTime;
+        if (moveLen > 0) {
+            p->dash.dir = moveDir;
+        } else {
+            p->dash.dir = (Vector2){ cosf(p->angle), sinf(p->angle) };
+        }
+        SpawnParticles(p->pos, SKYBLUE, DASH_BURST_PARTICLES);
+    }
+    if (p->dash.active) {
+        p->dash.timer -= dt;
+        p->pos = Vector2Add(p->pos,
+            Vector2Scale(p->dash.dir, p->dash.speed * dt));
+        if (p->dash.timer <= 0) p->dash.active = false;
+    }
 
     // Clamp to arena bounds
     float margin = p->size;
@@ -154,13 +186,14 @@ static void UpdateSelect(void)
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
     p->angle = atan2f(toMouse.y, toMouse.x);
 
-    // Pedestal positions (pentagon layout)
+    // Pedestal positions (U curve, left to right by face count)
     Vector2 pedestals[5];
+    float spacing = SELECT_ARENA_SIZE / 6.0f;
     for (int i = 0; i < 5; i++) {
-        float a = i * (2.0f * PI / 5.0f) - PI / 2.0f;
+        float norm = (float)(i - 2) / 2.0f;
         pedestals[i] = (Vector2){
-            SELECT_ARENA_CENTER + cosf(a) * SELECT_PEDESTAL_RADIUS,
-            SELECT_ARENA_CENTER + sinf(a) * SELECT_PEDESTAL_RADIUS
+            spacing * (float)(i + 1),
+            SELECT_PEDESTAL_Y + SELECT_PEDESTAL_CURVE * (1.0f - norm * norm)
         };
     }
 
@@ -187,63 +220,115 @@ static void UpdateSelect(void)
             // Transition to gameplay
             p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
             p->shadowPos = p->pos;
-            // Clear particles
+            // Clear particles and projectiles
             for (int i = 0; i < MAX_PARTICLES; i++)
                 g.vfx.particles[i].active = false;
+            for (int i = 0; i < MAX_PROJECTILES; i++)
+                g.projectiles[i].active = false;
             g.screen = SCREEN_PLAYING;
             g.level = 1;
         }
     }
 
-    // Attack demo particles
+    // Weapon demo: fire same M1 attacks from highlighted pedestal
+    if (g.selectIndex < 0) {
+        g.selectDemoTimer = 0;
+    }
     g.selectDemoTimer -= dt;
-    if (g.selectDemoTimer <= 0) {
-        g.selectDemoTimer += SELECT_DEMO_INTERVAL;
-        for (int i = 0; i < 5; i++) {
-            Vector2 base = pedestals[i];
-            switch (i) {
-                case 0: { // SWORD — circular sweep
-                    float a = (float)GetTime() * 3.0f;
-                    for (int j = 0; j < 6; j++) {
-                        float sa = a + j * (2.0f * PI / 6.0f);
-                        Vector2 vel = { cosf(sa) * 80.0f, sinf(sa) * 80.0f };
-                        SpawnParticle(base, vel, (Color){255,160,50,200}, 3.0f, 0.4f);
-                    }
-                } break;
-                case 1: { // REVOLVER — six-shot fan
-                    for (int j = 0; j < 6; j++) {
-                        float sa = -PI/2.0f + (j - 2.5f) * 0.3f;
-                        Vector2 vel = { cosf(sa) * 120.0f, sinf(sa) * 120.0f };
-                        SpawnParticle(base, vel, (Color){255,220,80,200}, 2.5f, 0.35f);
-                    }
-                } break;
-                case 2: { // GUN — rapid stream
-                    float sa = (float)GetTime() * 2.0f;
-                    for (int j = 0; j < 4; j++) {
-                        Vector2 vel = { cosf(sa) * (150.0f + j * 30.0f),
-                                        sinf(sa) * (150.0f + j * 30.0f) };
-                        SpawnParticle(base, vel, (Color){255,80,60,200}, 2.0f, 0.3f);
-                    }
-                } break;
-                case 3: { // SNIPER — single fast streak
-                    float sa = (float)GetTime() * 1.5f;
-                    Vector2 vel = { cosf(sa) * 250.0f, sinf(sa) * 250.0f };
-                    SpawnParticle(base, vel, (Color){140,200,255,220}, 3.5f, 0.25f);
-                } break;
-                case 4: { // ROCKET — explosion burst
-                    for (int j = 0; j < 8; j++) {
-                        float sa = j * (2.0f * PI / 8.0f) + (float)GetTime();
-                        float spd = 60.0f + (j % 3) * 30.0f;
-                        Vector2 vel = { cosf(sa) * spd, sinf(sa) * spd };
-                        Color c = (j % 2) ? (Color){255,120,30,200} : (Color){255,60,20,200};
-                        SpawnParticle(base, vel, c, 3.0f, 0.45f);
-                    }
-                } break;
-            }
+    if (g.selectDemoTimer <= 0 && g.selectIndex >= 0) {
+        float intervals[] = {
+            SWORD_DURATION + 0.3f,          // sword: swing + pause
+            REVOLVER_COOLDOWN,              // revolver: actual cooldown
+            1.0f / GUN_FIRE_RATE,           // gun: actual fire rate
+            SNIPER_AIM_COOLDOWN,            // sniper: aimed cooldown
+            ROCKET_COOLDOWN,                // rocket: actual cooldown
+        };
+        g.selectDemoTimer += intervals[g.selectIndex];
+        int i = g.selectIndex;
+        Vector2 base = pedestals[i];
+        float demoAngle = (float)GetTime() * 1.5f;
+        Vector2 aimDir = { cosf(demoAngle), sinf(demoAngle) };
+        Vector2 muzzle = Vector2Add(base,
+            Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
+        switch (i) {
+            case 0: { // SWORD — same as M1 sweep
+                g.selectSwordTimer = SWORD_DURATION;
+                g.selectSwordAngle = demoAngle;
+                float arc = SWORD_ARC;
+                float radius = SWORD_RADIUS;
+                for (int j = 0; j < SWORD_SPARK_COUNT; j++) {
+                    float a = demoAngle - arc / 2.0f
+                        + arc * (float)j / (SWORD_SPARK_COUNT - 1);
+                    Vector2 particlePos = Vector2Add(base,
+                        (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
+                                   sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC });
+                    Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
+                                            sinf(a) * SWORD_SPARK_SPEED };
+                    SpawnParticle(particlePos, particleVel, ORANGE,
+                        SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
+                }
+            } break;
+            case 1: { // REVOLVER — same as M1 precise shot
+                float spread = ((float)GetRandomValue(
+                    -REVOLVER_PRECISE_SPREAD, REVOLVER_PRECISE_SPREAD))
+                    * 0.001f;
+                float bulletAngle = demoAngle + spread;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                SpawnProjectile(muzzle, bulletDir,
+                    REVOLVER_BULLET_SPEED, REVOLVER_DAMAGE,
+                    REVOLVER_BULLET_LIFETIME, REVOLVER_PROJECTILE_SIZE,
+                    false, false, PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                    Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                    GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+            } break;
+            case 2: { // GUN — same as M1 machine gun
+                float spread = ((float)GetRandomValue(
+                    -GUN_SPREAD, GUN_SPREAD)) * 0.001f;
+                float bulletAngle = demoAngle + spread;
+                Vector2 bulletDir = { cosf(bulletAngle), sinf(bulletAngle) };
+                SpawnProjectile(muzzle, bulletDir,
+                    GUN_BULLET_SPEED, GUN_BULLET_DAMAGE,
+                    GUN_BULLET_LIFETIME, GUN_PROJECTILE_SIZE,
+                    false, false, PROJ_BULLET, DMG_BALLISTIC);
+                SpawnParticle(muzzle,
+                    Vector2Scale(bulletDir, GUN_MUZZLE_SPEED), WHITE,
+                    GUN_MUZZLE_SIZE, GUN_MUZZLE_LIFETIME);
+            } break;
+            case 3: { // SNIPER — same as M1 hip fire
+                float spread = (float)(GetRandomValue(
+                    -SNIPER_HIP_SPREAD, SNIPER_HIP_SPREAD)) / 1000.0f;
+                Vector2 dir = Vector2Rotate(aimDir, spread);
+                SpawnProjectile(muzzle, dir,
+                    SNIPER_HIP_BULLET_SPEED, SNIPER_HIP_DAMAGE,
+                    SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE,
+                    false, false, PROJ_BULLET, DMG_PIERCE);
+                SpawnParticles(muzzle, (Color)SNIPER_COLOR,
+                    SNIPER_MUZZLE_PARTICLES);
+                SpawnParticle(muzzle,
+                    Vector2Scale(aimDir, SNIPER_MUZZLE_SPEED), WHITE,
+                    SNIPER_MUZZLE_SIZE, SNIPER_MUZZLE_LIFETIME);
+            } break;
+            case 4: { // ROCKET — same as SpawnRocket
+                Projectile *r = SpawnProjectile(muzzle, aimDir,
+                    ROCKET_SPEED, ROCKET_DIRECT_DAMAGE,
+                    ROCKET_LIFETIME, ROCKET_PROJECTILE_SIZE,
+                    false, true, PROJ_ROCKET, DMG_EXPLOSIVE);
+                if (r) r->target = Vector2Add(base,
+                    Vector2Scale(aimDir, 300.0f));
+                SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
+                SpawnParticle(muzzle,
+                    Vector2Scale(aimDir, ROCKET_MUZZLE_SPEED), ORANGE,
+                    ROCKET_MUZZLE_SIZE, ROCKET_MUZZLE_LIFETIME);
+            } break;
         }
     }
 
-    // Update particles, shadow lag, camera
+    // Tick sword demo arc
+    if (g.selectSwordTimer > 0) g.selectSwordTimer -= dt;
+
+    // Update projectiles, particles, shadow lag, camera
+    UpdateProjectiles(dt);
     UpdateParticles(dt);
     p->shadowPos = Vector2Lerp(p->shadowPos, p->pos, SHADOW_LAG * dt);
     g.camera.target = Vector2Lerp(g.camera.target, p->pos, CAMERA_LERP_RATE * dt);

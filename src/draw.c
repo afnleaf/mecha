@@ -866,6 +866,137 @@ static void DrawDodeca2D(
     }
 }
 
+// sphere (weapon select player) ------------------------------------------- /
+static void DrawSphere2D(
+    Vector2 pos,
+    float size, float rotY, float rotX, float alpha,
+    Vector2 shadowPos, float shadowAlpha)
+{
+    // UV sphere: SPHERE_SLICES longitude, SPHERE_STACKS latitude
+    // Vertex layout: [0] = north pole, [1] = south pole,
+    //   [2..] = ring vertices (STACKS-1 rings * SLICES each)
+    int nVerts = 2 + (SPHERE_STACKS - 1) * SPHERE_SLICES;
+    float vtx[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES][3];
+
+    // North pole
+    vtx[0][0] = 0; vtx[0][1] = size; vtx[0][2] = 0;
+    // South pole
+    vtx[1][0] = 0; vtx[1][1] = -size; vtx[1][2] = 0;
+    // Ring vertices
+    for (int stack = 1; stack < SPHERE_STACKS; stack++) {
+        float phi = PI * (float)stack / (float)SPHERE_STACKS;
+        float sp = sinf(phi), cp = cosf(phi);
+        for (int slice = 0; slice < SPHERE_SLICES; slice++) {
+            float theta = 2.0f * PI * (float)slice / (float)SPHERE_SLICES;
+            int idx = 2 + (stack - 1) * SPHERE_SLICES + slice;
+            vtx[idx][0] = size * sp * cosf(theta);
+            vtx[idx][1] = size * cp;
+            vtx[idx][2] = size * sp * sinf(theta);
+        }
+    }
+
+    // Shadow: circle (sphere always projects to circle)
+    if (shadowAlpha > 0) {
+        DrawCircleV(shadowPos, size * SHADOW_SCALE,
+            Fade(SHADOW_COLOR, shadowAlpha));
+    }
+
+    // Project all vertices to 2D
+    float cy = cosf(rotY), sy = sinf(rotY);
+    float cx = cosf(rotX), sx = sinf(rotX);
+
+    Vector2 pj[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
+    float pz[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
+    float hues[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
+    float time = (float)GetTime();
+
+    for (int i = 0; i < nVerts; i++) {
+        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
+        float x1 = x * cy - z * sy;
+        float z1 = x * sy + z * cy;
+        float y1 = y * cx - z1 * sx;
+        float z2 = y * sx + z1 * cx;
+        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
+        pz[i] = z2;
+        hues[i] = fmodf(time * 60.0f + (z2 / size) * 180.0f + 360.0f, 360.0f);
+    }
+
+    // Draw faces with backface culling
+    // Top cap: north pole (0) to first ring
+    for (int s = 0; s < SPHERE_SLICES; s++) {
+        int a = 0;
+        int b = 2 + s;
+        int c = 2 + (s + 1) % SPHERE_SLICES;
+        float cross = (pj[b].x-pj[a].x)*(pj[c].y-pj[a].y) -
+                       (pj[b].y-pj[a].y)*(pj[c].x-pj[a].x);
+        if (cross < 0) {
+            float hC = fmodf((hues[a] + hues[b] + hues[c]) / 3.0f, 360.0f);
+            DrawTriangle(pj[a], pj[b], pj[c],
+                HsvToRgb(hC, SHAPE_SAT_DEFAULT, 1.0f, alpha));
+        }
+    }
+
+    // Middle bands
+    for (int stack = 0; stack < SPHERE_STACKS - 2; stack++) {
+        for (int slice = 0; slice < SPHERE_SLICES; slice++) {
+            int curr = 2 + stack * SPHERE_SLICES + slice;
+            int next = 2 + stack * SPHERE_SLICES + (slice + 1) % SPHERE_SLICES;
+            int below = 2 + (stack + 1) * SPHERE_SLICES + slice;
+            int belowNext = 2 + (stack + 1) * SPHERE_SLICES +
+                (slice + 1) % SPHERE_SLICES;
+
+            // Triangle 1: curr, below, next
+            float cross1 = (pj[below].x-pj[curr].x)*(pj[next].y-pj[curr].y) -
+                            (pj[below].y-pj[curr].y)*(pj[next].x-pj[curr].x);
+            if (cross1 < 0) {
+                float hC = fmodf((hues[curr]+hues[below]+hues[next]) / 3.0f,
+                    360.0f);
+                DrawTriangle(pj[curr], pj[below], pj[next],
+                    HsvToRgb(hC, SHAPE_SAT_DEFAULT, 1.0f, alpha));
+            }
+
+            // Triangle 2: next, below, belowNext
+            float cross2 = (pj[below].x-pj[next].x)*(pj[belowNext].y-pj[next].y) -
+                            (pj[below].y-pj[next].y)*(pj[belowNext].x-pj[next].x);
+            if (cross2 < 0) {
+                float hC = fmodf((hues[next]+hues[below]+hues[belowNext]) / 3.0f,
+                    360.0f);
+                DrawTriangle(pj[next], pj[below], pj[belowNext],
+                    HsvToRgb(hC, SHAPE_SAT_DEFAULT, 1.0f, alpha));
+            }
+        }
+    }
+
+    // Bottom cap: south pole (1) to last ring
+    int lastRing = 2 + (SPHERE_STACKS - 2) * SPHERE_SLICES;
+    for (int s = 0; s < SPHERE_SLICES; s++) {
+        int a = 1;
+        int b = lastRing + (s + 1) % SPHERE_SLICES;
+        int c = lastRing + s;
+        float cross = (pj[b].x-pj[a].x)*(pj[c].y-pj[a].y) -
+                       (pj[b].y-pj[a].y)*(pj[c].x-pj[a].x);
+        if (cross < 0) {
+            float hC = fmodf((hues[a] + hues[b] + hues[c]) / 3.0f, 360.0f);
+            DrawTriangle(pj[a], pj[b], pj[c],
+                HsvToRgb(hC, SHAPE_SAT_DEFAULT, 1.0f, alpha));
+        }
+    }
+
+    // Edge wireframe for definition
+    Color edge = Fade(WHITE, 0.3f * alpha);
+    for (int stack = 0; stack < SPHERE_STACKS - 1; stack++) {
+        for (int slice = 0; slice < SPHERE_SLICES; slice++) {
+            int curr = 2 + stack * SPHERE_SLICES + slice;
+            int next = 2 + stack * SPHERE_SLICES + (slice + 1) % SPHERE_SLICES;
+            DrawLineV(pj[curr], pj[next], edge);
+            if (stack < SPHERE_STACKS - 2) {
+                int below = 2 + (stack + 1) * SPHERE_SLICES + slice;
+                DrawLineV(pj[curr], pj[below], edge);
+            }
+        }
+    }
+}
+
 // player solid dispatcher -------------------------------------------------- /
 static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, float alpha,
                             Vector2 shadowPos, float shadowAlpha) {
@@ -877,6 +1008,81 @@ static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, flo
         case WPN_ROCKET:   DrawIcosa2D(pos, size, rotY, rotX, alpha, shadowPos, shadowAlpha); break;
         default: break;
     }
+}
+
+// projectile rendering ----------------------------------------------------- /
+static void DrawProjectiles(void)
+{
+    for (int i = 0; i < MAX_PROJECTILES; i++) {
+        Projectile *b = &g.projectiles[i];
+        if (!b->active) continue;
+
+        // sniper .50 cal bullet — elongated pointed shape
+        if (b->dmgType == DMG_PIERCE && !b->isEnemy) {
+            Vector2 fwd = Vector2Normalize(b->vel);
+            Vector2 perp = { -fwd.y, fwd.x };
+            float len = b->size * SNIPER_BULLET_LENGTH;
+            float w   = b->size * SNIPER_BULLET_WIDTH;
+            float tip = b->size * SNIPER_NOSE_LENGTH;
+            Vector2 noseTip = Vector2Add(b->pos, Vector2Scale(fwd, tip));
+            Vector2 frontL = Vector2Add(b->pos, Vector2Scale(perp,  w));
+            Vector2 frontR = Vector2Add(b->pos, Vector2Scale(perp, -w));
+            Vector2 base = Vector2Subtract(b->pos, Vector2Scale(fwd, len));
+            Vector2 rearL = Vector2Add(base, Vector2Scale(perp,  w));
+            Vector2 rearR = Vector2Add(base, Vector2Scale(perp, -w));
+            DrawTriangle(frontL, rearL, rearR, SNIPER_BODY_COLOR);
+            DrawTriangle(frontL, rearR, frontR, SNIPER_BODY_COLOR);
+            DrawTriangle(noseTip, frontR, frontL, SNIPER_TIP_COLOR);
+            Vector2 trail = Vector2Subtract(base, Vector2Scale(fwd, len * SNIPER_TRAIL_MULT));
+            DrawLineEx(base, trail, w * 0.8f, Fade(SNIPER_COLOR, 0.4f));
+        } else if (b->type == PROJ_BFG) {
+            float pulse = sinf(GetTime() * BFG_PULSE_SPEED) * BFG_PULSE_AMOUNT;
+            float outerR = b->size + pulse;
+            float innerR = b->size * 0.6f + pulse * 0.5f;
+            DrawCircleV(b->pos, outerR, (Color)BFG_GLOW_COLOR);
+            DrawCircleV(b->pos, innerR, (Color)BFG_COLOR);
+            DrawCircleV(b->pos, innerR * 0.4f, WHITE);
+        } else if (b->type == PROJ_GRENADE) {
+            DrawCircleV(b->pos, b->size * 0.8f, Fade(BLACK, 0.3f));
+            Vector2 drawPos = { b->pos.x, b->pos.y - b->height };
+            DrawCircleV(drawPos, b->size, GRENADE_COLOR);
+            DrawCircleLinesV(drawPos, b->size + 1.0f, GRENADE_GLOW_COLOR);
+        } else {
+            Color bColor = b->isEnemy ? MAGENTA : YELLOW;
+            float bSize = b->size;
+            DrawCircleV(b->pos, bSize, bColor);
+            Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
+            DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
+        }
+    }
+}
+
+// sword arc rendering ------------------------------------------------------ /
+static void DrawSwordArc(Vector2 origin, float timer, float duration,
+                         float angle, float arc, float radius, Color color)
+{
+    float progress = 1.0f - (timer / duration);
+    float arcHalf = arc / 2.0f;
+    for (int i = 1; i <= SWORD_DRAW_SEGMENTS; i++) {
+        float segPos = (float)i / SWORD_DRAW_SEGMENTS;
+        if (segPos > progress) break;
+
+        float t = segPos / progress;
+        float alpha = t * t * 0.9f;
+        float thick = 2.0f + t * 6.0f;
+
+        float a0 = angle - arcHalf + arc * (float)(i - 1) / SWORD_DRAW_SEGMENTS;
+        float a1 = angle - arcHalf + arc * (float)i / SWORD_DRAW_SEGMENTS;
+        Vector2 pt0 = Vector2Add(origin,
+            (Vector2){ cosf(a0) * radius, sinf(a0) * radius });
+        Vector2 pt1 = Vector2Add(origin,
+            (Vector2){ cosf(a1) * radius, sinf(a1) * radius });
+        DrawLineEx(pt0, pt1, thick, Fade(color, alpha));
+    }
+    float sweepAngle = angle - arcHalf + arc * progress;
+    Vector2 sweepEnd = Vector2Add(origin,
+        (Vector2){ cosf(sweepAngle) * radius, sinf(sweepAngle) * radius });
+    DrawLineEx(origin, sweepEnd, 3.0f, WHITE);
 }
 
 // Draw - World (camera space) ---------------------------------------------- /
@@ -1023,57 +1229,7 @@ static void DrawWorld(void)
     }
 
     // --- Projectiles ---
-    for (int i = 0; i < MAX_PROJECTILES; i++) {
-        Projectile *b = &g.projectiles[i];
-        if (!b->active) continue;
-
-        // sniper .50 cal bullet — elongated pointed shape
-        if (b->dmgType == DMG_PIERCE && !b->isEnemy) {
-            Vector2 fwd = Vector2Normalize(b->vel);
-            Vector2 perp = { -fwd.y, fwd.x };
-            float len = b->size * SNIPER_BULLET_LENGTH;
-            float w   = b->size * SNIPER_BULLET_WIDTH;
-            float tip = b->size * SNIPER_NOSE_LENGTH;
-            // nose cone tip
-            Vector2 noseTip = Vector2Add(b->pos, Vector2Scale(fwd, tip));
-            // body front (where nose meets body)
-            Vector2 frontL = Vector2Add(b->pos, Vector2Scale(perp,  w));
-            Vector2 frontR = Vector2Add(b->pos, Vector2Scale(perp, -w));
-            // body rear
-            Vector2 base = Vector2Subtract(b->pos, Vector2Scale(fwd, len));
-            Vector2 rearL = Vector2Add(base, Vector2Scale(perp,  w));
-            Vector2 rearR = Vector2Add(base, Vector2Scale(perp, -w));
-            // draw body (two triangles for the rect)
-            DrawTriangle(frontL, rearL, rearR, SNIPER_BODY_COLOR);
-            DrawTriangle(frontL, rearR, frontR, SNIPER_BODY_COLOR);
-            // draw nose cone
-            DrawTriangle(noseTip, frontR, frontL, SNIPER_TIP_COLOR);
-            // tracer trail
-            Vector2 trail = Vector2Subtract(base, Vector2Scale(fwd, len * SNIPER_TRAIL_MULT));
-            DrawLineEx(base, trail, w * 0.8f, Fade(SNIPER_COLOR, 0.4f));
-        } else if (b->type == PROJ_BFG) {
-            // pulsing lightning ball
-            float pulse = sinf(GetTime() * BFG_PULSE_SPEED) * BFG_PULSE_AMOUNT;
-            float outerR = b->size + pulse;
-            float innerR = b->size * 0.6f + pulse * 0.5f;
-            DrawCircleV(b->pos, outerR, (Color)BFG_GLOW_COLOR);
-            DrawCircleV(b->pos, innerR, (Color)BFG_COLOR);
-            DrawCircleV(b->pos, innerR * 0.4f, WHITE);
-        } else if (b->type == PROJ_GRENADE) {
-            // shadow on ground
-            DrawCircleV(b->pos, b->size * 0.8f, Fade(BLACK, 0.3f));
-            // grenade drawn at visual height offset (negative Y = up on screen)
-            Vector2 drawPos = { b->pos.x, b->pos.y - b->height };
-            DrawCircleV(drawPos, b->size, GRENADE_COLOR);
-            DrawCircleLinesV(drawPos, b->size + 1.0f, GRENADE_GLOW_COLOR);
-        } else {
-            Color bColor = b->isEnemy ? MAGENTA : YELLOW;
-            float bSize = b->size;
-            DrawCircleV(b->pos, bSize, bColor);
-            Vector2 trail = Vector2Subtract(b->pos, Vector2Scale(b->vel, BULLET_TRAIL_FACTOR));
-            DrawLineV(trail, b->pos, Fade(bColor, 0.5f));
-        }
-    }
+    DrawProjectiles();
 
     // --- Explosion rings ---
     for (int i = 0; i < MAX_EXPLOSIVES; i++) {
@@ -1477,39 +1633,9 @@ static void DrawWorld(void)
 
     // --- Sword swing arc ---
     if (p->sword.timer > 0 && !p->sword.lunge) {
-        float progress = 1.0f - (p->sword.timer / p->sword.duration);
-        float sweepAngle =
-            p->sword.angle - p->sword.arc / 2.0f + p->sword.arc * progress;
-        int numSegments = SWORD_DRAW_SEGMENTS;
-        float arcHalf = p->sword.arc / 2.0f;
         Color arcColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
-        for (int i = 1; i <= numSegments; i++) {
-            float segPos = (float)i / numSegments;
-            if (segPos > progress) break;
-
-            float t = segPos / progress;
-            float alpha = t * t * 0.9f;
-            float thick = 2.0f + t * 6.0f;
-
-            float a0 = p->sword.angle - arcHalf
-                + p->sword.arc * (float)(i - 1) / numSegments;
-            float a1 = p->sword.angle - arcHalf
-                + p->sword.arc * (float)i / numSegments;
-            Vector2 pt0 = Vector2Add(p->pos,
-                (Vector2){ cosf(a0) * p->sword.radius,
-                           sinf(a0) * p->sword.radius });
-            Vector2 pt1 = Vector2Add(p->pos,
-                (Vector2){ cosf(a1) * p->sword.radius,
-                           sinf(a1) * p->sword.radius });
-            DrawLineEx(pt0, pt1, thick, Fade(arcColor, alpha));
-        }
-        Vector2 sweepEnd = Vector2Add(
-            p->pos,
-            (Vector2){
-                cosf(sweepAngle) * p->sword.radius,
-                sinf(sweepAngle) * p->sword.radius
-            });
-        DrawLineEx(p->pos, sweepEnd, 3.0f, WHITE);
+        DrawSwordArc(p->pos, p->sword.timer, p->sword.duration,
+            p->sword.angle, p->sword.arc, p->sword.radius, arcColor);
     }
     // --- Sword lunge thrust ---
     if (p->sword.timer > 0 && p->sword.lunge) {
@@ -1630,13 +1756,14 @@ static void DrawSelect(void)
         DrawTetra2D, DrawCube2D, DrawOcta2D, DrawDodeca2D, DrawIcosa2D,
     };
 
-    // Pedestal positions (pentagon layout)
+    // Pedestal positions (U curve, left to right by face count)
     Vector2 pedestals[5];
+    float spacing = SELECT_ARENA_SIZE / 6.0f;
     for (int i = 0; i < 5; i++) {
-        float a = i * (2.0f * PI / 5.0f) - PI / 2.0f;
+        float norm = (float)(i - 2) / 2.0f;
         pedestals[i] = (Vector2){
-            SELECT_ARENA_CENTER + cosf(a) * SELECT_PEDESTAL_RADIUS,
-            SELECT_ARENA_CENTER + sinf(a) * SELECT_PEDESTAL_RADIUS
+            spacing * (float)(i + 1),
+            SELECT_PEDESTAL_Y + SELECT_PEDESTAL_CURVE * (1.0f - norm * norm)
         };
     }
 
@@ -1663,6 +1790,15 @@ static void DrawSelect(void)
         if (!pt->active) continue;
         float alpha = pt->lifetime / pt->maxLifetime;
         DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
+    }
+
+    // Projectiles
+    DrawProjectiles();
+
+    // Sword demo arc
+    if (g.selectSwordTimer > 0 && g.selectIndex == 0) {
+        DrawSwordArc(pedestals[0], g.selectSwordTimer, SWORD_DURATION,
+            g.selectSwordAngle, SWORD_ARC, SWORD_RADIUS, ORANGE);
     }
 
     // Pedestals
@@ -1699,54 +1835,53 @@ static void DrawSelect(void)
     }
 
     // Player
-    if (g.selectPhase == 0) {
-        // RGB hue-cycling circle
-        float hue = fmodf(t * 60.0f, 360.0f);
-        Color rgb = ColorFromHSV(hue, 0.9f, 1.0f);
-        // Shadow
-        DrawCircleV(p->shadowPos, p->size, Fade(BLACK, SHADOW_ALPHA));
-        DrawCircleV(p->pos, p->size, rgb);
-        DrawCircleV(p->pos, p->size * 0.5f, Fade(WHITE, 0.4f));
-    } else {
-        // After primary chosen, draw as that solid
+    {
         float rotY = t * PLAYER_ROT_SPEED;
         float rotX = PLAYER_ROT_TILT;
         Vector2 shadowPos = { p->shadowPos.x + SHADOW_OFFSET_X,
                               p->shadowPos.y + SHADOW_OFFSET_Y };
-        DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f, shadowPos, SHADOW_ALPHA);
+        if (g.selectPhase == 0) {
+            DrawSphere2D(p->pos, p->size, rotY, rotX, 1.0f,
+                shadowPos, SHADOW_ALPHA);
+        } else {
+            DrawPlayerSolid(p->pos, p->size, rotY, rotX, 1.0f,
+                shadowPos, SHADOW_ALPHA);
+        }
     }
 
     EndMode2D();
 
     // --- Screen space overlay ---
-    // Title
     int titleFont = (int)(SELECT_TITLE_FONT * ui);
+    int hintFont = (int)(SELECT_HINT_FONT * ui);
+    int labelFont = (int)(SELECT_LABEL_FONT * ui);
+    int descFont = (int)(SELECT_DESC_FONT * ui);
+    int gap = (int)(SELECT_HINT_GAP * ui);
+
+    // Title + hint at top
     const char *title = g.selectPhase == 0
         ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
     int titleW = MeasureText(title, titleFont);
     int titleY = (int)(sh * SELECT_TITLE_Y);
     DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
 
-    // Hint
-    int hintFont = (int)(SELECT_HINT_FONT * ui);
     const char *hint = "walk to a weapon and click to select";
     int hintW = MeasureText(hint, hintFont);
     DrawText(hint, sw / 2 - hintW / 2,
-        titleY + titleFont + (int)(SELECT_HINT_GAP * ui), hintFont, Fade(WHITE, 0.5f));
+        titleY + titleFont + gap, hintFont, Fade(WHITE, 0.5f));
 
-    // Weapon name/desc near highlighted pedestal
+    // Weapon name/desc at bottom
     if (g.selectIndex >= 0) {
         int idx = g.selectIndex;
-        Vector2 screenPos = GetWorldToScreen2D(pedestals[idx], g.camera);
-        int labelFont = (int)(SELECT_LABEL_FONT * ui);
-        int descFont = (int)(SELECT_DESC_FONT * ui);
+        const char *desc = descs[idx];
+        int descW = MeasureText(desc, descFont);
+        int descY = sh - descFont - gap;
+        DrawText(desc, sw / 2 - descW / 2, descY, descFont, WHITE);
+
         int nameW = MeasureText(names[idx], labelFont);
-        DrawText(names[idx], (int)screenPos.x - nameW / 2,
-            (int)screenPos.y - (int)(SELECT_RING_RADIUS * 1.3f), labelFont, SELECT_HIGHLIGHT_COLOR);
-        int descW = MeasureText(descs[idx], descFont);
-        DrawText(descs[idx], (int)screenPos.x - descW / 2,
-            (int)screenPos.y - (int)(SELECT_RING_RADIUS * 1.3f) + labelFont + (int)(SELECT_DESC_GAP * ui),
-            descFont, WHITE);
+        int nameY = descY - labelFont - gap;
+        DrawText(names[idx], sw / 2 - nameW / 2, nameY, labelFont,
+            SELECT_HIGHLIGHT_COLOR);
     }
 
     // Locked primary label
