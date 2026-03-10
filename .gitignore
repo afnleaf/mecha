@@ -2,18 +2,19 @@
 raylib/
 lib/
 
-game
+# build outputs
 mecha
 mecha.html
 index.html
 *.htm
+game
 game.js
-mecha.js
+web_pkg/mecha.js
 
 .claude/
 .garry/
 
-# Superseded by STATE.md
+# superseded by docs/STATE.md
 claude_review.md
 CLAUDE_THOUGHTS.md
 

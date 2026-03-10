@@ -5,7 +5,7 @@ pack:
     title: "Mecha Prototype"
     description: "mecha bullet hell prototype packed by histos"
   css:
-    - "./style.css"
+    - "./web_pkg/style.css"
   scripts:
-    - "./setup.js"
-    - "./mecha.js"
+    - "./web_pkg/setup.js"
+    - "./web_pkg/mecha.js"

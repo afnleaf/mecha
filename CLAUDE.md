@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Mecha bullet hell prototype. C game built with raylib, compiled to WASM via Emscripten, packed into a single HTML file with Histos. Data-oriented design — read PHILOSOPHY.md before making changes.
+Mecha bullet hell prototype. C game built with raylib, compiled to WASM via Emscripten, packed into a single HTML file with Histos. Data-oriented design — read docs/PHILOSOPHY.md before making changes.
 
 ## Build Commands
 You never run the build command. The user will always do this.
 ```bash
-./build2.sh        # WASM build (emcc + histos -> mecha.html)
+./build2.sh        # WASM build (emcc -> web_pkg/mecha.js, histos -> mecha.html)
 ./build2.sh n      # debug native build (gcc -> ./mecha)
 ./build2.sh o      # optimized native build (-O2 -march=native -flto -ffast-math, stripped)
 ```
@@ -32,14 +32,25 @@ src/              - all game source code
   rtypes.h        - Rust-style type aliases (u8, u16, u32, u64, etc.)
 build2.sh         - compile + pack script (runs from repo root)
 config.yaml       - histos packing config
-setup.js          - emscripten Module pre-config
-style.css         - canvas styling + cursor hide
+web_pkg/          - web build assets and output
+  setup.js        - emscripten Module pre-config
+  style.css       - canvas styling + cursor hide
+  mecha.js        - emcc output (generated)
+  mecha.html      - histos packed output (generated, output to repo root)
+docs/             - project documentation
+  PHILOSOPHY.md   - design philosophy (must follow)
+  GDD.md          - game design document
+  NOTES.md        - todo list and notes
+  ABILITIES.md    - ability documentation
+  PIPELINE.md     - pipeline documentation
+  REFACTOR.md     - refactoring notes
+  STATE.md        - state documentation
 raylib/           - raylib source (git submodule)
 lib/              - pre-built raylib libraries (libraylib.web.a)
 asset_blob/       - custom asset blob encoder/loader (blobbert.c)
 ```
 
-Key documentation: `NOTES.md` (todo list), `GDD.md` (game design doc), `PHILOSOPHY.md` (must follow).
+Key documentation: `docs/NOTES.md` (todo list), `docs/GDD.md` (game design doc), `docs/PHILOSOPHY.md` (must follow).
 
 ## Architecture
 
@@ -68,7 +79,7 @@ Key documentation: `NOTES.md` (todo list), `GDD.md` (game design doc), `PHILOSOP
 
 ## Working With This Codebase
 
-- Follow PHILOSOPHY.md: solve for the common case, design around data not abstractions, prefer simple explicit code
+- Follow docs/PHILOSOPHY.md: solve for the common case, design around data not abstractions, prefer simple explicit code
 - When the user asks for implementation help, give specifications and snippets, not full rewrites — unless in agent building mode
 - Refactor from ends inward: design output shape first, then input, then the middle transformation
 - Don't over-engineer for hypothetical edge cases
