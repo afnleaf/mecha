@@ -1,5 +1,5 @@
 #pragma once
-// type alias in rust style
+// type alias in rust style, just a personal preference
 
 typedef uint8_t     u8;
 typedef uint16_t    u16;

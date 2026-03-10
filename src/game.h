@@ -1,3 +1,5 @@
+// game.h
+// the function declarations header
 #ifndef GAME_H
 #define GAME_H
 
@@ -8,6 +10,7 @@ extern GameState g;
 
 // init.c
 void InitGame(void);
+void InitPlayer(void);
 
 // spawn.c
 Projectile* SpawnProjectile(

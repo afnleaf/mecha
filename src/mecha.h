@@ -1,11 +1,9 @@
+// mecha.h
+// the data structures
 #ifndef MECHA_H
 #define MECHA_H
 
-/******************************************************************************
-* Mecha Bullet Hell - Mini Prototype
-*
-* Version 0.0.1
-******************************************************************************/
+// brought to you by raylib
 #include "raylib.h"
 #include "raymath.h"
 #ifdef PLATFORM_WEB
@@ -16,10 +14,6 @@
 #include <string.h>
 #include "rtypes.h"
 #include "default.h"
-
-// ========================================================================== /
-// Data Structures
-// ========================================================================== /
 
 // weapon / screen types ---------------------------------------------------- /
 typedef enum WeaponType {
@@ -428,7 +422,7 @@ typedef struct VfxState {
     MineWebVfx mineWebs[MAX_MINE_WEBS];
 } VfxState;
 
-// state -------------------------------------------------------------------- /
+// State -------------------------------------------------------------------- /
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
 typedef struct GameState {

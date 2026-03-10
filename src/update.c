@@ -1,3 +1,6 @@
+// update.c
+// mutate the game state with various data transformations
+// handle input
 #include "game.h"
 
 // forward declarations for functions used before defined
@@ -5,13 +8,8 @@ static void RocketExplode(Vector2 pos);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
 static void SpawnFirePatch(Vector2 pos);
 
-// ========================================================================== /
-// Update
-// ========================================================================== /
 
-// ========================================================================== /
-// Hitscan
-// ========================================================================== /
+// Hitscan ------------------------------------------------------------------ /
 // Returns beam tip: closest enemy pos (laser) or rayEnd (railgun).
 // maxPierces==1 -> stop at first hit; >1 -> hit all enemies along ray.
 static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
@@ -67,7 +65,6 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
     }
 }
 
-
 static bool IsAbilityPressed(Player *p, AbilityID ability) {
     for (int i = 0; i < ABILITY_SLOTS; i++) {
         if (p->slots[i].ability == ability
@@ -85,6 +82,7 @@ static bool IsAbilityDown(Player *p, AbilityID ability) {
     }
     return false;
 }
+
 static void UpdateRailgun(Player *p, Vector2 toMouse, float dt)
 {
     p->railgun.cooldownTimer -= dt;
@@ -121,9 +119,7 @@ static Vector2 mouse() {
     return toMouse;
 }
 
-// ========================================================================== /
-// Weapon Select Screen
-// ========================================================================== /
+// Weapon Select Screen ----------------------------------------------------- /
 static void UpdateSelect(void)
 {
     // Display order: SWORD, REVOLVER, GUN, SNIPER, ROCKET (face count ascending)
@@ -162,6 +158,7 @@ static void UpdateSelect(void)
         }
     }
 }
+
 // player inputs and mechanics
 // should we refactor this further?
 // or do we tackle that once we start adding different loadoats?

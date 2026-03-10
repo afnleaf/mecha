@@ -1,8 +1,6 @@
+// default.h
+// game configuration constants, tweak these to tune gameplay
 #pragma once
-
-// ========================================================================== /
-// Game Config — tweak these to tune gameplay
-// ========================================================================== /
 
 // Window / Pools
 #define SCREEN_W                1443

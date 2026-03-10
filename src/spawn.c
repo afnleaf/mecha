@@ -1,3 +1,5 @@
+// spawn.c
+// where we call the spawns of entities
 #include "game.h"
 
 // so we can statically create the enemy definitions
@@ -28,9 +30,7 @@ static const EnemyDef ENEMY_DEFS[] = {
 static const EnemyType SPAWN_PRIORITY[] = { PENTA, OCTA, HEXA, RHOM, RECT };
 #define SPAWN_PRIORITY_COUNT 5
 
-// ========================================================================== /
-// Spawn Helpers
-// ========================================================================== /
+// Spawn Helpers ------------------------------------------------------------ /
 Projectile* SpawnProjectile(
     Vector2 pos, Vector2 dir,
     float speed, int damage, float lifetime, float size,

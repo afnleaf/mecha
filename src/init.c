@@ -1,17 +1,34 @@
+// init.c
+// sets the initial game state before any transformations are done
 #include "game.h"
 
 // the static struct and the emscripten void requirement are important
 // futher study needed
 GameState g;
 
-// ========================================================================== /
-// Init
-// ========================================================================== /
 // this is quite important.
 void InitGame(void)
 {
     memset(&g, 0, sizeof(g));
+    
+    // must be called after memory is set
+    InitPlayer();
 
+    g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
+    g.camera.target   = g.player.pos;
+    g.camera.zoom     = 1.0f;
+
+    g.spawnInterval   = SPAWN_INTERVAL;
+    g.spawnTimer      = SPAWN_INITIAL_DELAY;
+
+    g.screen          = SCREEN_SELECT;
+    g.selectIndex     = 0;
+    g.selectPhase     = 0;
+}
+
+// seperate for ease of maintainability
+void InitPlayer(void) 
+{
     Player *p  = &g.player;
     p->pos     = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
     p->speed   = PLAYER_SPEED;
@@ -39,6 +56,8 @@ void InitGame(void)
     p->flame.fuel           = FLAME_FUEL_MAX;
 
     // ability slots — default layout
+    // this will get changed eventually
+    // needs to be easy to customize
     p->slots[0]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
     p->slots[1]  = (AbilitySlot){ ABL_RAILGUN,  KEY_E };
     p->slots[2]  = (AbilitySlot){ ABL_SPIN,     KEY_LEFT_SHIFT };
@@ -53,15 +72,4 @@ void InitGame(void)
     p->slots[11] = (AbilitySlot){ ABL_BFG,      KEY_F };
 
     p->shadowPos            = p->pos;
-
-    g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
-    g.camera.target   = p->pos;
-    g.camera.zoom     = 1.0f;
-
-    g.spawnInterval   = SPAWN_INTERVAL;
-    g.spawnTimer      = SPAWN_INITIAL_DELAY;
-
-    g.screen          = SCREEN_SELECT;
-    g.selectIndex     = 0;
-    g.selectPhase     = 0;
 }

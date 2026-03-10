@@ -1,10 +1,7 @@
+// main.c
 #include "game.h"
 
-// ========================================================================== /
-// main
-// ========================================================================== /
-// I am confident about this.
-int main(void)
+int main(void) 
 {
     //SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_FULLSCREEN_MODE);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);

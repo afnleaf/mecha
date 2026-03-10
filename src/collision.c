@@ -1,8 +1,9 @@
+// collision.c
+// all the collision detection math goes here
+// hitboxes, hurtboxes, etc
 #include "game.h"
 
-// ========================================================================== /
 // Check if point is inside a swing arc
-// ========================================================================== /
 // what is C convetion for multi line function signature?
 // Line segment vs circle: does segment AB touch circle at C with radius r?
 static bool LineSegCircle(
@@ -55,9 +56,7 @@ static bool LineSegOBB(
     return true;
 }
 
-// ========================================================================== /
 // OBB collision helpers (for RECT enemy hitbox)
-// ========================================================================== /
 // Get the enemy facing angle (faces aggro target or player shadow)
 float EnemyAngle(Enemy *e) {
     Vector2 target = (e->aggroIdx >= 0)
@@ -95,9 +94,7 @@ static bool CircleOBBOverlap(
     return (dx * dx + dy * dy) <= radius * radius;
 }
 
-// ========================================================================== /
-// Collision Dispatchers — switch on enemy type, one case per shape
-// ========================================================================== /
+// Collision Dispatchers — switch on enemy type, one case per shaPe
 // Sweep line (sword, spin): does segment AB intersect enemy hitbox?
 // this does all the hitscan damage detection too because it makes contact
 bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b) {

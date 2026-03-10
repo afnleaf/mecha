@@ -1,3 +1,5 @@
+// draw.c
+// render the game state as pixels
 #include "game.h"
 
 static const char* AbilityName(AbilityID id) {
@@ -20,36 +22,35 @@ static const char* AbilityName(AbilityID id) {
 
 static const char* KeyName(int key) {
     switch (key) {
-        case KEY_Q:           return "Q";
-        case KEY_E:           return "E";
-        case KEY_F:           return "F";
-        case KEY_Z:           return "Z";
-        case KEY_X:           return "X";
-        case KEY_C:           return "C";
-        case KEY_V:           return "V";
-        case KEY_LEFT_SHIFT:  return "Shift";
-        case KEY_LEFT_CONTROL: return "Ctrl";
-        case KEY_ONE:         return "1";
-        case KEY_TWO:         return "2";
-        case KEY_THREE:       return "3";
-        case KEY_FOUR:        return "4";
-        default:              return "?";
+        case KEY_Q:             return "Q";
+        case KEY_E:             return "E";
+        case KEY_F:             return "F";
+        case KEY_Z:             return "Z";
+        case KEY_X:             return "X";
+        case KEY_C:             return "C";
+        case KEY_V:             return "V";
+        case KEY_LEFT_SHIFT:    return "Shift";
+        case KEY_LEFT_CONTROL:  return "Ctrl";
+        case KEY_ONE:           return "1";
+        case KEY_TWO:           return "2";
+        case KEY_THREE:         return "3";
+        case KEY_FOUR:          return "4";
+        default:                return "?";
     }
 }
 
 static const char* WeaponName(WeaponType w) {
     switch (w) {
-        case WPN_GUN:      return "GUN";
-        case WPN_SWORD:    return "SWORD";
-        case WPN_REVOLVER: return "REVLVR";
-        case WPN_SNIPER:   return "SNIPER";
-        case WPN_ROCKET:   return "ROCKET";
-        default:           return "???";
+        case WPN_GUN:           return "GUN";
+        case WPN_SWORD:         return "SWORD";
+        case WPN_REVOLVER:      return "REVLVR";
+        case WPN_SNIPER:        return "SNIPER";
+        case WPN_ROCKET:        return "ROCKET";
+        default:                return "???";
     }
 }
-// ========================================================================== /
-// Draw — Rainbow cube (fake 3D, subdivided gradient faces)
-// ========================================================================== /
+
+// Draw - Rainbow cube (fake 3D, subdivided gradient faces)
 // Manual HSV conversion to ensure no dependency issues in web build
 static Color HsvToRgb(float h, float s, float v, float alpha) {
     if (h < 0.0f) h = fmodf(h, 360.0f) + 360.0f;
@@ -236,11 +237,6 @@ static void DrawTetra2D(
 
 
 }
-
-
-
-
-
 
 static void DrawCube2D(
     Vector2 pos,
@@ -689,7 +685,7 @@ static void DrawIcosa2D(
     }
 }
 
-// dodecahedron ------------------------------------------------------------ /
+// dodecahedron ------------------------------------------------------------- /
 static void DrawDodeca2D(
     Vector2 pos,
     float size, float rotY, float rotX, float alpha,
@@ -870,7 +866,7 @@ static void DrawDodeca2D(
     }
 }
 
-// player solid dispatcher ------------------------------------------------- /
+// player solid dispatcher -------------------------------------------------- /
 static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, float alpha,
                             Vector2 shadowPos, float shadowAlpha) {
     switch (g.player.primary) {
@@ -883,9 +879,7 @@ static void DrawPlayerSolid(Vector2 pos, float size, float rotY, float rotX, flo
     }
 }
 
-// ========================================================================== /
-// Draw — World (camera space)
-// ========================================================================== /
+// Draw - World (camera space) ---------------------------------------------- /
 static void DrawWorld(void)
 {
     Player *p = &g.player;
@@ -1728,9 +1722,8 @@ static void DrawSelect(void)
 
     EndDrawing();
 }
-// ========================================================================== /
-// Draw — HUD (screen space)
-// ========================================================================== /
+
+// Draw - HUD (screen space)
 static void DrawHUD(void)
 {
     Player *p = &g.player;
@@ -2411,9 +2404,7 @@ static void DrawHUD(void)
     }
 }
 
-// ========================================================================== /
-// Draw — orchestrator
-// ========================================================================== /
+// Draw - orchestrator
 static void DrawGame(void)
 {
     if (g.screen == SCREEN_SELECT) {
@@ -2433,9 +2424,7 @@ static void DrawGame(void)
     EndDrawing();
 }
 
-// ========================================================================== /
 // Main loop callback
-// ========================================================================== /
 void NextFrame(void)
 {
     if (g.screen == SCREEN_PLAYING && !IsCursorHidden()) HideCursor();
