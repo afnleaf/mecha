@@ -43,7 +43,7 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
             Vector2 surfacePt = Vector2Add(origin, Vector2Scale(dir, tEntry));
             if (damage > 0) {
                 DamageEnemy(firstIdx, damage, dmgType, HIT_SCAN);
-                SpawnParticles(surfacePt, WHITE, 4);
+                SpawnParticles(surfacePt, WHITE, HITSCAN_HIT_PARTICLES);
             }
             return surfacePt;
         }
@@ -189,9 +189,11 @@ static void UpdatePlayer(float dt)
             moveSpeed *= GUN_OVERHEAT_DASH_BOOST;
             // Speed trail particles while boosted
             if (moveLen > 0) {
-                Vector2 trail = { -moveDir.x * 20.0f, -moveDir.y * 20.0f };
+                Vector2 trail = { -moveDir.x * GUN_OVERHEAT_TRAIL_SPEED,
+                                  -moveDir.y * GUN_OVERHEAT_TRAIL_SPEED };
                 SpawnParticle(p->pos, trail,
-                    (Color){ 100, 200, 255, 150 }, 2.0f, 0.2f);
+                    GUN_OVERHEAT_TRAIL_COLOR, GUN_OVERHEAT_TRAIL_SIZE,
+                    GUN_OVERHEAT_TRAIL_LIFE);
             }
         }
         if (p->primary == WPN_SNIPER && p->sniper.aiming)
@@ -374,11 +376,13 @@ static void UpdatePlayer(float dt)
                         if (dashPressed) {
                             p->gun.overheatBoostTimer = GUN_OVERHEAT_BOOST_DUR;
                             // Burst of particles on dash-vent
-                            for (int i = 0; i < 12; i++) {
-                                float a = ((float)i / 12.0f) * PI * 2.0f;
-                                Vector2 v = { cosf(a) * 80.0f, sinf(a) * 80.0f };
+                            for (int i = 0; i < GUN_VENT_BURST_PARTICLES; i++) {
+                                float a = ((float)i / GUN_VENT_BURST_PARTICLES) * PI * 2.0f;
+                                Vector2 v = { cosf(a) * GUN_VENT_BURST_SPEED,
+                                              sinf(a) * GUN_VENT_BURST_SPEED };
                                 SpawnParticle(p->pos, v,
-                                    (Color){ 100, 200, 255, 200 }, 3.0f, 0.4f);
+                                    GUN_VENT_BURST_COLOR, GUN_VENT_BURST_SIZE,
+                                    GUN_VENT_BURST_LIFETIME);
                             }
                         }
                     } else {
@@ -395,9 +399,11 @@ static void UpdatePlayer(float dt)
             if (p->gun.ventResult == 1) {
                 for (int i = 0; i < 2; i++) {
                     float vAngle = -PI/2.0f + ((float)GetRandomValue(-30, 30) * 0.01f);
-                    Vector2 vVel = { cosf(vAngle) * 40.0f, sinf(vAngle) * 40.0f };
+                    Vector2 vVel = { cosf(vAngle) * GUN_VENT_STEAM_SPEED,
+                                     sinf(vAngle) * GUN_VENT_STEAM_SPEED };
                     SpawnParticle(p->pos, vVel,
-                        (Color){ 200, 200, 200, 150 }, 2.0f, 0.3f);
+                        GUN_VENT_STEAM_COLOR, GUN_VENT_STEAM_SIZE,
+                        GUN_VENT_STEAM_LIFETIME);
                 }
             }
             if (p->gun.heat <= GUN_OVERHEAT_CLEAR) {
@@ -1004,10 +1010,12 @@ static void UpdatePlayer(float dt)
         for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
             float a = p->slam.angle - halfArc
                 + (float)i / (float)EXPLOSION_RING_COUNT * SLAM_ARC;
-            float speed = (float)GetRandomValue(200, 400);
+            float speed = (float)GetRandomValue(SLAM_PARTICLE_SPEED_MIN,
+                SLAM_PARTICLE_SPEED_MAX);
             Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
             Color c = (i % 2 == 0) ? (Color)SLAM_COLOR : WHITE;
-            SpawnParticle(p->pos, vel, c, 4.0f, 0.3f);
+            SpawnParticle(p->pos, vel, c, SLAM_PARTICLE_SIZE,
+                SLAM_PARTICLE_LIFETIME);
         }
     }
 
@@ -1039,7 +1047,7 @@ static void UpdatePlayer(float dt)
                 && g.deployables[i].type == DEPLOY_TURRET) count++;
         if (count < TURRET_MAX_ACTIVE) {
             float mouseDist = Vector2Length(toMouse);
-            float placeDist = (mouseDist < 100.0f) ? mouseDist : 100.0f;
+            float placeDist = (mouseDist < TURRET_PLACEMENT_DIST) ? mouseDist : TURRET_PLACEMENT_DIST;
             Vector2 placePos = (mouseDist > 1.0f)
                 ? Vector2Add(p->pos, Vector2Scale(toMouse, placeDist / mouseDist))
                 : p->pos;
@@ -1101,9 +1109,11 @@ static void UpdatePlayer(float dt)
                 float pd = (float)GetRandomValue(200, 600) / 10.0f;
                 Vector2 ppos = Vector2Add(p->pos,
                     (Vector2){ cosf(pa) * pd, sinf(pa) * pd });
-                Vector2 pvel = { cosf(pa) * 30.0f, sinf(pa) * 30.0f };
+                Vector2 pvel = { cosf(pa) * FLAME_PARTICLE_SPEED,
+                                 sinf(pa) * FLAME_PARTICLE_SPEED };
                 Color c = (GetRandomValue(0, 1) == 0) ? ORANGE : YELLOW;
-                SpawnParticle(ppos, pvel, c, 2.0f, 0.3f);
+                SpawnParticle(ppos, pvel, c, FLAME_PARTICLE_SIZE,
+                    FLAME_PARTICLE_LIFETIME);
             }
         }
     } else {
@@ -1535,14 +1545,15 @@ static void UpdateDeployables(float dt) {
                     Vector2 dir = Vector2Normalize(
                         Vector2Subtract(g.enemies[best].pos, d->pos));
                     Vector2 muzzle = Vector2Add(d->pos,
-                        Vector2Scale(dir, 10.0f));
+                        Vector2Scale(dir, TURRET_MUZZLE_OFFSET));
                     SpawnProjectile(muzzle, dir,
                         TURRET_BULLET_SPEED, TURRET_DAMAGE,
                         TURRET_BULLET_LIFETIME, TURRET_BULLET_SIZE,
                         false, false, PROJ_BULLET, DMG_BALLISTIC);
                     SpawnParticle(muzzle,
-                        Vector2Scale(dir, 80.0f),
-                        (Color)TURRET_COLOR, 2.0f, 0.08f);
+                        Vector2Scale(dir, TURRET_MUZZLE_SPEED),
+                        (Color)TURRET_COLOR, TURRET_MUZZLE_SIZE,
+                        TURRET_MUZZLE_LIFETIME);
                     g.enemies[best].aggroIdx = (i8)i;
                     d->actionTimer = TURRET_FIRE_RATE;
                 }

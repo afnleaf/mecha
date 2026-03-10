@@ -12,7 +12,9 @@ static bool LineSegCircle(
     Vector2 ab = Vector2Subtract(b, a);
     Vector2 ac = Vector2Subtract(c, a);
     float ab2 = Vector2DotProduct(ab, ab);
-    if (ab2 < 1e-8f) return Vector2DistanceSqr(a, c) <= r * r;
+    // EPSILON is a raylib constant at 1e-6f
+    // could define our own for more precision but press x to doubt it matters
+    if (ab2 < EPSILON) return Vector2DistanceSqr(a, c) <= r * r;
     float t = Vector2DotProduct(ac, ab) / ab2;
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;

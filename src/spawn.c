@@ -150,7 +150,7 @@ void SpawnEnemy(void)
             for (int t = 0; t < SPAWN_PRIORITY_COUNT; t++) {
                 const EnemyDef *d = &ENEMY_DEFS[SPAWN_PRIORITY[t]];
                 if (g.enemiesKilled >= d->spawnKills
-                    && GetRandomValue(1, 100) <= d->spawnChance) {
+                    && GetRandomValue(1, SPAWN_CHANCE_MAX) <= d->spawnChance) {
                     type = SPAWN_PRIORITY[t];
                     break;
                 }

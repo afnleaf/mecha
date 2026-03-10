@@ -69,6 +69,19 @@
 #define GUN_VENT_HIT_DECAY       5.0f     // heat loss/sec on perfect vent
 #define GUN_OVERHEAT_DASH_BOOST  1.4f     // movespeed multiplier after dash during overheat
 #define GUN_OVERHEAT_BOOST_DUR   3.0f     // seconds the dash-vent movespeed buff lasts
+#define GUN_OVERHEAT_TRAIL_SPEED 20.0f
+#define GUN_OVERHEAT_TRAIL_COLOR (Color){ 100, 200, 255, 150 }
+#define GUN_OVERHEAT_TRAIL_SIZE  2.0f
+#define GUN_OVERHEAT_TRAIL_LIFE  0.2f
+#define GUN_VENT_BURST_PARTICLES 12
+#define GUN_VENT_BURST_SPEED     80.0f
+#define GUN_VENT_BURST_COLOR     (Color){ 100, 200, 255, 200 }
+#define GUN_VENT_BURST_SIZE      3.0f
+#define GUN_VENT_BURST_LIFETIME  0.4f
+#define GUN_VENT_STEAM_SPEED     40.0f
+#define GUN_VENT_STEAM_COLOR     (Color){ 200, 200, 200, 150 }
+#define GUN_VENT_STEAM_SIZE      2.0f
+#define GUN_VENT_STEAM_LIFETIME  0.3f
 
 // Minigun
 #define MINIGUN_MAX_FIRE_RATE    40.0f
@@ -254,6 +267,11 @@
 #define SLAM_STUN_MAX           2.0f
 #define SLAM_COOLDOWN           6.0f
 #define SLAM_VFX_DURATION       0.2f
+#define SLAM_PARTICLE_SPEED_MIN 200
+#define SLAM_PARTICLE_SPEED_MAX 400
+#define SLAM_PARTICLE_SIZE      4.0f
+#define SLAM_PARTICLE_LIFETIME  0.3f
+#define SLAM_VIS_SEGMENTS       12
 #define SLAM_COLOR              (Color){ 255, 200, 60, 255 }
 
 // Parry -------------------------------------------------------------------- /
@@ -276,6 +294,11 @@
 #define TURRET_BULLET_SIZE      3.0f
 #define TURRET_COOLDOWN         12.0f
 #define TURRET_MAX_ACTIVE       2
+#define TURRET_PLACEMENT_DIST   100.0f
+#define TURRET_MUZZLE_OFFSET    10.0f
+#define TURRET_MUZZLE_SPEED     80.0f
+#define TURRET_MUZZLE_SIZE      2.0f
+#define TURRET_MUZZLE_LIFETIME  0.08f
 #define TURRET_COLOR            (Color){ 100, 200, 255, 255 }
 
 // Root Mine ---------------------------------------------------------------- /
@@ -316,6 +339,9 @@
 #define FLAME_PATCH_TICK        0.2f     // damage tick interval
 #define FLAME_COLOR             (Color){ 255, 120, 30, 150 }
 #define FLAME_FLICKER_SPEED     10.0f
+#define FLAME_PARTICLE_SPEED    30.0f
+#define FLAME_PARTICLE_SIZE     2.0f
+#define FLAME_PARTICLE_LIFETIME 0.3f
 #define MAX_FIRE_PATCHES        64
 
 // Hitscan weapons ---------------------------------------------------------- /
@@ -389,6 +415,7 @@
 #define SPAWN_RAMP              0.98f
 #define SPAWN_MIN_INTERVAL      0.4f
 #define SPAWN_MARGIN            400.0f
+#define SPAWN_CHANCE_MAX        100
 
 // Enemy — Triangle (chaser)
 #define TRI_SIZE                14.0f
@@ -495,6 +522,7 @@
 #define DEATH_PARTICLES             8
 #define CONTACT_HIT_PARTICLES       6
 #define BULLET_HIT_PARTICLES        4
+#define HITSCAN_HIT_PARTICLES       4
 
 // VFX ---------------------------------------------------------------------- /
 // Gun muzzle
@@ -565,6 +593,44 @@
 #define HEXA_MUZZLE_LIFETIME    0.15f
 
 // Drawing ------------------------------------------------------------------ /
+// Player solid rendering
+#define SHAPE_SUBDIV_TRI        6       // tetra/cube/octa subdivision
+#define SHAPE_SUBDIV_PENTA      4       // icosa/dodeca subdivision
+#define SHAPE_SAT_DEFAULT       1.0f
+#define SHAPE_SAT_CUBE          0.85f
+#define SHAPE_SAT_DODECA        0.85f
+
+// Turret visuals
+#define TURRET_VIS_ROT_SPEED    3.0f
+#define TURRET_VIS_GLOW_R       8.0f
+#define TURRET_VIS_SIZE         10.0f
+#define TURRET_VIS_THICKNESS    2.0f
+#define TURRET_HPBAR_W          16.0f
+#define TURRET_HPBAR_H          2.0f
+#define TURRET_HPBAR_YOFFSET    13.0f
+
+// Mine visuals
+#define MINE_VIS_PULSE_MIN      0.6f
+#define MINE_VIS_PULSE_RANGE    0.4f
+#define MINE_VIS_OUTER_R        6.0f
+#define MINE_VIS_CORE_R         3.0f
+
+// Heal visuals
+#define HEAL_VIS_PULSE_MIN      0.7f
+#define HEAL_VIS_PULSE_RANGE    0.3f
+
+// Fire patch visuals
+#define FIRE_PATCH_EMBER_COUNT  6
+#define FIRE_PATCH_FADE_THRESH  0.3f
+
+// Explosion ring visuals
+#define EXPLOSION_RING_DECAY    0.3f
+#define EXPLOSION_RING_ALPHA    0.7f
+
+// Minigun visuals
+#define MINIGUN_VIS_BARREL_COUNT 3
+#define MINIGUN_VIS_SPIN_SPEED  30.0f
+
 // Shadows
 #define SHADOW_OFFSET_X         4.0f
 #define SHADOW_OFFSET_Y         8.0f

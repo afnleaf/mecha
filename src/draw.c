@@ -160,8 +160,8 @@ static void DrawTetra2D(
                 int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
             }
 
-    int N = 6; // Grid subdivision for smooth gradient
-    
+    int N = SHAPE_SUBDIV_TRI;
+
     for (int fi = 0; fi < 4; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
@@ -335,8 +335,8 @@ static void DrawCube2D(
                 int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
             }
 
-    int N = 6; // Grid subdivision
-    
+    int N = SHAPE_SUBDIV_TRI;
+
     for (int fi = 0; fi < 6; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
@@ -374,7 +374,7 @@ static void DrawCube2D(
                 float uc = (u0 + u1) * 0.5f, vc = (v0 + v1) * 0.5f;
                 float hC = BILERP(h0, h1, h2, h3, uc, vc);
                 
-                Color cc = HsvToRgb(hC, 0.85f, 1.0f, alpha);
+                Color cc = HsvToRgb(hC, SHAPE_SAT_CUBE, 1.0f, alpha);
                 DrawTriangle(q00, q10, q11, cc);
                 DrawTriangle(q00, q11, q01, cc);
 
@@ -468,7 +468,7 @@ static void DrawOcta2D(
                 int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
             }
 
-    int N = 6;
+    int N = SHAPE_SUBDIV_TRI;
 
     for (int fi = 0; fi < 8; fi++) {
         int f = order[fi];
@@ -619,7 +619,7 @@ static void DrawIcosa2D(
                 int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
             }
 
-    int N = 4;
+    int N = SHAPE_SUBDIV_PENTA;
 
     for (int fi = 0; fi < 20; fi++) {
         int f = order[fi];
@@ -811,7 +811,7 @@ static void DrawDodeca2D(
             float h1 = hv[tri + 1];
             float h2 = hv[tri + 2];
 
-            int N = 4;
+            int N = SHAPE_SUBDIV_PENTA;
             for (int row = 0; row < N; row++) {
                 for (int col = 0; col < N - row; col++) {
                     float u0b = (float)col / N;
@@ -840,7 +840,7 @@ static void DrawDodeca2D(
                     };
 
                     float hC = fmodf(w0b * h0 + u0b * h1 + v0b * h2 + 360.0f, 360.0f);
-                    Color cc = HsvToRgb(hC, 0.85f, 1.0f, alpha);
+                    Color cc = HsvToRgb(hC, SHAPE_SAT_DODECA, 1.0f, alpha);
                     DrawTriangle(q0, q1, q2, cc);
 
                     if (col + 1 < N - row) {
@@ -852,7 +852,7 @@ static void DrawDodeca2D(
                             w3b * p0.y + u3b * p1.y + v3b * p2.y
                         };
                         float hC2 = fmodf(w3b * h0 + u3b * h1 + v3b * h2 + 360.0f, 360.0f);
-                        Color cc2 = HsvToRgb(hC2, 0.85f, 1.0f, alpha);
+                        Color cc2 = HsvToRgb(hC2, SHAPE_SAT_DODECA, 1.0f, alpha);
                         DrawTriangle(q1, q3, q2, cc2);
                     }
                 }
@@ -911,10 +911,10 @@ static void DrawWorld(void)
         if (!fp->active) continue;
         float t = (float)GetTime();
         float life = fp->timer / FLAME_PATCH_LIFETIME;
-        float fade = (life > 0.3f) ? 1.0f : life / 0.3f;
+        float fade = (life > FIRE_PATCH_FADE_THRESH) ? 1.0f : life / FIRE_PATCH_FADE_THRESH;
         float r = fp->radius;
         // scatter embers — deterministic offsets from patch index
-        int embers = 6;
+        int embers = FIRE_PATCH_EMBER_COUNT;
         for (int j = 0; j < embers; j++) {
             float seed = i * 7.13f + j * 3.71f;
             // each ember drifts in a small loop
@@ -954,21 +954,21 @@ static void DrawWorld(void)
         switch (d->type) {
         case DEPLOY_TURRET: {
             // rotating triangle with line toward nearest enemy
-            float rot = t * 3.0f;
-            DrawCircleV(d->pos, 8.0f, Fade((Color)TURRET_COLOR, 0.3f));
+            float rot = t * TURRET_VIS_ROT_SPEED;
+            DrawCircleV(d->pos, TURRET_VIS_GLOW_R, Fade((Color)TURRET_COLOR, 0.3f));
             for (int v = 0; v < 3; v++) {
                 float a0 = rot + v * (2.0f * PI / 3.0f);
                 float a1 = rot + (v + 1) * (2.0f * PI / 3.0f);
                 Vector2 p0 = Vector2Add(d->pos,
-                    (Vector2){ cosf(a0) * 10.0f, sinf(a0) * 10.0f });
+                    (Vector2){ cosf(a0) * TURRET_VIS_SIZE, sinf(a0) * TURRET_VIS_SIZE });
                 Vector2 p1 = Vector2Add(d->pos,
-                    (Vector2){ cosf(a1) * 10.0f, sinf(a1) * 10.0f });
-                DrawLineEx(p0, p1, 2.0f, (Color)TURRET_COLOR);
+                    (Vector2){ cosf(a1) * TURRET_VIS_SIZE, sinf(a1) * TURRET_VIS_SIZE });
+                DrawLineEx(p0, p1, TURRET_VIS_THICKNESS, (Color)TURRET_COLOR);
             }
             // HP bar
             float hpFrac = (float)d->hp / TURRET_HP;
-            float barW = 16.0f, barH = 2.0f;
-            Vector2 barPos = { d->pos.x - barW * 0.5f, d->pos.y + 13.0f };
+            float barW = TURRET_HPBAR_W, barH = TURRET_HPBAR_H;
+            Vector2 barPos = { d->pos.x - barW * 0.5f, d->pos.y + TURRET_HPBAR_YOFFSET };
             DrawRectangleV(barPos, (Vector2){ barW, barH },
                 Fade(DARKGRAY, 0.5f));
             Color hpColor = (hpFrac > 0.5f) ? (Color)TURRET_COLOR : ORANGE;
@@ -976,15 +976,15 @@ static void DrawWorld(void)
             DrawRectangleV(barPos, (Vector2){ barW * hpFrac, barH }, hpColor);
         } break;
         case DEPLOY_MINE: {
-            float pulse = 0.6f + 0.4f * sinf(t * MINE_PULSE_SPEED);
+            float pulse = MINE_VIS_PULSE_MIN + MINE_VIS_PULSE_RANGE * sinf(t * MINE_PULSE_SPEED);
             DrawCircleV(d->pos, d->radius * pulse,
                 Fade((Color)MINE_COLOR, 0.15f));
-            DrawCircleLinesV(d->pos, 6.0f, (Color)MINE_COLOR);
-            DrawCircleV(d->pos, 3.0f,
+            DrawCircleLinesV(d->pos, MINE_VIS_OUTER_R, (Color)MINE_COLOR);
+            DrawCircleV(d->pos, MINE_VIS_CORE_R,
                 Fade((Color)MINE_COLOR, pulse));
         } break;
         case DEPLOY_HEAL: {
-            float pulse = 0.7f + 0.3f * sinf(t * HEAL_PULSE_SPEED);
+            float pulse = HEAL_VIS_PULSE_MIN + HEAL_VIS_PULSE_RANGE * sinf(t * HEAL_PULSE_SPEED);
             DrawCircleV(d->pos, d->radius * pulse,
                 Fade((Color)HEAL_COLOR, 0.1f));
             DrawCircleLinesV(d->pos, d->radius,
@@ -1080,8 +1080,8 @@ static void DrawWorld(void)
         Explosive *ex = &g.vfx.explosives[i];
         if (!ex->active) continue;
         float t = ex->timer / ex->duration;
-        float alpha = t * 0.7f;
-        float radius = ROCKET_EXPLOSION_RADIUS * (1.0f - t * 0.3f);
+        float alpha = t * EXPLOSION_RING_ALPHA;
+        float radius = ROCKET_EXPLOSION_RADIUS * (1.0f - t * EXPLOSION_RING_DECAY);
         DrawCircleLinesV(ex->pos, radius, Fade(ORANGE, alpha));
         DrawCircleLinesV(ex->pos, radius - 2.0f, Fade(RED, alpha * 0.6f));
     }
@@ -1350,7 +1350,7 @@ static void DrawWorld(void)
             float alpha = 1.0f - progress;
             float halfArc = SLAM_ARC * 0.5f;
             float a = p->slam.angle;
-            int segs = 12;
+            int segs = SLAM_VIS_SEGMENTS;
             // outer arc
             for (int i = 0; i < segs; i++) {
                 float a0 = a - halfArc + (float)i / segs * SLAM_ARC;
@@ -1397,9 +1397,9 @@ static void DrawWorld(void)
                            sa * (p->size + MINIGUN_TIP_OFFSET) });
             DrawLineEx(p->pos, miniTip, MINIGUN_BARREL_THICKNESS, barrelColor);
             // spinning barrel lines
-            float spin = (float)GetTime() * p->minigun.spinUp * 30.0f;
-            for (int b = 0; b < 3; b++) {
-                float bAngle = p->angle + spin + b * (2.0f * PI / 3.0f);
+            float spin = (float)GetTime() * p->minigun.spinUp * MINIGUN_VIS_SPIN_SPEED;
+            for (int b = 0; b < MINIGUN_VIS_BARREL_COUNT; b++) {
+                float bAngle = p->angle + spin + b * (2.0f * PI / MINIGUN_VIS_BARREL_COUNT);
                 float bca = cosf(bAngle), bsa = sinf(bAngle);
                 Vector2 bOff = { -bsa * 2.0f, bca * 2.0f };
                 Vector2 bStart = Vector2Add(p->pos, bOff);
