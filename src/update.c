@@ -335,6 +335,26 @@ static void UpdateSelect(void)
     g.camera.offset = (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
 }
 
+// SweepDamage — shared by sword and spin
+// Returns hit count; hitIndices[] filled with enemy indices for post-hit work
+static int SweepDamage(
+    Vector2 origin, Vector2 sweepEnd, float sweepAngle,
+    int damage, DamageType dmgType,
+    float *lastHitAngles, int *hitIndices, int maxHits)
+{
+    int hits = 0;
+    for (int i = 0; i < MAX_ENEMIES && hits < maxHits; i++) {
+        Enemy *ei = &g.enemies[i];
+        if (!ei->active) continue;
+        if (sweepAngle - lastHitAngles[i] < PI) continue;
+        if (!EnemyHitSweep(ei, origin, sweepEnd)) continue;
+        DamageEnemy(i, damage, dmgType, HIT_MELEE);
+        lastHitAngles[i] = sweepAngle;
+        hitIndices[hits++] = i;
+    }
+    return hits;
+}
+
 // player inputs and mechanics
 // should we refactor this further?
 // or do we tackle that once we start adding different loadoats?
@@ -942,16 +962,9 @@ static void UpdatePlayer(float dt)
             (Vector2){ cosf(sweepAngle) * radius,
                        sinf(sweepAngle) * radius });
 
-        for (int i = 0; i < MAX_ENEMIES; i++) {
-            Enemy *ei = &g.enemies[i];
-            if (!ei->active) continue;
-            if (sweepAngle - p->sword.lastHitAngle[i] < PI) continue;
-            bool swordHit = EnemyHitSweep(ei, p->pos, sweepEnd);
-            if (swordHit) {
-                DamageEnemy(i, dmg, DMG_SLASH, HIT_MELEE);
-                p->sword.lastHitAngle[i] = sweepAngle;
-            }
-        }
+        int hits[MAX_ENEMIES];
+        SweepDamage(p->pos, sweepEnd, sweepAngle,
+            dmg, DMG_SLASH, p->sword.lastHitAngle, hits, MAX_ENEMIES);
         p->sword.timer -= dt;
     }
     if (p->sword.timer > 0 && p->sword.lunge) {
@@ -1025,27 +1038,19 @@ static void UpdatePlayer(float dt)
             (Vector2){ cosf(sweepAngle) * p->spin.radius,
                        sinf(sweepAngle) * p->spin.radius });
 
-        for (int i = 0; i < MAX_ENEMIES; i++) {
-            Enemy *ei = &g.enemies[i];
-            if (!ei->active) continue;
-            if (sweepAngle - p->spin.lastHitAngle[i] < PI) continue;
-            bool spinHit = EnemyHitSweep(ei, p->pos, sweepEnd);
-            if (spinHit) {
-                DamageEnemy(i, SPIN_DAMAGE, DMG_SLASH, HIT_MELEE);
-                p->spin.lastHitAngle[i] = sweepAngle;
-                // player heals on spin attack
-                // 5% lifesteal
-                float heal = SPIN_DAMAGE * SPIN_LIFESTEAL;
-                p->hp = p->hp + heal;
-                if (p->hp > p->maxHp) p->hp = p->maxHp;
-                // animation of ability throughout
-                //SpawnParticles(p->pos, GREEN, 64);
-                SpawnParticles(ei->pos, GREEN,
-                    (int)(heal * SPIN_HEAL_PARTICLE_MULT));
-                Vector2 kb = Vector2Normalize(
-                    Vector2Subtract(ei->pos, p->pos));
-                ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
-            }
+        int hits[MAX_ENEMIES];
+        int nhits = SweepDamage(p->pos, sweepEnd, sweepAngle,
+            SPIN_DAMAGE, DMG_SLASH, p->spin.lastHitAngle, hits, MAX_ENEMIES);
+        for (int h = 0; h < nhits; h++) {
+            Enemy *ei = &g.enemies[hits[h]];
+            float heal = SPIN_DAMAGE * SPIN_LIFESTEAL;
+            p->hp = p->hp + heal;
+            if (p->hp > p->maxHp) p->hp = p->maxHp;
+            SpawnParticles(ei->pos, GREEN,
+                (int)(heal * SPIN_HEAL_PARTICLE_MULT));
+            Vector2 kb = Vector2Normalize(
+                Vector2Subtract(ei->pos, p->pos));
+            ei->vel = Vector2Scale(kb, SPIN_KNOCKBACK);
         }
 
         // deflect enemy bullets inside spin radius
@@ -1325,6 +1330,144 @@ static void UpdatePlayer(float dt)
 
 }
 
+// enemy shoot functions --------------------------------------------------- /
+void ShootRect(Enemy *e, Vector2 toTarget, float dist, float dt) {
+    e->shootTimer -= dt;
+    if (e->shootTimer <= 0 && dist > 1.0f) {
+        e->shootTimer = RECT_SHOOT_INTERVAL;
+        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
+        Vector2 muzzle = Vector2Add(e->pos,
+            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
+        SpawnProjectile(muzzle, shootDir, RECT_BULLET_SPEED,
+            RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME,
+            RECT_PROJECTILE_SIZE, true, false,
+            PROJ_BULLET, DMG_BALLISTIC);
+        SpawnParticle(muzzle,
+            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+            MAGENTA, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
+    }
+}
+
+void ShootPenta(Enemy *e, Vector2 toTarget, float dist, float dt) {
+    e->shootTimer -= dt;
+    if (e->shootTimer <= 0 && dist > 1.0f) {
+        e->shootTimer = PENTA_SHOOT_INTERVAL;
+        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
+        Vector2 perp = { -shootDir.y, shootDir.x };
+
+        for (int r = -1; r <= 1; r += 2) {
+            Vector2 rowOff = Vector2Scale(perp,
+                PENTA_ROW_OFFSET * r);
+            for (int b = 0; b < PENTA_BULLETS_PER_ROW; b++) {
+                Vector2 bpos = Vector2Add(e->pos, rowOff);
+                bpos = Vector2Add(bpos,
+                    Vector2Scale(shootDir,
+                        e->size + MUZZLE_OFFSET
+                        + b * PENTA_BULLET_SPACING));
+                SpawnProjectile(bpos, shootDir,
+                    PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
+                    PENTA_BULLET_LIFETIME, PENTA_PROJECTILE_SIZE,
+                    true, false, PROJ_BULLET, DMG_BALLISTIC);
+            }
+        }
+        Vector2 muzzle = Vector2Add(e->pos,
+            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
+        SpawnParticle(muzzle,
+            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+            PENTA_COLOR, PENTA_MUZZLE_SIZE, PENTA_MUZZLE_LIFETIME);
+        SpawnParticle(muzzle,
+            Vector2Scale(perp, PENTA_SIDE_SPEED),
+            PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
+        SpawnParticle(muzzle,
+            Vector2Scale(perp, -PENTA_SIDE_SPEED),
+            PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
+    }
+}
+
+void ShootHexa(Enemy *e, Vector2 toTarget, float dist, float dt) {
+    e->shootTimer -= dt;
+    if (e->shootTimer <= 0 && dist > 1.0f) {
+        e->shootTimer = HEXA_SHOOT_INTERVAL;
+        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
+        float baseAngle = atan2f(shootDir.y, shootDir.x);
+        float halfSpread = HEXA_FAN_SPREAD / 2.0f;
+        float step = HEXA_FAN_SPREAD / (HEXA_FAN_COUNT - 1);
+
+        for (int b = 0; b < HEXA_FAN_COUNT; b++) {
+            float angle = baseAngle - halfSpread + step * b;
+            Vector2 dir = { cosf(angle), sinf(angle) };
+            Vector2 muzzle = Vector2Add(e->pos,
+                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+            SpawnProjectile(muzzle, dir, HEXA_BULLET_SPEED,
+                HEXA_BULLET_DAMAGE, HEXA_BULLET_LIFETIME,
+                HEXA_PROJECTILE_SIZE, true, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+        }
+        Vector2 muzzle = Vector2Add(e->pos,
+            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
+        SpawnParticle(muzzle,
+            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+            HEXA_COLOR, HEXA_MUZZLE_SIZE, HEXA_MUZZLE_LIFETIME);
+    }
+}
+
+void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt) {
+    if (e->chargeTimer > 0) return;
+    e->shootTimer -= dt;
+    if (e->shootTimer <= 0 && dist > 1.0f) {
+        int pattern = e->attackPhase % 3;
+        switch (pattern) {
+        case 0: { // Aimed burst — cone at player
+            Vector2 shootDir = Vector2Scale(
+                toTarget, 1.0f / dist);
+            float baseAngle = atan2f(shootDir.y, shootDir.x);
+            float halfSpread = TRAP_BURST_SPREAD / 2.0f;
+            float step = TRAP_BURST_SPREAD
+                / (TRAP_BURST_COUNT - 1);
+            for (int b = 0; b < TRAP_BURST_COUNT; b++) {
+                float a = baseAngle - halfSpread + step * b;
+                Vector2 dir = { cosf(a), sinf(a) };
+                Vector2 muzzle = Vector2Add(e->pos,
+                    Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, dir,
+                    TRAP_BULLET_SPEED, TRAP_BULLET_DAMAGE,
+                    TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
+                    true, false, PROJ_BULLET, DMG_BALLISTIC);
+            }
+            Vector2 muzzle = Vector2Add(e->pos,
+                Vector2Scale(shootDir,
+                    e->size + MUZZLE_OFFSET));
+            SpawnParticle(muzzle,
+                Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+                TRAP_COLOR, PENTA_MUZZLE_SIZE,
+                PENTA_MUZZLE_LIFETIME);
+        } break;
+        case 1: { // Ring shot — bullets in all directions
+            float step = 2.0f * PI / TRAP_RING_COUNT;
+            for (int b = 0; b < TRAP_RING_COUNT; b++) {
+                float a = step * b;
+                Vector2 dir = { cosf(a), sinf(a) };
+                Vector2 muzzle = Vector2Add(e->pos,
+                    Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+                SpawnProjectile(muzzle, dir,
+                    TRAP_RING_SPEED, TRAP_RING_DAMAGE,
+                    TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
+                    true, false, PROJ_BULLET, DMG_BALLISTIC);
+            }
+            SpawnParticles(e->pos, TRAP_COLOR, 12);
+        } break;
+        case 2: { // Charge at player
+            Vector2 shootDir = Vector2Scale(
+                toTarget, 1.0f / dist);
+            e->chargeDir = shootDir;
+            e->chargeTimer = TRAP_CHARGE_DURATION;
+        } break;
+        }
+        e->attackPhase++;
+        e->shootTimer = TRAP_ATTACK_INTERVAL;
+    }
+}
+
 // enemy AI
 static void UpdateEnemies(float dt) {
     Player *p = &g.player;
@@ -1487,145 +1630,9 @@ static void UpdateEnemies(float dt) {
         Vector2 toShoot = (e->aggroIdx >= 0) ? toTarget : toPlayer;
         float distToShoot = (e->aggroIdx >= 0) ? dist : distToPlayer;
 
-        // RECT shooting AI
-        if (e->type == RECT && !stunned) {
-            e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
-                e->shootTimer = RECT_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
-                Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-                SpawnProjectile(muzzle, shootDir, RECT_BULLET_SPEED,
-                    RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME,
-                    RECT_PROJECTILE_SIZE, true, false,
-                    PROJ_BULLET, DMG_BALLISTIC);
-                SpawnParticle(muzzle,
-                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                    MAGENTA, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-            }
-        }
-
-        // PENTA shooting AI — two parallel rows of 5 bullets
-        if (e->type == PENTA && !stunned) {
-            e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
-                e->shootTimer = PENTA_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
-                Vector2 perp = { -shootDir.y, shootDir.x };
-
-                for (int r = -1; r <= 1; r += 2) {
-                    Vector2 rowOff = Vector2Scale(perp,
-                        PENTA_ROW_OFFSET * r);
-                    for (int b = 0; b < PENTA_BULLETS_PER_ROW; b++) {
-                        Vector2 bpos = Vector2Add(e->pos, rowOff);
-                        bpos = Vector2Add(bpos,
-                            Vector2Scale(shootDir,
-                                e->size + MUZZLE_OFFSET
-                                + b * PENTA_BULLET_SPACING));
-                        SpawnProjectile(bpos, shootDir,
-                            PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
-                            PENTA_BULLET_LIFETIME, PENTA_PROJECTILE_SIZE,
-                            true, false, PROJ_BULLET, DMG_BALLISTIC);
-                    }
-                }
-                Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-                SpawnParticle(muzzle,
-                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                    PENTA_COLOR, PENTA_MUZZLE_SIZE, PENTA_MUZZLE_LIFETIME);
-                SpawnParticle(muzzle,
-                    Vector2Scale(perp, PENTA_SIDE_SPEED),
-                    PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-                SpawnParticle(muzzle,
-                    Vector2Scale(perp, -PENTA_SIDE_SPEED),
-                    PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-            }
-        }
-
-        // HEXA shooting AI — fan of 5 bullets
-        if (e->type == HEXA && !stunned) {
-            e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
-                e->shootTimer = HEXA_SHOOT_INTERVAL;
-                Vector2 shootDir = Vector2Scale(toShoot, 1.0f / distToShoot);
-                float baseAngle = atan2f(shootDir.y, shootDir.x);
-                float halfSpread = HEXA_FAN_SPREAD / 2.0f;
-                float step = HEXA_FAN_SPREAD / (HEXA_FAN_COUNT - 1);
-
-                for (int b = 0; b < HEXA_FAN_COUNT; b++) {
-                    float angle = baseAngle - halfSpread + step * b;
-                    Vector2 dir = { cosf(angle), sinf(angle) };
-                    Vector2 muzzle = Vector2Add(e->pos,
-                        Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                    SpawnProjectile(muzzle, dir, HEXA_BULLET_SPEED,
-                        HEXA_BULLET_DAMAGE, HEXA_BULLET_LIFETIME,
-                        HEXA_PROJECTILE_SIZE, true, false,
-                        PROJ_BULLET, DMG_BALLISTIC);
-                }
-                Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-                SpawnParticle(muzzle,
-                    Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                    HEXA_COLOR, HEXA_MUZZLE_SIZE, HEXA_MUZZLE_LIFETIME);
-            }
-        }
-
-        // TRAP boss AI — cycles: burst, ring, charge
-        if (e->type == TRAP && !stunned && e->chargeTimer <= 0) {
-            e->shootTimer -= dt;
-            if (e->shootTimer <= 0 && distToShoot > 1.0f) {
-                int pattern = e->attackPhase % 3;
-                switch (pattern) {
-                case 0: { // Aimed burst — cone at player
-                    Vector2 shootDir = Vector2Scale(
-                        toShoot, 1.0f / distToShoot);
-                    float baseAngle = atan2f(shootDir.y, shootDir.x);
-                    float halfSpread = TRAP_BURST_SPREAD / 2.0f;
-                    float step = TRAP_BURST_SPREAD
-                        / (TRAP_BURST_COUNT - 1);
-                    for (int b = 0; b < TRAP_BURST_COUNT; b++) {
-                        float a = baseAngle - halfSpread + step * b;
-                        Vector2 dir = { cosf(a), sinf(a) };
-                        Vector2 muzzle = Vector2Add(e->pos,
-                            Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                        SpawnProjectile(muzzle, dir,
-                            TRAP_BULLET_SPEED, TRAP_BULLET_DAMAGE,
-                            TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
-                            true, false, PROJ_BULLET, DMG_BALLISTIC);
-                    }
-                    Vector2 muzzle = Vector2Add(e->pos,
-                        Vector2Scale(shootDir,
-                            e->size + MUZZLE_OFFSET));
-                    SpawnParticle(muzzle,
-                        Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                        TRAP_COLOR, PENTA_MUZZLE_SIZE,
-                        PENTA_MUZZLE_LIFETIME);
-                } break;
-                case 1: { // Ring shot — bullets in all directions
-                    float step = 2.0f * PI / TRAP_RING_COUNT;
-                    for (int b = 0; b < TRAP_RING_COUNT; b++) {
-                        float a = step * b;
-                        Vector2 dir = { cosf(a), sinf(a) };
-                        Vector2 muzzle = Vector2Add(e->pos,
-                            Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                        SpawnProjectile(muzzle, dir,
-                            TRAP_RING_SPEED, TRAP_RING_DAMAGE,
-                            TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
-                            true, false, PROJ_BULLET, DMG_BALLISTIC);
-                    }
-                    SpawnParticles(e->pos, TRAP_COLOR, 12);
-                } break;
-                case 2: { // Charge at player
-                    Vector2 shootDir = Vector2Scale(
-                        toShoot, 1.0f / distToShoot);
-                    e->chargeDir = shootDir;
-                    e->chargeTimer = TRAP_CHARGE_DURATION;
-                } break;
-                }
-                e->attackPhase++;
-                e->shootTimer = TRAP_ATTACK_INTERVAL;
-            }
-        }
+        // Shoot dispatch
+        if (!stunned && ENEMY_DEFS[e->type].shoot)
+            ENEMY_DEFS[e->type].shoot(e, toShoot, distToShoot, dt);
 
         // Hit flash decay
         if (e->hitFlash > 0) e->hitFlash -= dt;
@@ -1677,6 +1684,47 @@ static void UpdateEnemies(float dt) {
     }
 }
 
+static void SpawnExplosionVfx(Vector2 pos, Color c1, Color c2, Color c3, Color fireColor) {
+    // explosion ring — fast outward burst
+    for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
+        float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_RING_SPEED_MIN, EXPLOSION_RING_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        Color c = (i % 3 == 0) ? c1 : (i % 3 == 1) ? c2 : c3;
+        SpawnParticle(pos, vel, c, EXPLOSION_RING_SIZE,
+            EXPLOSION_RING_LIFETIME);
+    }
+    // inner fireball — slower, bigger
+    for (int i = 0; i < EXPLOSION_FIRE_COUNT; i++) {
+        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_FIRE_SPEED_MIN, EXPLOSION_FIRE_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        SpawnParticle(pos, vel, fireColor, EXPLOSION_FIRE_SIZE,
+            EXPLOSION_FIRE_LIFETIME);
+    }
+    // smoke — slow drift outward
+    for (int i = 0; i < EXPLOSION_SMOKE_COUNT; i++) {
+        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
+        float speed = (float)GetRandomValue(
+            EXPLOSION_SMOKE_SPEED_MIN, EXPLOSION_SMOKE_SPEED_MAX);
+        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
+        SpawnParticle(pos, vel, GRAY, EXPLOSION_SMOKE_SIZE,
+            EXPLOSION_SMOKE_LIFETIME);
+    }
+    // spawn radius ring
+    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
+        if (!g.vfx.explosives[i].active) {
+            g.vfx.explosives[i].active = true;
+            g.vfx.explosives[i].pos = pos;
+            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
+            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
+            break;
+        }
+    }
+}
+
 static void RocketExplode(Vector2 pos) {
     Player *p = &g.player;
     p->rocket.inFlight = false;
@@ -1707,44 +1755,7 @@ static void RocketExplode(Vector2 pos) {
         SpawnParticles(p->pos, RED, CONTACT_HIT_PARTICLES);
         if (p->hp <= 0) { p->hp = 0; g.gameOver = true; }
     }
-    // explosion ring — fast outward burst
-    for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
-        float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_RING_SPEED_MIN, EXPLOSION_RING_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        Color c = (i % 3 == 0) ? RED : (i % 3 == 1) ? ORANGE : YELLOW;
-        SpawnParticle(pos, vel, c, EXPLOSION_RING_SIZE,
-            EXPLOSION_RING_LIFETIME);
-    }
-    // inner fireball — slower, bigger
-    for (int i = 0; i < EXPLOSION_FIRE_COUNT; i++) {
-        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_FIRE_SPEED_MIN, EXPLOSION_FIRE_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, ORANGE, EXPLOSION_FIRE_SIZE,
-            EXPLOSION_FIRE_LIFETIME);
-    }
-    // smoke — slow drift outward
-    for (int i = 0; i < EXPLOSION_SMOKE_COUNT; i++) {
-        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_SMOKE_SPEED_MIN, EXPLOSION_SMOKE_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, GRAY, EXPLOSION_SMOKE_SIZE,
-            EXPLOSION_SMOKE_LIFETIME);
-    }
-    // spawn radius ring
-    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.vfx.explosives[i].active) {
-            g.vfx.explosives[i].active = true;
-            g.vfx.explosives[i].pos = pos;
-            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
-            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
-            break;
-        }
-    }
+    SpawnExplosionVfx(pos, RED, ORANGE, YELLOW, ORANGE);
 }
 
 static void GrenadeExplode(Vector2 pos) {
@@ -1760,44 +1771,7 @@ static void GrenadeExplode(Vector2 pos) {
                     Vector2Normalize(away), GRENADE_KNOCKBACK);
         }
     }
-    // explosion ring — green/yellow/orange theme
-    for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
-        float a = (float)i / (float)EXPLOSION_RING_COUNT * 2.0f * PI;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_RING_SPEED_MIN, EXPLOSION_RING_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        Color c = (i % 3 == 0) ? GREEN : (i % 3 == 1) ? YELLOW : ORANGE;
-        SpawnParticle(pos, vel, c, EXPLOSION_RING_SIZE,
-            EXPLOSION_RING_LIFETIME);
-    }
-    // inner fireball
-    for (int i = 0; i < EXPLOSION_FIRE_COUNT; i++) {
-        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_FIRE_SPEED_MIN, EXPLOSION_FIRE_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, YELLOW, EXPLOSION_FIRE_SIZE,
-            EXPLOSION_FIRE_LIFETIME);
-    }
-    // smoke
-    for (int i = 0; i < EXPLOSION_SMOKE_COUNT; i++) {
-        float a = (float)GetRandomValue(0, 360) * DEG2RAD;
-        float speed = (float)GetRandomValue(
-            EXPLOSION_SMOKE_SPEED_MIN, EXPLOSION_SMOKE_SPEED_MAX);
-        Vector2 vel = { cosf(a) * speed, sinf(a) * speed };
-        SpawnParticle(pos, vel, GRAY, EXPLOSION_SMOKE_SIZE,
-            EXPLOSION_SMOKE_LIFETIME);
-    }
-    // spawn radius ring
-    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.vfx.explosives[i].active) {
-            g.vfx.explosives[i].active = true;
-            g.vfx.explosives[i].pos = pos;
-            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
-            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
-            break;
-        }
-    }
+    SpawnExplosionVfx(pos, GREEN, YELLOW, ORANGE, YELLOW);
 }
 
 // deployables ------------------------------------------------------------- /

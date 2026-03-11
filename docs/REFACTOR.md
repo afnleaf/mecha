@@ -22,29 +22,16 @@ events of the same type should be executed in parallel
 
 # Refactor Roadmap
 
-## TIER 1: Before CIRC Boss (unblocks current milestone)
+## TIER 1: Before CIRC Boss (unblocks current milestone) — DONE
 
-### 1A. Enemy Shooting Dispatch Table
-**Files**: `mecha.h`, `spawn.c`, `update.c`
-**Scope**: ~60 lines changed | **Risk**: Low
+### 1A. Enemy Shooting Dispatch Table — DONE
+`EnemyShootFn shoot` pointer added to `EnemyDef`. Four shoot functions (`ShootRect`, `ShootPenta`, `ShootHexa`, `ShootTrap`) registered in `ENEMY_DEFS` table in `spawn.c`. `UpdateEnemies` dispatches via `ENEMY_DEFS[e->type].shoot()`. Adding CIRC just needs `ShootCirc()` + one table entry.
 
-Inline if-blocks in `UpdateEnemies` for RECT, PENTA, HEXA, TRAP shooting patterns → extract 4 static functions, add `EnemyShootFn shoot` pointer to `EnemyDef`, wire in table. Loop body becomes:
-```c
-if (def->shoot && !stunned) def->shoot(e, toShoot, distToShoot, dt);
-```
-Adding CIRC boss then just means writing one more shoot function and one table entry.
+### 1B. Sweep Damage Deduplication — DONE
+Shared `static int SweepDamage(origin, sweepEnd, sweepAngle, damage, dmgType, lastHitAngles, hitIndices, maxHits)` in `update.c`. Sword calls it directly; Spin calls it then applies lifesteal on returned hit indices.
 
-### 1B. Sweep Damage Deduplication
-**Files**: `update.c` only
-**Scope**: ~40 lines reduced | **Risk**: Low
-
-Sword sweep and Spin sweep are structurally identical loops. Extract `static int SweepDamage(origin, sweepAngle, radius, damage, dmgType, lastHitAngles, hitIndices, maxHits)`. Sword calls it directly; Spin calls it then does lifesteal on returned hits.
-
-### 1C. Explosion VFX Deduplication
-**Files**: `update.c` (or `spawn.c`)
-**Scope**: ~50 lines reduced | **Risk**: Low
-
-`RocketExplode` (68 lines) and `GrenadeExplode` (51 lines) share identical particle ring/fireball/smoke code. Extract `SpawnExplosionVfx(pos, c1, c2, c3)`. Both keep their damage loops but call shared VFX. CIRC boss will likely need explosions too.
+### 1C. Explosion VFX Deduplication — DONE
+Shared `static void SpawnExplosionVfx(pos, c1, c2, c3, fireColor)` in `update.c`. `RocketExplode` calls with `(RED, ORANGE, YELLOW, ORANGE)`, `GrenadeExplode` with `(GREEN, YELLOW, ORANGE, YELLOW)`. Both keep their own damage/knockback logic.
 
 ---
 
@@ -110,6 +97,20 @@ Extract: `DrawCooldownColumn()`, `DrawWeaponStatus()`, `DrawPauseMenu()`, `DrawG
 
 TRAP boss spawn in `UpdateEnemies` duplicates most of `SpawnEnemy` with inline field init. Extract `SpawnBoss(EnemyType type)` in `spawn.c` reusing `ENEMY_DEFS` table. Prevents another copy-paste for CIRC.
 
+### 3E. Draw Shape Deduplication (~890 lines → ~300)
+**Files**: `draw.c` only
+**Scope**: ~590 lines reduced | **Risk**: Low
+
+6 `Draw*2D` functions (Tetra, Cube, Octa, Icosa, Dodeca, Sphere) repeat identical logic for shadow pass, vertex projection, backface cull, painter's sort, subdivided triangle rendering, and edge drawing. Only differences per shape: vertex/face data, vertex count, face count, verts-per-face (3/4/5), hue step, saturation.
+
+Extract shared helpers:
+- `ProjectVertices(vtx, n, rotY, rotX, pos, pj, pz)` — rotation + 3D→2D projection
+- `DrawShapeShadow(vtx, n, faces, nFaces, vpf, rotY, shadowPos, shadowAlpha)` — shadow pass
+- `SubdivDrawTri(p0, p1, p2, h0, h1, h2, N, sat, alpha)` — barycentric subdivision + HSV draw (shared by tetra, octa, icosa, dodeca fan)
+- `SubdivDrawQuad(p0-p3, h0-h3, N, sat, alpha)` — bilinear subdivision (cube only)
+
+Each `Draw*2D` becomes: define static vtx+faces → call helpers → draw edges. Sphere stays slightly special (procedural verts, circle shadow). No functional change.
+
 ### 3D. lastHitAngle Memory Reduction
 **Files**: `mecha.h`, `update.c`
 **Scope**: ~30 lines | **Risk**: Medium
@@ -131,9 +132,9 @@ Remove unused `MAX_ENTITIES` define. Remove commented spawn positions in `spawn.
 ## Execution Order
 
 ```
-Tier 1 (do first, unblocks CIRC):     1A → 1B → 1C
+Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
 Tier 2 (quick wins, any order):        2C, 2D, 2B, 2E, 2A
-Tier 3 (structural, has deps):         3C, 3A (after 1B+1C), 3B (after 2A), 3D (after 1B)
+Tier 3 (structural, has deps):         3C, 3A (1B+1C done), 3B (after 2A), 3D (1B done), 3E (no deps)
 Tier 4 (future):                        4B, 4A
 ```
 

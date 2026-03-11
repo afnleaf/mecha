@@ -351,18 +351,6 @@ typedef enum EnemyType {
     // one more enemy?
 } EnemyType;
 
-// static data table — one row per enemy type
-typedef struct EnemyDef {
-    float size;
-    int   hp;
-    float speedMin;
-    int   speedVar;
-    int   contactDamage;
-    int   spawnKills;
-    int   spawnChance;
-    int   score;
-} EnemyDef;
-
 typedef struct Enemy {
     Vector2 pos;
     Vector2 vel;
@@ -384,6 +372,23 @@ typedef struct Enemy {
     float chargeTimer;  // boss charge duration remaining
     Vector2 chargeDir;  // committed charge direction
 } Enemy;
+
+// shoot function pointer — NULL means no shooting AI
+typedef void (*EnemyShootFn)(
+    Enemy *e, Vector2 toTarget, float dist, float dt);
+
+// static data table — one row per enemy type
+typedef struct EnemyDef {
+    float size;
+    int   hp;
+    float speedMin;
+    int   speedVar;
+    int   contactDamage;
+    int   spawnKills;
+    int   spawnChance;
+    int   score;
+    EnemyShootFn shoot;
+} EnemyDef;
 
 // other -------------------------------------------------------------------- /
 typedef struct Particle {
