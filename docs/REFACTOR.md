@@ -56,49 +56,31 @@ Added `bool appliesSlow` to `Projectile` in `mecha.h`. Initialized `false` in `S
 
 ## TIER 3: Structural (medium effort, high payoff for v(-1))
 
-### 3A. Split UpdatePlayer (~983 lines)
+### 3A. Split UpdatePlayer — DONE
 **Files**: `update.c` only
-**Scope**: ~100 lines restructured | **Risk**: Medium
 
-Extract into static functions:
-- `UpdateMovement()` — WASD, knockback (~70 lines)
-- `UpdateDash()` — charges, super dash, decoy (~120 lines)
-- `UpdatePrimaryWeapon()` — the weapon switch (~400 lines)
-- `UpdateAbilities()` — all 12 abilities (~300 lines)
+Extracted 4 static functions: `UpdateMovement(p, moveDir, moveLen, dt)` (~33 lines), `UpdateDash(p, moveDir, moveLen, dt)` (~99 lines), `UpdateWeapon(p, toMouse, dt)` (~487 lines, includes weapon swap + holstered timers + sword damage), `UpdateAbilities(p, toMouse, dt)` (~298 lines). `moveDir`/`moveLen` hoisted to orchestrator, shared by movement and dash. `UpdatePlayer` is now a ~30-line orchestrator.
 
-`UpdatePlayer` becomes a ~30-line orchestrator. Do after 1B/1C (reduces code before splitting).
-
-### 3B. Split DrawHUD (~684 lines)
+### 3B. Split DrawHUD — DONE
 **Files**: `draw.c` only
-**Scope**: ~80 lines restructured | **Risk**: Low
 
-Extract: `DrawCooldownColumn()`, `DrawWeaponStatus()`, `DrawPauseMenu()`, `DrawGameOver()`. Unblocked by 2A.
+Extracted 4 static functions: `DrawCooldownColumn(p, ui)` (~200 lines, all cooldown bars), `DrawWeaponStatus(p, ui)` (~180 lines, revolver arc + gun heat arc), `DrawPauseMenu(sw, sh, ui)` (~76 lines, pause overlay + keybinds), `DrawGameOver(sw, sh, ui)` (~34 lines). `DrawHUD` is now a ~113-line orchestrator (HP bar, score, weapon swap, calls, FPS, crosshair, title, overlay dispatch).
 
-### 3C. Boss Spawn Path
+### 3C. Boss Spawn Path — DONE
 **Files**: `spawn.c`, `update.c`, `game.h`
 **Scope**: ~30 lines | **Risk**: Low
 
-TRAP boss spawn in `UpdateEnemies` duplicates most of `SpawnEnemy` with inline field init. Extract `SpawnBoss(EnemyType type)` in `spawn.c` reusing `ENEMY_DEFS` table. Prevents another copy-paste for CIRC.
+Extracted `InitEnemy()` + `SpawnAtEdge()` static helpers in `spawn.c`. Added `SpawnBoss(EnemyType type)` reusing `ENEMY_DEFS` table. `SpawnEnemy` refactored to use same helpers. 40-line inline boss spawn in `UpdateEnemies` replaced with `SpawnBoss(TRAP)`.
 
-### 3E. Draw Shape Deduplication (~890 lines → ~300)
+### 3E. Draw Shape Deduplication — DONE
 **Files**: `draw.c` only
-**Scope**: ~590 lines reduced | **Risk**: Low
 
-6 `Draw*2D` functions (Tetra, Cube, Octa, Icosa, Dodeca, Sphere) repeat identical logic for shadow pass, vertex projection, backface cull, painter's sort, subdivided triangle rendering, and edge drawing. Only differences per shape: vertex/face data, vertex count, face count, verts-per-face (3/4/5), hue step, saturation.
+Extracted 5 shared static helpers: `ProjectVertices` (rotation + 3D→2D projection), `SubdivDrawTri` (barycentric subdivision), `SubdivDrawQuad` (bilinear subdivision, cube only), `DrawShapeShadow` (shadow polygons, handles tri/quad/penta via vpf), `CullSortFaces` (backface cull + painter's sort). All face arrays unified to `int faces[N][5]`. Each `Draw*2D` is now: define vtx+faces → project → hues → cull+sort → subdiv draw → edges. Sphere uses `ProjectVertices` only, keeps its own procedural verts and circle shadow. ~911 lines → ~466 lines.
 
-Extract shared helpers:
-- `ProjectVertices(vtx, n, rotY, rotX, pos, pj, pz)` — rotation + 3D→2D projection
-- `DrawShapeShadow(vtx, n, faces, nFaces, vpf, rotY, shadowPos, shadowAlpha)` — shadow pass
-- `SubdivDrawTri(p0, p1, p2, h0, h1, h2, N, sat, alpha)` — barycentric subdivision + HSV draw (shared by tetra, octa, icosa, dodeca fan)
-- `SubdivDrawQuad(p0-p3, h0-h3, N, sat, alpha)` — bilinear subdivision (cube only)
-
-Each `Draw*2D` becomes: define static vtx+faces → call helpers → draw edges. Sphere stays slightly special (procedural verts, circle shadow). No functional change.
-
-### 3D. lastHitAngle Memory Reduction
+### 3D. lastHitAngle Memory Reduction — DONE
 **Files**: `mecha.h`, `update.c`
-**Scope**: ~30 lines | **Risk**: Medium
 
-Two `float[1024]` arrays (8KB) in Player for sweep hit tracking. Replace with per-enemy `u16 lastHitFrame` + global `u16 sweepFrame` counter, or use `u8 hitBits[128]` bitfield (128 bytes). Do after 1B (sweep dedup means changing logic in one place).
+Replaced two `float[1024]` arrays (8KB) in `Sword` and `Spin` with `u8 hitBits[128]` bitfields + `float lastResetAngle` (264 bytes, 97% reduction). `SweepDamage` checks/sets bits instead of storing angles. PI-boundary batch reset via `memset` preserves multi-hit behavior for Spin (4PI rotation). Lunge uses the same bitfield directly.
 
 ---
 
@@ -112,12 +94,16 @@ Remove unused `MAX_ENTITIES` define. Remove commented spawn positions in `spawn.
 
 ---
 
+## 
+
+make weapon select menu accept enter and m1 for picking a chassis
+
 ## Execution Order
 
 ```
 Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
 Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
-Tier 3 (structural, has deps):         3C, 3A (1B+1C done), 3B (after 2A), 3D (1B done), 3E (no deps)
+Tier 3 (structural, has deps):         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
 Tier 4 (future):                        4B, 4A
 ```
 

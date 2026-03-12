@@ -9,7 +9,7 @@ Last updated: 2026-03-10
 
 | File | Lines | Role |
 |------|------:|------|
-| draw.c | ~2445 | All rendering (solids, world, HUD, select screen) |
+| draw.c | ~2110 | All rendering (solids, world, HUD, select screen) |
 | update.c | ~2066 | All update logic (player, enemies, projectiles, deployables) |
 | default.h | ~700 | All tunable gameplay constants (defines) |
 | mecha.h | ~457 | Types, structs, enums |
@@ -20,7 +20,7 @@ Last updated: 2026-03-10
 | game.h | ~43 | Master header (extern g, cross-file prototypes) |
 | rtypes.h | 13 | Rust-style type aliases (u8, u16, etc.) |
 
-Total compiled source: ~6300 lines.
+Total compiled source: ~5960 lines.
 
 ---
 
@@ -175,9 +175,9 @@ All 5 platonic solids implemented as player chassis:
 - DrawCube2D (cube, 6 faces) — REVOLVER
 - DrawOcta2D (octahedron, 8 faces) — GUN
 - DrawDodeca2D (dodecahedron, 12 faces) — SNIPER
-- DrawIcosa2D (icosahedron, 20 faces) — MINIGUN
+- DrawIcosa2D (icosahedron, 20 faces) — ROCKET
 
-All use: 3D vertices -> rotate -> project to 2D -> backface cull -> painter's sort -> subdivide (SHAPE_SUBDIV_TRI=6 or SHAPE_SUBDIV_PENTA=4) -> HSV gradient. Player shadow system (lagged 2D projection) works.
+All use shared static helpers in `draw.c`: `ProjectVertices` (rotation + 3D→2D), `SubdivDrawTri` (barycentric subdivision), `SubdivDrawQuad` (bilinear, cube only), `DrawShapeShadow` (shadow polygons, handles tri/quad/penta via vpf param), `CullSortFaces` (backface cull + painter's sort). Face arrays unified to `int faces[N][5]`. DrawSphere2D (weapon select) uses `ProjectVertices` only, keeps its own procedural verts and circle shadow.
 
 ### Infrastructure
 
@@ -193,23 +193,13 @@ All use: 3D vertices -> rotate -> project to 2D -> backface cull -> painter's so
 
 ## Open Refactoring
 
-### HIGH — should do before adding more systems
+### DONE (Tiers 1-3)
 
-**1. Enemy shooting dispatch.** Inline if-blocks in UpdateEnemies for RECT, PENTA, HEXA need to become a dispatch table before TRAP/CIRC boss AI gets added.
+- Enemy shooting dispatch table (1A), sweep damage dedup (1B), explosion VFX dedup (1C)
+- HUD cooldown helper (2A), mouse rename (2B), NUM_PRIMARY_WEAPONS (2C), deployable count helper (2D), sniper slow decoupling (2E)
+- UpdatePlayer split (3A), DrawHUD split (3B), boss spawn path (3C), draw shape dedup (3E), lastHitAngle bitfield (3D)
 
-**2. Sweep damage deduplication.** Sword and Spin are structurally identical sweep loops. Could extract shared `SweepDamage()`.
-
-**3. HUD cooldown helpers.** 9+ separate cooldown/pip displays with copy-paste. Two helpers would collapse this.
-
-### MEDIUM — code quality
-
-**4. `mouse()` side-effect.** Lowercase name breaks PascalCase. Mutates `p->angle` while returning `toMouse`. Should rename or split.
-
-**5. Sniper slow is type-coupled.** `DMG_PIERCE` triggers sniper slow — any future DMG_PIERCE weapon will also apply it.
-
-**6. Weapon select hardcodes `5`.** Should be `NUM_PRIMARY_WEAPONS`.
-
-**7. `lastHitAngle[MAX_ENEMIES]` is 8KB.** Two `float[1024]` arrays inside Player. A bitfield or frame-counter would work.
+### REMAINING
 
 **8. `selectWeapons[]` declared twice.** Once in UpdateSelect, again in DrawSelect. Should be file-scope `static const`.
 

@@ -76,166 +76,169 @@ static Color HsvToRgb(float h, float s, float v, float alpha) {
     };
 }
 
+// shape helpers ---------------------------------------------------------- /
+static void ProjectVertices(
+    const float vtx[][3], int n,
+    float rotY, float rotX,
+    Vector2 center, float scale,
+    Vector2 *pj, float *pz)
+{
+    float cy = cosf(rotY), sy = sinf(rotY);
+    float cx = cosf(rotX), sx = sinf(rotX);
+    for (int i = 0; i < n; i++) {
+        float x = vtx[i][0] * scale, y = vtx[i][1] * scale, z = vtx[i][2] * scale;
+        float x1 = x * cy - z * sy;
+        float z1 = x * sy + z * cy;
+        float y1 = y * cx - z1 * sx;
+        float z2 = y * sx + z1 * cx;
+        pj[i] = (Vector2){ center.x + x1, center.y + y1 };
+        pz[i] = z2;
+    }
+}
+
+static void SubdivDrawTri(
+    Vector2 p0, Vector2 p1, Vector2 p2,
+    float h0, float h1, float h2,
+    int N, float sat, float alpha)
+{
+    for (int row = 0; row < N; row++) {
+        for (int col = 0; col < N - row; col++) {
+            float u0 = (float)col / N;
+            float v0 = (float)row / N;
+            float w0 = 1.0f - u0 - v0;
+            float u1 = (float)(col + 1) / N;
+            float v1 = (float)row / N;
+            float w1 = 1.0f - u1 - v1;
+            float u2 = (float)col / N;
+            float v2 = (float)(row + 1) / N;
+            float w2 = 1.0f - u2 - v2;
+
+            Vector2 q0 = { w0*p0.x + u0*p1.x + v0*p2.x, w0*p0.y + u0*p1.y + v0*p2.y };
+            Vector2 q1 = { w1*p0.x + u1*p1.x + v1*p2.x, w1*p0.y + u1*p1.y + v1*p2.y };
+            Vector2 q2 = { w2*p0.x + u2*p1.x + v2*p2.x, w2*p0.y + u2*p1.y + v2*p2.y };
+
+            float hC = fmodf(w0*h0 + u0*h1 + v0*h2 + 360.0f, 360.0f);
+            DrawTriangle(q0, q1, q2, HsvToRgb(hC, sat, 1.0f, alpha));
+
+            if (col + 1 < N - row) {
+                float u3 = (float)(col + 1) / N;
+                float v3 = (float)(row + 1) / N;
+                float w3 = 1.0f - u3 - v3;
+                Vector2 q3 = { w3*p0.x + u3*p1.x + v3*p2.x, w3*p0.y + u3*p1.y + v3*p2.y };
+                float hC2 = fmodf(w3*h0 + u3*h1 + v3*h2 + 360.0f, 360.0f);
+                DrawTriangle(q1, q3, q2, HsvToRgb(hC2, sat, 1.0f, alpha));
+            }
+        }
+    }
+}
+
+static void SubdivDrawQuad(
+    Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3,
+    float h0, float h1, float h2, float h3,
+    int N, float sat, float alpha)
+{
+    #define BILERP(A,B,C,D,u,v) \
+        ((1-(v))*((1-(u))*(A) + (u)*(B)) + (v)*((1-(u))*(D) + (u)*(C)))
+    for (int gy = 0; gy < N; gy++) {
+        for (int gx = 0; gx < N; gx++) {
+            float u0 = (float)gx / N, u1 = (float)(gx + 1) / N;
+            float v0 = (float)gy / N, v1 = (float)(gy + 1) / N;
+            Vector2 q00 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v0) };
+            Vector2 q10 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v0), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v0) };
+            Vector2 q11 = { BILERP(p0.x,p1.x,p2.x,p3.x,u1,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u1,v1) };
+            Vector2 q01 = { BILERP(p0.x,p1.x,p2.x,p3.x,u0,v1), BILERP(p0.y,p1.y,p2.y,p3.y,u0,v1) };
+            float uc = (u0 + u1) * 0.5f, vc = (v0 + v1) * 0.5f;
+            float hC = BILERP(h0, h1, h2, h3, uc, vc);
+            Color cc = HsvToRgb(hC, sat, 1.0f, alpha);
+            DrawTriangle(q00, q10, q11, cc);
+            DrawTriangle(q00, q11, q01, cc);
+        }
+    }
+    #undef BILERP
+}
+
+static void DrawShapeShadow(
+    const Vector2 *sp, const int faces[][5],
+    int nFaces, int vpf, float shadowAlpha)
+{
+    Color scol = Fade(SHADOW_COLOR, shadowAlpha);
+    for (int f = 0; f < nFaces; f++) {
+        Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
+        float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+        if (cross >= 0) continue;
+        if (vpf == 3) {
+            DrawTriangle(a, b, c, scol);
+        } else if (vpf == 4) {
+            Vector2 d = sp[faces[f][3]];
+            DrawTriangle(a, b, c, scol);
+            DrawTriangle(a, c, d, scol);
+        } else {
+            for (int tri = 0; tri < 3; tri++)
+                DrawTriangle(a, sp[faces[f][tri+1]], sp[faces[f][tri+2]], scol);
+        }
+    }
+}
+
+static void CullSortFaces(
+    const Vector2 *pj, const float *pz,
+    const int faces[][5], int nFaces, int vpf,
+    bool *faceVis, float *faceZ, int *order)
+{
+    for (int f = 0; f < nFaces; f++) {
+        faceZ[f] = 0;
+        for (int vi = 0; vi < vpf; vi++) faceZ[f] += pz[faces[f][vi]];
+        faceZ[f] /= (float)vpf;
+        Vector2 a = pj[faces[f][0]], b = pj[faces[f][1]], c = pj[faces[f][2]];
+        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        faceVis[f] = (cross < 0);
+        order[f] = f;
+    }
+    for (int i = 0; i < nFaces - 1; i++)
+        for (int j = i + 1; j < nFaces; j++)
+            if (faceZ[order[i]] > faceZ[order[j]]) {
+                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+            }
+}
+
+// tetrahedron ------------------------------------------------------------- /
 static void DrawTetra2D(
     Vector2 pos,
     float size, float rotY, float rotX, float alpha,
     Vector2 shadowPos, float shadowAlpha)
 {
-    float s = size / 1.73f; // normalize: vertices at (±s,±s,±s) → distance = s*√3
-
-    // 4 tetrahedron vertices in local 3D space (regular tetrahedron)
+    float s = size / 1.73f;
     float vtx[4][3] = {
-        { s,  s,  s},
-        { s, -s, -s},
-        {-s,  s, -s},
-        {-s, -s,  s},
+        { s,  s,  s}, { s, -s, -s}, {-s,  s, -s}, {-s, -s,  s},
+    };
+    int faces[4][5] = {
+        {0,1,2,0,0}, {0,2,3,0,0}, {0,3,1,0,0}, {1,3,2,0,0},
     };
 
-    // 4 triangular faces of tetrahedron
-    int faces[4][3] = {
-        {0, 1, 2},
-        {0, 2, 3},
-        {0, 3, 1},
-        {1, 3, 2},
-    };
-
-    // Shadow pass — flat black, top-down projection
     if (shadowAlpha > 0) {
-        float scy = cosf(rotY), ssy = sinf(rotY);
-        float scx = cosf(PI/2), ssx = sinf(PI/2);
-        Vector2 sp[4];
-        for (int i = 0; i < 4; i++) {
-            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
-            float x1 = x * scy - z * ssy;
-            float z1 = x * ssy + z * scy;
-            float y1 = y * scx - z1 * ssx;
-            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
-        }
-        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
-        for (int f = 0; f < 4; f++) {
-            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
-            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-            if (cross < 0) DrawTriangle(a, b, c, scol);
-        }
+        Vector2 sp[4]; float spz[4];
+        ProjectVertices(vtx, 4, rotY, PI/2, shadowPos, SHADOW_SCALE, sp, spz);
+        DrawShapeShadow(sp, faces, 4, 3, shadowAlpha);
     }
 
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
-    Vector2 pj[4];
-    float pz[4];
-    float hues[4];
+    Vector2 pj[4]; float pz[4]; float hues[4];
+    ProjectVertices(vtx, 4, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < 4; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
-        // Hue based on Z depth — smooth across rotation, no jumps on face swap
+    for (int i = 0; i < 4; i++)
         hues[i] = time * SHAPE_HUE_SPEED + pz[i] * (SHAPE_HUE_DEPTH_SCALE / s);
-    }
 
-    float faceZ[4];
-    bool faceVis[4];
-    for (int f = 0; f < 4; f++) {
-        faceZ[f] = (pz[faces[f][0]] + pz[faces[f][1]] + pz[faces[f][2]]) / 3.0f;
-        
-        Vector2 a = pj[faces[f][0]];
-        Vector2 b = pj[faces[f][1]];
-        Vector2 c = pj[faces[f][2]];
-        // 2D Cross Product for backface culling
-        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        faceVis[f] = (cross < 0);
-    }
+    bool faceVis[4]; float faceZ[4]; int order[4];
+    CullSortFaces(pj, pz, faces, 4, 3, faceVis, faceZ, order);
 
-    // Sort back-to-front (Painter's algorithm)
-    int order[4] = {0, 1, 2, 3};
-    for (int i = 0; i < 3; i++)
-        for (int j = i + 1; j < 4; j++)
-            if (faceZ[order[i]] > faceZ[order[j]]) {
-                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-            }
-
-    int N = SHAPE_SUBDIV_TRI;
-
+    Color edge = Fade(WHITE, 0.5f * alpha);
     for (int fi = 0; fi < 4; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
-
-        Vector2 p0 = pj[faces[f][0]];
-        Vector2 p1 = pj[faces[f][1]];
-        Vector2 p2 = pj[faces[f][2]];
-        
-        float h0 = hues[faces[f][0]];
-        float h1 = hues[faces[f][1]];
-        float h2 = hues[faces[f][2]];
-
-        // Subdivide triangle using barycentric coordinates
-        for (int row = 0; row < N; row++) {
-            for (int col = 0; col < N - row; col++) {
-                float u0 = (float)col / N;
-                float v0 = (float)row / N;
-                float w0 = 1.0f - u0 - v0;
-                
-                float u1 = (float)(col + 1) / N;
-                float v1 = (float)row / N;
-                float w1 = 1.0f - u1 - v1;
-                
-                float u2 = (float)col / N;
-                float v2 = (float)(row + 1) / N;
-                float w2 = 1.0f - u2 - v2;
-                
-                // Triangle vertices using barycentric interpolation
-                Vector2 q0 = {
-                    w0 * p0.x + u0 * p1.x + v0 * p2.x,
-                    w0 * p0.y + u0 * p1.y + v0 * p2.y
-                };
-                Vector2 q1 = {
-                    w1 * p0.x + u1 * p1.x + v1 * p2.x,
-                    w1 * p0.y + u1 * p1.y + v1 * p2.y
-                };
-                Vector2 q2 = {
-                    w2 * p0.x + u2 * p1.x + v2 * p2.x,
-                    w2 * p0.y + u2 * p1.y + v2 * p2.y
-                };
-                
-                // Interpolate hue
-                float hC = fmodf(w0 * h0 + u0 * h1 + v0 * h2 + 360.0f, 360.0f);
-                Color cc = HsvToRgb(hC, 1.0f, 1.0f, alpha);
-
-                DrawTriangle(q0, q1, q2, cc);
-
-                // Draw second triangle in quad if not at edge
-                if (col + 1 < N - row) {
-                    float u3 = (float)(col + 1) / N;
-                    float v3 = (float)(row + 1) / N;
-                    float w3 = 1.0f - u3 - v3;
-
-                    Vector2 q3 = {
-                        w3 * p0.x + u3 * p1.x + v3 * p2.x,
-                        w3 * p0.y + u3 * p1.y + v3 * p2.y
-                    };
-
-                    float hC2 = fmodf(w3 * h0 + u3 * h1 + v3 * h2 + 360.0f, 360.0f);
-                    Color cc2 = HsvToRgb(hC2, 1.0f, 1.0f, alpha);
-                    
-                    DrawTriangle(q1, q3, q2, cc2);
-                }
-            }
-        }
-        
-        // Draw edges
-        Color edge = Fade(WHITE, 0.5f * alpha);
-        DrawLineV(p0, p1, edge);
-        DrawLineV(p1, p2, edge);
-        DrawLineV(p2, p0, edge);
+        SubdivDrawTri(pj[faces[f][0]], pj[faces[f][1]], pj[faces[f][2]],
+                      hues[faces[f][0]], hues[faces[f][1]], hues[faces[f][2]],
+                      SHAPE_SUBDIV_TRI, SHAPE_SAT_DEFAULT, alpha);
+        for (int e = 0; e < 3; e++)
+            DrawLineV(pj[faces[f][e]], pj[faces[f][(e+1)%3]], edge);
     }
-
-
 }
 
 static void DrawCube2D(
@@ -243,150 +246,40 @@ static void DrawCube2D(
     float size, float rotY, float rotX, float alpha,
     Vector2 shadowPos, float shadowAlpha)
 {
-    float s = size / 1.73f; // normalize: vertices at (±s,±s,±s) → distance = s*√3
-
-    // 8 cube vertices in local 3D space
+    float s = size / 1.73f;
     float vtx[8][3] = {
         {-s,-s,-s}, { s,-s,-s}, { s, s,-s}, {-s, s,-s},
         {-s,-s, s}, { s,-s, s}, { s, s, s}, {-s, s, s},
     };
-
-    // 6 faces: {0,3,2,1} is Front, {4,5,6,7} is Back
-    int faces[6][4] = {
-        {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 4, 7, 3},
-        {1, 2, 6, 5}, {0, 1, 5, 4}, {3, 7, 6, 2},
+    int faces[6][5] = {
+        {0,3,2,1,0}, {4,5,6,7,0}, {0,4,7,3,0},
+        {1,2,6,5,0}, {0,1,5,4,0}, {3,7,6,2,0},
     };
 
-    // Shadow pass — flat black, top-down projection
     if (shadowAlpha > 0) {
-        float scy = cosf(rotY), ssy = sinf(rotY);
-        float scx = cosf(PI/2), ssx = sinf(PI/2);
-        Vector2 sp[8];
-        for (int i = 0; i < 8; i++) {
-            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
-            float x1 = x * scy - z * ssy;
-            float z1 = x * ssy + z * scy;
-            float y1 = y * scx - z1 * ssx;
-            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
-        }
-        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
-        for (int f = 0; f < 6; f++) {
-            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]];
-            Vector2 c = sp[faces[f][2]], d = sp[faces[f][3]];
-            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-            if (cross < 0) {
-                DrawTriangle(a, b, c, scol);
-                DrawTriangle(a, c, d, scol);
-            }
-        }
+        Vector2 sp[8]; float spz[8];
+        ProjectVertices(vtx, 8, rotY, PI/2, shadowPos, SHADOW_SCALE, sp, spz);
+        DrawShapeShadow(sp, faces, 6, 4, shadowAlpha);
     }
 
-    // 4 tetrahedron vertices in local 3D space
-    // around origin
-    //float vtx[4][3] = {
-    //    {0, 0, s},
-    //    {s, -s, -s}, {-s, -s, -s}, {0, s, -s},
-    //};
-
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
-    Vector2 pj[8];
-    float pz[8];
-    float hues[8];
+    Vector2 pj[8]; float pz[8]; float hues[8];
+    ProjectVertices(vtx, 8, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < 8; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
-        // Generate hue offset for "rainbow" look
+    for (int i = 0; i < 8; i++)
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * CUBE_HUE_VERTEX_STEP;
-    }
 
-    float faceZ[6];
-    bool faceVis[6];
-    for (int f = 0; f < 6; f++) {
-        faceZ[f] = 0;
-        for (int vi = 0; vi < 4; vi++) faceZ[f] += pz[faces[f][vi]];
-        faceZ[f] *= 0.25f;
-        
-        Vector2 a = pj[faces[f][0]];
-        Vector2 b = pj[faces[f][1]];
-        Vector2 c = pj[faces[f][2]];
-        // 2D Cross Product: (b-a)x(c-a)
-        // Note: Screen Y is down. Standard CCW winding produces Negative cross product.
-        // We want to show faces facing the camera (Front).
-        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        faceVis[f] = (cross < 0);
-    }
+    bool faceVis[6]; float faceZ[6]; int order[6];
+    CullSortFaces(pj, pz, faces, 6, 4, faceVis, faceZ, order);
 
-    // Sort back-to-front (Painter's algorithm)
-    // Smallest Z is "Far" in this projection? Actually standard 3D: Z+ is near?
-    // Let's sort simply by Z value.
-    int order[6] = {0, 1, 2, 3, 4, 5};
-    for (int i = 0; i < 5; i++)
-        for (int j = i + 1; j < 6; j++)
-            if (faceZ[order[i]] > faceZ[order[j]]) { // Swap if i is 'closer' than j?
-                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-            }
-
-    int N = SHAPE_SUBDIV_TRI;
-
+    Color edge = Fade(WHITE, 0.5f * alpha);
     for (int fi = 0; fi < 6; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
-
-        Vector2 p0 = pj[faces[f][0]], p1 = pj[faces[f][1]];
-        Vector2 p2 = pj[faces[f][2]], p3 = pj[faces[f][3]];
-        float h0 = hues[faces[f][0]], h1 = hues[faces[f][1]];
-        float h2 = hues[faces[f][2]], h3 = hues[faces[f][3]];
-
-        for (int gy = 0; gy < N; gy++) {
-            for (int gx = 0; gx < N; gx++) {
-                float u0 = (float)gx / N, u1 = (float)(gx + 1) / N;
-                float v0 = (float)gy / N, v1 = (float)(gy + 1) / N;
-
-                #define BILERP(A,B,C,D,u,v) \
-                    ((1-(v))*((1-(u))*(A) + (u)*(B)) + (v)*((1-(u))*(D) + (u)*(C)))
-
-                Vector2 q00 = {
-                    BILERP(p0.x,p1.x,p2.x,p3.x,u0,v0), 
-                    BILERP(p0.y,p1.y,p2.y,p3.y,u0,v0) 
-                };
-                Vector2 q10 = {
-                    BILERP(p0.x,p1.x,p2.x,p3.x,u1,v0), 
-                    BILERP(p0.y,p1.y,p2.y,p3.y,u1,v0) 
-                };
-                Vector2 q11 = {
-                    BILERP(p0.x,p1.x,p2.x,p3.x,u1,v1),
-                    BILERP(p0.y,p1.y,p2.y,p3.y,u1,v1)
-                };
-                Vector2 q01 = {
-                    BILERP(p0.x,p1.x,p2.x,p3.x,u0,v1), 
-                    BILERP(p0.y,p1.y,p2.y,p3.y,u0,v1)
-                };
-
-                float uc = (u0 + u1) * 0.5f, vc = (v0 + v1) * 0.5f;
-                float hC = BILERP(h0, h1, h2, h3, uc, vc);
-                
-                Color cc = HsvToRgb(hC, SHAPE_SAT_CUBE, 1.0f, alpha);
-                DrawTriangle(q00, q10, q11, cc);
-                DrawTriangle(q00, q11, q01, cc);
-
-                #undef BILERP
-            }
-        }
-        
-        Color edge = Fade(WHITE, 0.5f * alpha);
-        DrawLineV(p0, p1, edge);
-        DrawLineV(p1, p2, edge);
-        DrawLineV(p2, p3, edge);
-        DrawLineV(p3, p0, edge);
+        SubdivDrawQuad(pj[faces[f][0]], pj[faces[f][1]], pj[faces[f][2]], pj[faces[f][3]],
+                       hues[faces[f][0]], hues[faces[f][1]], hues[faces[f][2]], hues[faces[f][3]],
+                       SHAPE_SUBDIV_TRI, SHAPE_SAT_CUBE, alpha);
+        for (int e = 0; e < 4; e++)
+            DrawLineV(pj[faces[f][e]], pj[faces[f][(e+1)%4]], edge);
     }
 }
 
@@ -397,140 +290,38 @@ static void DrawOcta2D(
     Vector2 shadowPos, float shadowAlpha)
 {
     float s = size;
-
-    // 6 octahedron vertices: axis-aligned
     float vtx[6][3] = {
-        { s, 0, 0}, {-s, 0, 0},
-        { 0, s, 0}, { 0,-s, 0},
-        { 0, 0, s}, { 0, 0,-s},
+        { s, 0, 0}, {-s, 0, 0}, { 0, s, 0}, { 0,-s, 0}, { 0, 0, s}, { 0, 0,-s},
+    };
+    int faces[8][5] = {
+        {0,2,4,0,0}, {2,1,4,0,0}, {1,3,4,0,0}, {3,0,4,0,0},
+        {2,0,5,0,0}, {1,2,5,0,0}, {3,1,5,0,0}, {0,3,5,0,0},
     };
 
-    // 8 triangular faces
-    int faces[8][3] = {
-        {0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4},
-        {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5},
-    };
-
-    // Shadow pass — flat black, top-down projection
     if (shadowAlpha > 0) {
-        float scy = cosf(rotY), ssy = sinf(rotY);
-        float scx = cosf(PI/2), ssx = sinf(PI/2);
-        Vector2 sp[6];
-        for (int i = 0; i < 6; i++) {
-            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
-            float x1 = x * scy - z * ssy;
-            float z1 = x * ssy + z * scy;
-            float y1 = y * scx - z1 * ssx;
-            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
-        }
-        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
-        for (int f = 0; f < 8; f++) {
-            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
-            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-            if (cross < 0) DrawTriangle(a, b, c, scol);
-        }
+        Vector2 sp[6]; float spz[6];
+        ProjectVertices(vtx, 6, rotY, PI/2, shadowPos, SHADOW_SCALE, sp, spz);
+        DrawShapeShadow(sp, faces, 8, 3, shadowAlpha);
     }
 
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
-    Vector2 pj[6];
-    float pz[6];
-    float hues[6];
+    Vector2 pj[6]; float pz[6]; float hues[6];
+    ProjectVertices(vtx, 6, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < 6; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
+    for (int i = 0; i < 6; i++)
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * OCTA_HUE_VERTEX_STEP;
-    }
 
-    float faceZ[8];
-    bool faceVis[8];
-    for (int f = 0; f < 8; f++) {
-        faceZ[f] = (pz[faces[f][0]] + pz[faces[f][1]] + pz[faces[f][2]]) / 3.0f;
-        Vector2 a = pj[faces[f][0]];
-        Vector2 b = pj[faces[f][1]];
-        Vector2 c = pj[faces[f][2]];
-        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        faceVis[f] = (cross < 0);
-    }
+    bool faceVis[8]; float faceZ[8]; int order[8];
+    CullSortFaces(pj, pz, faces, 8, 3, faceVis, faceZ, order);
 
-    int order[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    for (int i = 0; i < 7; i++)
-        for (int j = i + 1; j < 8; j++)
-            if (faceZ[order[i]] > faceZ[order[j]]) {
-                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-            }
-
-    int N = SHAPE_SUBDIV_TRI;
-
+    Color edge = Fade(WHITE, 0.5f * alpha);
     for (int fi = 0; fi < 8; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
-
-        Vector2 p0 = pj[faces[f][0]];
-        Vector2 p1 = pj[faces[f][1]];
-        Vector2 p2 = pj[faces[f][2]];
-        float h0 = hues[faces[f][0]];
-        float h1 = hues[faces[f][1]];
-        float h2 = hues[faces[f][2]];
-
-        for (int row = 0; row < N; row++) {
-            for (int col = 0; col < N - row; col++) {
-                float u0 = (float)col / N;
-                float v0 = (float)row / N;
-                float w0 = 1.0f - u0 - v0;
-
-                float u1 = (float)(col + 1) / N;
-                float v1 = (float)row / N;
-                float w1 = 1.0f - u1 - v1;
-
-                float u2 = (float)col / N;
-                float v2 = (float)(row + 1) / N;
-                float w2 = 1.0f - u2 - v2;
-
-                Vector2 q0 = {
-                    w0 * p0.x + u0 * p1.x + v0 * p2.x,
-                    w0 * p0.y + u0 * p1.y + v0 * p2.y
-                };
-                Vector2 q1 = {
-                    w1 * p0.x + u1 * p1.x + v1 * p2.x,
-                    w1 * p0.y + u1 * p1.y + v1 * p2.y
-                };
-                Vector2 q2 = {
-                    w2 * p0.x + u2 * p1.x + v2 * p2.x,
-                    w2 * p0.y + u2 * p1.y + v2 * p2.y
-                };
-
-                float hC = fmodf(w0 * h0 + u0 * h1 + v0 * h2 + 360.0f, 360.0f);
-                Color cc = HsvToRgb(hC, 1.0f, 1.0f, alpha);
-                DrawTriangle(q0, q1, q2, cc);
-
-                if (col + 1 < N - row) {
-                    float u3 = (float)(col + 1) / N;
-                    float v3 = (float)(row + 1) / N;
-                    float w3 = 1.0f - u3 - v3;
-                    Vector2 q3 = {
-                        w3 * p0.x + u3 * p1.x + v3 * p2.x,
-                        w3 * p0.y + u3 * p1.y + v3 * p2.y
-                    };
-                    float hC2 = fmodf(w3 * h0 + u3 * h1 + v3 * h2 + 360.0f, 360.0f);
-                    Color cc2 = HsvToRgb(hC2, 1.0f, 1.0f, alpha);
-                    DrawTriangle(q1, q3, q2, cc2);
-                }
-            }
-        }
-
-        Color edge = Fade(WHITE, 0.5f * alpha);
-        DrawLineV(p0, p1, edge);
-        DrawLineV(p1, p2, edge);
-        DrawLineV(p2, p0, edge);
+        SubdivDrawTri(pj[faces[f][0]], pj[faces[f][1]], pj[faces[f][2]],
+                      hues[faces[f][0]], hues[faces[f][1]], hues[faces[f][2]],
+                      SHAPE_SUBDIV_TRI, SHAPE_SAT_DEFAULT, alpha);
+        for (int e = 0; e < 3; e++)
+            DrawLineV(pj[faces[f][e]], pj[faces[f][(e+1)%3]], edge);
     }
 }
 
@@ -541,9 +332,7 @@ static void DrawIcosa2D(
     Vector2 shadowPos, float shadowAlpha)
 {
     float phi = (1.0f + sqrtf(5.0f)) / 2.0f;
-    float sc = size / phi; // scale so max extent ≈ size
-
-    // 12 icosahedron vertices: (0, ±1, ±φ) and permutations
+    float sc = size / phi;
     float vtx[12][3] = {
         { 0,  sc,  sc*phi}, { 0,  sc, -sc*phi},
         { 0, -sc,  sc*phi}, { 0, -sc, -sc*phi},
@@ -552,136 +341,37 @@ static void DrawIcosa2D(
         { sc*phi, 0,  sc}, { sc*phi, 0, -sc},
         {-sc*phi, 0,  sc}, {-sc*phi, 0, -sc},
     };
-
-    // 20 triangular faces
-    int faces[20][3] = {
-        {0, 2, 8},  {0, 8, 4},  {0, 4, 5},  {0, 5, 10}, {0, 10, 2},
-        {2, 6, 8},  {8, 6, 9},  {8, 9, 4},  {4, 9, 1},  {4, 1, 5},
-        {5, 1, 11}, {5, 11, 10},{10, 11, 7}, {10, 7, 2}, {2, 7, 6},
-        {3, 9, 6},  {3, 1, 9},  {3, 11, 1}, {3, 7, 11}, {3, 6, 7},
+    int faces[20][5] = {
+        {0,2,8,0,0},   {0,8,4,0,0},   {0,4,5,0,0},   {0,5,10,0,0},  {0,10,2,0,0},
+        {2,6,8,0,0},   {8,6,9,0,0},   {8,9,4,0,0},   {4,9,1,0,0},   {4,1,5,0,0},
+        {5,1,11,0,0},  {5,11,10,0,0}, {10,11,7,0,0}, {10,7,2,0,0},  {2,7,6,0,0},
+        {3,9,6,0,0},   {3,1,9,0,0},   {3,11,1,0,0},  {3,7,11,0,0},  {3,6,7,0,0},
     };
 
-    // Shadow pass — flat black, top-down projection
     if (shadowAlpha > 0) {
-        float scy = cosf(rotY), ssy = sinf(rotY);
-        float scx = cosf(PI/2), ssx = sinf(PI/2);
-        Vector2 sp[12];
-        for (int i = 0; i < 12; i++) {
-            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
-            float x1 = x * scy - z * ssy;
-            float z1 = x * ssy + z * scy;
-            float y1 = y * scx - z1 * ssx;
-            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
-        }
-        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
-        for (int f = 0; f < 20; f++) {
-            Vector2 a = sp[faces[f][0]], b = sp[faces[f][1]], c = sp[faces[f][2]];
-            float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-            if (cross < 0) DrawTriangle(a, b, c, scol);
-        }
+        Vector2 sp[12]; float spz[12];
+        ProjectVertices(vtx, 12, rotY, PI/2, shadowPos, SHADOW_SCALE, sp, spz);
+        DrawShapeShadow(sp, faces, 20, 3, shadowAlpha);
     }
 
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
-    Vector2 pj[12];
-    float pz[12];
-    float hues[12];
+    Vector2 pj[12]; float pz[12]; float hues[12];
+    ProjectVertices(vtx, 12, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < 12; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
+    for (int i = 0; i < 12; i++)
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * ICOSA_HUE_VERTEX_STEP;
-    }
 
-    float faceZ[20];
-    bool faceVis[20];
-    for (int f = 0; f < 20; f++) {
-        faceZ[f] = (pz[faces[f][0]] + pz[faces[f][1]] + pz[faces[f][2]]) / 3.0f;
-        Vector2 a = pj[faces[f][0]];
-        Vector2 b = pj[faces[f][1]];
-        Vector2 c = pj[faces[f][2]];
-        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        faceVis[f] = (cross < 0);
-    }
+    bool faceVis[20]; float faceZ[20]; int order[20];
+    CullSortFaces(pj, pz, faces, 20, 3, faceVis, faceZ, order);
 
-    int order[20];
-    for (int i = 0; i < 20; i++) order[i] = i;
-    for (int i = 0; i < 19; i++)
-        for (int j = i + 1; j < 20; j++)
-            if (faceZ[order[i]] > faceZ[order[j]]) {
-                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-            }
-
-    int N = SHAPE_SUBDIV_PENTA;
-
+    Color edge = Fade(WHITE, 0.5f * alpha);
     for (int fi = 0; fi < 20; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
-
-        Vector2 p0 = pj[faces[f][0]];
-        Vector2 p1 = pj[faces[f][1]];
-        Vector2 p2 = pj[faces[f][2]];
-        float h0 = hues[faces[f][0]];
-        float h1 = hues[faces[f][1]];
-        float h2 = hues[faces[f][2]];
-
-        for (int row = 0; row < N; row++) {
-            for (int col = 0; col < N - row; col++) {
-                float u0 = (float)col / N;
-                float v0 = (float)row / N;
-                float w0 = 1.0f - u0 - v0;
-
-                float u1 = (float)(col + 1) / N;
-                float v1 = (float)row / N;
-                float w1 = 1.0f - u1 - v1;
-
-                float u2 = (float)col / N;
-                float v2 = (float)(row + 1) / N;
-                float w2 = 1.0f - u2 - v2;
-
-                Vector2 q0 = {
-                    w0 * p0.x + u0 * p1.x + v0 * p2.x,
-                    w0 * p0.y + u0 * p1.y + v0 * p2.y
-                };
-                Vector2 q1 = {
-                    w1 * p0.x + u1 * p1.x + v1 * p2.x,
-                    w1 * p0.y + u1 * p1.y + v1 * p2.y
-                };
-                Vector2 q2 = {
-                    w2 * p0.x + u2 * p1.x + v2 * p2.x,
-                    w2 * p0.y + u2 * p1.y + v2 * p2.y
-                };
-
-                float hC = fmodf(w0 * h0 + u0 * h1 + v0 * h2 + 360.0f, 360.0f);
-                Color cc = HsvToRgb(hC, 1.0f, 1.0f, alpha);
-                DrawTriangle(q0, q1, q2, cc);
-
-                if (col + 1 < N - row) {
-                    float u3 = (float)(col + 1) / N;
-                    float v3 = (float)(row + 1) / N;
-                    float w3 = 1.0f - u3 - v3;
-                    Vector2 q3 = {
-                        w3 * p0.x + u3 * p1.x + v3 * p2.x,
-                        w3 * p0.y + u3 * p1.y + v3 * p2.y
-                    };
-                    float hC2 = fmodf(w3 * h0 + u3 * h1 + v3 * h2 + 360.0f, 360.0f);
-                    Color cc2 = HsvToRgb(hC2, 1.0f, 1.0f, alpha);
-                    DrawTriangle(q1, q3, q2, cc2);
-                }
-            }
-        }
-
-        Color edge = Fade(WHITE, 0.5f * alpha);
-        DrawLineV(p0, p1, edge);
-        DrawLineV(p1, p2, edge);
-        DrawLineV(p2, p0, edge);
+        SubdivDrawTri(pj[faces[f][0]], pj[faces[f][1]], pj[faces[f][2]],
+                      hues[faces[f][0]], hues[faces[f][1]], hues[faces[f][2]],
+                      SHAPE_SUBDIV_PENTA, SHAPE_SAT_DEFAULT, alpha);
+        for (int e = 0; e < 3; e++)
+            DrawLineV(pj[faces[f][e]], pj[faces[f][(e+1)%3]], edge);
     }
 }
 
@@ -693,176 +383,49 @@ static void DrawDodeca2D(
 {
     float phi = (1.0f + sqrtf(5.0f)) / 2.0f;
     float iphi = 1.0f / phi;
-    // scale so max extent ≈ size (cube verts are at ±1 → √3 ≈ 1.73)
     float sc = size / 1.73f;
-
-    // 20 dodecahedron vertices:
-    // 8 cube vertices (±1,±1,±1)
-    // 4 vertices (0, ±φ, ±1/φ)
-    // 4 vertices (±1/φ, 0, ±φ)
-    // 4 vertices (±φ, ±1/φ, 0)
     float vtx[20][3] = {
-        // cube vertices
         { sc, sc, sc}, { sc, sc,-sc}, { sc,-sc, sc}, { sc,-sc,-sc},
         {-sc, sc, sc}, {-sc, sc,-sc}, {-sc,-sc, sc}, {-sc,-sc,-sc},
-        // (0, ±φ, ±1/φ)
         {0,  sc*phi,  sc*iphi}, {0,  sc*phi, -sc*iphi},
         {0, -sc*phi,  sc*iphi}, {0, -sc*phi, -sc*iphi},
-        // (±1/φ, 0, ±φ)
         { sc*iphi, 0,  sc*phi}, {-sc*iphi, 0,  sc*phi},
         { sc*iphi, 0, -sc*phi}, {-sc*iphi, 0, -sc*phi},
-        // (±φ, ±1/φ, 0)
         { sc*phi,  sc*iphi, 0}, { sc*phi, -sc*iphi, 0},
         {-sc*phi,  sc*iphi, 0}, {-sc*phi, -sc*iphi, 0},
     };
-
-    // 12 pentagonal faces
     int faces[12][5] = {
-        { 0, 12,  2, 17, 16}, { 0, 16,  1,  9,  8},
-        { 0,  8,  4, 13, 12}, { 1, 16, 17,  3, 14},
-        { 1, 14, 15,  5,  9}, { 2, 12, 13,  6, 10},
-        { 2, 10, 11,  3, 17}, { 4,  8,  9,  5, 18},
-        { 4, 18, 19,  6, 13}, { 7, 11, 10,  6, 19},
-        { 7, 19, 18,  5, 15}, { 7, 15, 14,  3, 11},
+        { 0,12, 2,17,16}, { 0,16, 1, 9, 8}, { 0, 8, 4,13,12}, { 1,16,17, 3,14},
+        { 1,14,15, 5, 9}, { 2,12,13, 6,10}, { 2,10,11, 3,17}, { 4, 8, 9, 5,18},
+        { 4,18,19, 6,13}, { 7,11,10, 6,19}, { 7,19,18, 5,15}, { 7,15,14, 3,11},
     };
 
-    // Shadow pass — flat black, top-down projection
     if (shadowAlpha > 0) {
-        float scy = cosf(rotY), ssy = sinf(rotY);
-        float scx = cosf(PI/2), ssx = sinf(PI/2);
-        Vector2 sp[20];
-        for (int i = 0; i < 20; i++) {
-            float x = vtx[i][0]*SHADOW_SCALE, y = vtx[i][1]*SHADOW_SCALE, z = vtx[i][2]*SHADOW_SCALE;
-            float x1 = x * scy - z * ssy;
-            float z1 = x * ssy + z * scy;
-            float y1 = y * scx - z1 * ssx;
-            sp[i] = (Vector2){ shadowPos.x + x1, shadowPos.y + y1 };
-        }
-        Color scol = Fade(SHADOW_COLOR, shadowAlpha);
-        for (int f = 0; f < 12; f++) {
-            Vector2 pv[5];
-            for (int vi = 0; vi < 5; vi++) pv[vi] = sp[faces[f][vi]];
-            float cross = (pv[1].x-pv[0].x)*(pv[2].y-pv[0].y) - (pv[1].y-pv[0].y)*(pv[2].x-pv[0].x);
-            if (cross < 0) {
-                for (int tri = 0; tri < 3; tri++)
-                    DrawTriangle(pv[0], pv[tri+1], pv[tri+2], scol);
-            }
-        }
+        Vector2 sp[20]; float spz[20];
+        ProjectVertices(vtx, 20, rotY, PI/2, shadowPos, SHADOW_SCALE, sp, spz);
+        DrawShapeShadow(sp, faces, 12, 5, shadowAlpha);
     }
 
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
-    Vector2 pj[20];
-    float pz[20];
-    float hues[20];
+    Vector2 pj[20]; float pz[20]; float hues[20];
+    ProjectVertices(vtx, 20, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < 20; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
+    for (int i = 0; i < 20; i++)
         hues[i] = time * SHAPE_HUE_SPEED + (float)i * DODECA_HUE_VERTEX_STEP;
-    }
 
-    float faceZ[12];
-    bool faceVis[12];
-    for (int f = 0; f < 12; f++) {
-        faceZ[f] = 0;
-        for (int vi = 0; vi < 5; vi++) faceZ[f] += pz[faces[f][vi]];
-        faceZ[f] /= 5.0f;
+    bool faceVis[12]; float faceZ[12]; int order[12];
+    CullSortFaces(pj, pz, faces, 12, 5, faceVis, faceZ, order);
 
-        Vector2 a = pj[faces[f][0]];
-        Vector2 b = pj[faces[f][1]];
-        Vector2 c = pj[faces[f][2]];
-        float cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        faceVis[f] = (cross < 0);
-    }
-
-    int order[12];
-    for (int i = 0; i < 12; i++) order[i] = i;
-    for (int i = 0; i < 11; i++)
-        for (int j = i + 1; j < 12; j++)
-            if (faceZ[order[i]] > faceZ[order[j]]) {
-                int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-            }
-
+    Color edge = Fade(WHITE, 0.5f * alpha);
     for (int fi = 0; fi < 12; fi++) {
         int f = order[fi];
         if (!faceVis[f]) continue;
-
         // Fan pentagon into 3 triangles from vertex 0
-        Vector2 pv[5];
-        float hv[5];
-        for (int vi = 0; vi < 5; vi++) {
-            pv[vi] = pj[faces[f][vi]];
-            hv[vi] = hues[faces[f][vi]];
-        }
-
-        for (int tri = 0; tri < 3; tri++) {
-            Vector2 p0 = pv[0];
-            Vector2 p1 = pv[tri + 1];
-            Vector2 p2 = pv[tri + 2];
-            float h0 = hv[0];
-            float h1 = hv[tri + 1];
-            float h2 = hv[tri + 2];
-
-            int N = SHAPE_SUBDIV_PENTA;
-            for (int row = 0; row < N; row++) {
-                for (int col = 0; col < N - row; col++) {
-                    float u0b = (float)col / N;
-                    float v0b = (float)row / N;
-                    float w0b = 1.0f - u0b - v0b;
-
-                    float u1b = (float)(col + 1) / N;
-                    float v1b = (float)row / N;
-                    float w1b = 1.0f - u1b - v1b;
-
-                    float u2b = (float)col / N;
-                    float v2b = (float)(row + 1) / N;
-                    float w2b = 1.0f - u2b - v2b;
-
-                    Vector2 q0 = {
-                        w0b * p0.x + u0b * p1.x + v0b * p2.x,
-                        w0b * p0.y + u0b * p1.y + v0b * p2.y
-                    };
-                    Vector2 q1 = {
-                        w1b * p0.x + u1b * p1.x + v1b * p2.x,
-                        w1b * p0.y + u1b * p1.y + v1b * p2.y
-                    };
-                    Vector2 q2 = {
-                        w2b * p0.x + u2b * p1.x + v2b * p2.x,
-                        w2b * p0.y + u2b * p1.y + v2b * p2.y
-                    };
-
-                    float hC = fmodf(w0b * h0 + u0b * h1 + v0b * h2 + 360.0f, 360.0f);
-                    Color cc = HsvToRgb(hC, SHAPE_SAT_DODECA, 1.0f, alpha);
-                    DrawTriangle(q0, q1, q2, cc);
-
-                    if (col + 1 < N - row) {
-                        float u3b = (float)(col + 1) / N;
-                        float v3b = (float)(row + 1) / N;
-                        float w3b = 1.0f - u3b - v3b;
-                        Vector2 q3 = {
-                            w3b * p0.x + u3b * p1.x + v3b * p2.x,
-                            w3b * p0.y + u3b * p1.y + v3b * p2.y
-                        };
-                        float hC2 = fmodf(w3b * h0 + u3b * h1 + v3b * h2 + 360.0f, 360.0f);
-                        Color cc2 = HsvToRgb(hC2, SHAPE_SAT_DODECA, 1.0f, alpha);
-                        DrawTriangle(q1, q3, q2, cc2);
-                    }
-                }
-            }
-        }
-
-        // Draw pentagon edges
-        Color edge = Fade(WHITE, 0.5f * alpha);
-        for (int vi = 0; vi < 5; vi++)
-            DrawLineV(pv[vi], pv[(vi + 1) % 5], edge);
+        for (int tri = 0; tri < 3; tri++)
+            SubdivDrawTri(pj[faces[f][0]], pj[faces[f][tri+1]], pj[faces[f][tri+2]],
+                          hues[faces[f][0]], hues[faces[f][tri+1]], hues[faces[f][tri+2]],
+                          SHAPE_SUBDIV_PENTA, SHAPE_SAT_DODECA, alpha);
+        for (int e = 0; e < 5; e++)
+            DrawLineV(pj[faces[f][e]], pj[faces[f][(e+1)%5]], edge);
     }
 }
 
@@ -902,24 +465,13 @@ static void DrawSphere2D(
     }
 
     // Project all vertices to 2D
-    float cy = cosf(rotY), sy = sinf(rotY);
-    float cx = cosf(rotX), sx = sinf(rotX);
-
     Vector2 pj[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
     float pz[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
     float hues[2 + (SPHERE_STACKS - 1) * SPHERE_SLICES];
+    ProjectVertices(vtx, nVerts, rotY, rotX, pos, 1.0f, pj, pz);
     float time = (float)GetTime();
-
-    for (int i = 0; i < nVerts; i++) {
-        float x = vtx[i][0], y = vtx[i][1], z = vtx[i][2];
-        float x1 = x * cy - z * sy;
-        float z1 = x * sy + z * cy;
-        float y1 = y * cx - z1 * sx;
-        float z2 = y * sx + z1 * cx;
-        pj[i] = (Vector2){ pos.x + x1, pos.y + y1 };
-        pz[i] = z2;
-        hues[i] = fmodf(time * 60.0f + (z2 / size) * 180.0f + 360.0f, 360.0f);
-    }
+    for (int i = 0; i < nVerts; i++)
+        hues[i] = fmodf(time * 60.0f + (pz[i] / size) * 180.0f + 360.0f, 360.0f);
 
     // Draw faces with backface culling
     // Top cap: north pole (0) to first ring
@@ -1914,63 +1466,16 @@ static void DrawCooldownBar(int x, int y, int w, int h,
     }
 }
 
-// Draw - HUD (screen space)
-static void DrawHUD(void)
+// Draw - Cooldown Column ------------------------------------------------- /
+static void DrawCooldownColumn(Player *p, float ui)
 {
-    Player *p = &g.player;
-    int sw = GetScreenWidth();
-    int sh = GetScreenHeight();
-    float ui = (float)sh / HUD_SCALE_REF;
-
-    // HP bar
-    int hpBarW = (int)(HUD_HP_W * ui);
-    int hpBarH = (int)(HUD_HP_H * ui);
-    int hpBarX = (int)(HUD_MARGIN * ui);
-    int hpBarY = (int)(HUD_MARGIN * ui);
-    float hpRatio = (float)p->hp / p->maxHp;
-    DrawRectangle(hpBarX, hpBarY, hpBarW, hpBarH, DARKGRAY);
-    Color hpColor = (hpRatio > 0.5f) ? GREEN : (hpRatio > 0.25f) ? ORANGE : RED;
-    DrawRectangle(hpBarX, hpBarY, (int)(hpBarW * hpRatio), hpBarH, hpColor);
-    DrawRectangleLines(hpBarX, hpBarY, hpBarW, hpBarH, WHITE);
-    DrawText(
-        TextFormat("HP: %d/%d", (int)p->hp, (int)p->maxHp),
-        hpBarX + (int)(HUD_HP_TEXT_PAD_X * ui), hpBarY + (int)(HUD_HP_TEXT_PAD_Y * ui), (int)(HUD_HP_FONT * ui), WHITE);
-
-    // Score
-    DrawText(
-        TextFormat("Score: %d", g.score), 
-        (int)(HUD_MARGIN * ui), (int)(HUD_SCORE_Y * ui), (int)(HUD_SCORE_FONT * ui), WHITE);
-    DrawText(
-        TextFormat("Kills: %d", g.enemiesKilled),
-        (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
-    DrawText(
-        TextFormat("Level: %d", g.level),
-        (int)(HUD_MARGIN * ui), (int)(HUD_LEVEL_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
-
-    // Weapon swap indicator
-    {
-        int wFont = (int)(HUD_CD_FONT * ui);
-        int wX = (int)(HUD_MARGIN * ui);
-        int wY = (int)(HUD_CD_Y * ui) - (int)(20 * ui);
-        const char *pri = WeaponName(p->primary);
-        const char *sec = WeaponName(p->secondary);
-        DrawText(pri, wX, wY, wFont, SELECT_HIGHLIGHT_COLOR);
-        int secX = wX + MeasureText(pri, wFont) + (int)(6 * ui);
-        DrawText(TextFormat("/ %s", sec), secX, wY, wFont,
-            Fade(WHITE, 0.35f));
-        int ctrlX = secX + MeasureText(TextFormat("/ %s", sec), wFont)
-            + (int)(6 * ui);
-        DrawText("[Ctrl]", ctrlX, wY, wFont, Fade(WHITE, 0.2f));
-    }
-
-    // Cooldown indicators
     int cdBarW = (int)(HUD_CD_W * ui);
     int cdBarH = (int)(HUD_CD_H * ui);
     int cdX = (int)(HUD_MARGIN * ui);
     int cdY = (int)(HUD_CD_Y * ui);
     int cdFontSize = (int)(HUD_CD_FONT * ui);
     int cdLabelX = cdX + cdBarW + (int)(HUD_CD_LABEL_GAP * ui);
-    
+
     // Dash charges
     {
         int pipW = (int)(HUD_PIP_W * ui);
@@ -2161,8 +1666,11 @@ static void DrawHUD(void)
         DrawText("FUEL", cdLabelX, cdY, cdFontSize,
             (p->flame.fuel > 0) ? fiColor : RED);
     }
+}
 
-    // Active reload/overheat arc (near player) ------------------------------ /
+// Draw - Weapon Status --------------------------------------------------- /
+static void DrawWeaponStatus(Player *p, float ui)
+{
     Vector2 pScreen = GetWorldToScreen2D(p->pos, g.camera);
     pScreen.y += HUD_ARC_Y_OFFSET * ui;
     float arcInner  = HUD_ARC_INNER_R * ui;
@@ -2340,6 +1848,174 @@ static void DrawHUD(void)
                 arcFont, ovColor);
         }
     }
+}
+
+// Draw - Pause Menu ------------------------------------------------------ /
+static void DrawPauseMenu(int sw, int sh, float ui)
+{
+    DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.5f));
+    int pauseFont = (int)(HUD_PAUSE_FONT * ui);
+    const char *pauseText = "PAUSED";
+    int pW = MeasureText(pauseText, pauseFont);
+    DrawText(
+        pauseText,
+        sw / 2 - pW / 2,
+        sh / 2 - (int)(HUD_PAUSE_Y * ui),
+        pauseFont,
+        WHITE);
+    int resumeFont = (int)(HUD_RESUME_FONT * ui);
+    const char *resumeText = "P or Esc to resume";
+    int rW = MeasureText(resumeText, resumeFont);
+    DrawText(
+        resumeText,
+        sw / 2 - rW / 2,
+        sh / 2 + (int)(HUD_RESUME_Y * ui),
+        resumeFont,
+        LIGHTGRAY);
+
+    // Keybinds — three columns
+    int pkFont = (int)(HUD_PAUSE_KEYS_FONT * ui);
+    int pkSpacing = (int)(HUD_PAUSE_KEYS_SPACING * ui);
+    int pkY = sh / 2 + (int)(HUD_PAUSE_KEYS_Y * ui);
+    int pkTabW = (int)(62 * ui);
+
+    // Left column: core controls
+    const char *lKeys[] = {
+        "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0"
+    };
+    const char *lDescs[] = {
+        "Move", "Dash", "Primary", "Alt Fire",
+        "Swap", "Pause", "Exit"
+    };
+    int lCount = 7;
+
+    int totalW = (int)(420 * ui);
+    int colW = totalW / 3;
+    int lColX = sw / 2 - totalW / 2;
+    int mColX = lColX + colW;
+    int rColX = mColX + colW;
+
+    for (int i = 0; i < lCount; i++) {
+        int ky = pkY + i * pkSpacing;
+        DrawText(lKeys[i], lColX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+        DrawText(lDescs[i], lColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
+    }
+
+    // Middle + Right columns: abilities from slots (split in half)
+    Player *p = &g.player;
+    int ablCount = 0;
+    int ablSlots[ABILITY_SLOTS];
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        if (AbilityName(p->slots[i].ability))
+            ablSlots[ablCount++] = i;
+    }
+    int half = (ablCount + 1) / 2;
+    for (int a = 0; a < ablCount; a++) {
+        int si = ablSlots[a];
+        int colX = (a < half) ? mColX : rColX;
+        int row = (a < half) ? a : a - half;
+        int ky = pkY + row * pkSpacing;
+        DrawText(KeyName(p->slots[si].key), colX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+        DrawText(AbilityName(p->slots[si].ability),
+            colX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
+    }
+
+    // Fullscreen toggle
+    int maxRows = lCount > half ? lCount : half;
+    int fsY = pkY + (maxRows + 1) * pkSpacing;
+    const char *fsLabel = IsWindowFullscreen() ? "[F] Fullscreen: ON" : "[F] Fullscreen: OFF";
+    int fsW = MeasureText(fsLabel, pkFont);
+    DrawText(fsLabel, sw / 2 - fsW / 2, fsY, pkFont, Fade(WHITE, 0.6f));
+}
+
+// Draw - Game Over ------------------------------------------------------- /
+static void DrawGameOver(int sw, int sh, float ui)
+{
+    DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.7f));
+    int goFont = (int)(HUD_GO_FONT * ui);
+    const char *goText = "GAME OVER";
+    int goW = MeasureText(goText, goFont);
+    DrawText(
+        goText,
+        sw / 2 - goW / 2,
+        sh / 2 - (int)(HUD_GO_Y * ui),
+        goFont,
+        RED);
+
+    int scFont = (int)(HUD_GO_SCORE_FONT * ui);
+    const char *scoreText =
+        TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
+    int sW = MeasureText(scoreText, scFont);
+    DrawText(
+        scoreText,
+        sw / 2 - sW / 2,
+        sh / 2 + (int)(HUD_GO_SCORE_Y * ui),
+        scFont,
+        WHITE);
+
+    int rsFont = (int)(HUD_GO_RESTART_FONT * ui);
+    const char *restartText = "Press ENTER to restart";
+    int rW = MeasureText(restartText, rsFont);
+    DrawText(
+        restartText,
+        sw / 2 - rW / 2,
+        sh / 2 + (int)(HUD_GO_RESTART_Y * ui),
+        rsFont,
+        LIGHTGRAY);
+}
+
+// Draw - HUD (screen space)
+static void DrawHUD(void)
+{
+    Player *p = &g.player;
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+    float ui = (float)sh / HUD_SCALE_REF;
+
+    // HP bar
+    int hpBarW = (int)(HUD_HP_W * ui);
+    int hpBarH = (int)(HUD_HP_H * ui);
+    int hpBarX = (int)(HUD_MARGIN * ui);
+    int hpBarY = (int)(HUD_MARGIN * ui);
+    float hpRatio = (float)p->hp / p->maxHp;
+    DrawRectangle(hpBarX, hpBarY, hpBarW, hpBarH, DARKGRAY);
+    Color hpColor = (hpRatio > 0.5f) ? GREEN : (hpRatio > 0.25f) ? ORANGE : RED;
+    DrawRectangle(hpBarX, hpBarY, (int)(hpBarW * hpRatio), hpBarH, hpColor);
+    DrawRectangleLines(hpBarX, hpBarY, hpBarW, hpBarH, WHITE);
+    DrawText(
+        TextFormat("HP: %d/%d", (int)p->hp, (int)p->maxHp),
+        hpBarX + (int)(HUD_HP_TEXT_PAD_X * ui), hpBarY + (int)(HUD_HP_TEXT_PAD_Y * ui), (int)(HUD_HP_FONT * ui), WHITE);
+
+    // Score
+    DrawText(
+        TextFormat("Score: %d", g.score), 
+        (int)(HUD_MARGIN * ui), (int)(HUD_SCORE_Y * ui), (int)(HUD_SCORE_FONT * ui), WHITE);
+    DrawText(
+        TextFormat("Kills: %d", g.enemiesKilled),
+        (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
+    DrawText(
+        TextFormat("Level: %d", g.level),
+        (int)(HUD_MARGIN * ui), (int)(HUD_LEVEL_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
+
+    // Weapon swap indicator
+    {
+        int wFont = (int)(HUD_CD_FONT * ui);
+        int wX = (int)(HUD_MARGIN * ui);
+        int wY = (int)(HUD_CD_Y * ui) - (int)(20 * ui);
+        const char *pri = WeaponName(p->primary);
+        const char *sec = WeaponName(p->secondary);
+        DrawText(pri, wX, wY, wFont, SELECT_HIGHLIGHT_COLOR);
+        int secX = wX + MeasureText(pri, wFont) + (int)(6 * ui);
+        DrawText(TextFormat("/ %s", sec), secX, wY, wFont,
+            Fade(WHITE, 0.35f));
+        int ctrlX = secX + MeasureText(TextFormat("/ %s", sec), wFont)
+            + (int)(6 * ui);
+        DrawText("[Ctrl]", ctrlX, wY, wFont, Fade(WHITE, 0.2f));
+    }
+
+    DrawCooldownColumn(p, ui);
+
+    DrawWeaponStatus(p, ui);
 
     // FPS (top-right)
     int fpsFont = (int)(HUD_FPS_FONT * ui);
@@ -2399,117 +2075,9 @@ static void DrawHUD(void)
              titleFont,
              Fade(WHITE, 0.8f));
 
-    // Pause overlay
-    if (g.paused && !g.gameOver) {
-        DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.5f));
-        int pauseFont = (int)(HUD_PAUSE_FONT * ui);
-        const char *pauseText = "PAUSED";
-        int pW = MeasureText(pauseText, pauseFont);
-        DrawText(
-            pauseText,
-            sw / 2 - pW / 2,
-            sh / 2 - (int)(HUD_PAUSE_Y * ui),
-            pauseFont,
-            WHITE);
-        int resumeFont = (int)(HUD_RESUME_FONT * ui);
-        const char *resumeText = "P or Esc to resume";
-        int rW = MeasureText(resumeText, resumeFont);
-        DrawText(
-            resumeText,
-            sw / 2 - rW / 2,
-            sh / 2 + (int)(HUD_RESUME_Y * ui),
-            resumeFont,
-            LIGHTGRAY);
+    if (g.paused && !g.gameOver) DrawPauseMenu(sw, sh, ui);
 
-        // Keybinds — three columns
-        int pkFont = (int)(HUD_PAUSE_KEYS_FONT * ui);
-        int pkSpacing = (int)(HUD_PAUSE_KEYS_SPACING * ui);
-        int pkY = sh / 2 + (int)(HUD_PAUSE_KEYS_Y * ui);
-        int pkTabW = (int)(62 * ui);
-
-        // Left column: core controls
-        const char *lKeys[] = {
-            "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0"
-        };
-        const char *lDescs[] = {
-            "Move", "Dash", "Primary", "Alt Fire",
-            "Swap", "Pause", "Exit"
-        };
-        int lCount = 7;
-
-        int totalW = (int)(420 * ui);
-        int colW = totalW / 3;
-        int lColX = sw / 2 - totalW / 2;
-        int mColX = lColX + colW;
-        int rColX = mColX + colW;
-
-        for (int i = 0; i < lCount; i++) {
-            int ky = pkY + i * pkSpacing;
-            DrawText(lKeys[i], lColX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
-            DrawText(lDescs[i], lColX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
-        }
-
-        // Middle + Right columns: abilities from slots (split in half)
-        Player *pp = &g.player;
-        int ablCount = 0;
-        int ablSlots[ABILITY_SLOTS];
-        for (int i = 0; i < ABILITY_SLOTS; i++) {
-            if (AbilityName(pp->slots[i].ability))
-                ablSlots[ablCount++] = i;
-        }
-        int half = (ablCount + 1) / 2;
-        for (int a = 0; a < ablCount; a++) {
-            int si = ablSlots[a];
-            int colX = (a < half) ? mColX : rColX;
-            int row = (a < half) ? a : a - half;
-            int ky = pkY + row * pkSpacing;
-            DrawText(KeyName(pp->slots[si].key), colX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
-            DrawText(AbilityName(pp->slots[si].ability),
-                colX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
-        }
-
-        // Fullscreen toggle
-        int maxRows = lCount > half ? lCount : half;
-        int fsY = pkY + (maxRows + 1) * pkSpacing;
-        const char *fsLabel = IsWindowFullscreen() ? "[F] Fullscreen: ON" : "[F] Fullscreen: OFF";
-        int fsW = MeasureText(fsLabel, pkFont);
-        DrawText(fsLabel, sw / 2 - fsW / 2, fsY, pkFont, Fade(WHITE, 0.6f));
-    }
-
-    // Game Over overlay
-    if (g.gameOver) {
-        DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.7f));
-        int goFont = (int)(HUD_GO_FONT * ui);
-        const char *goText = "GAME OVER";
-        int goW = MeasureText(goText, goFont);
-        DrawText(
-            goText,
-            sw / 2 - goW / 2,
-            sh / 2 - (int)(HUD_GO_Y * ui),
-            goFont,
-            RED);
-
-        int scFont = (int)(HUD_GO_SCORE_FONT * ui);
-        const char *scoreText =
-            TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
-        int sW = MeasureText(scoreText, scFont);
-        DrawText(
-            scoreText,
-            sw / 2 - sW / 2,
-            sh / 2 + (int)(HUD_GO_SCORE_Y * ui),
-            scFont,
-            WHITE);
-
-        int rsFont = (int)(HUD_GO_RESTART_FONT * ui);
-        const char *restartText = "Press ENTER to restart";
-        int rW = MeasureText(restartText, rsFont);
-        DrawText(
-            restartText,
-            sw / 2 - rW / 2,
-            sh / 2 + (int)(HUD_GO_RESTART_Y * ui),
-            rsFont,
-            LIGHTGRAY);
-    }
+    if (g.gameOver) DrawGameOver(sw, sh, ui);
 }
 
 // Draw - orchestrator

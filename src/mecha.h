@@ -77,7 +77,8 @@ typedef struct Sword {
     float radius;
     bool dashSlash;
     bool lunge;
-    float lastHitAngle[MAX_ENEMIES];
+    u8 hitBits[MAX_ENEMIES / 8];
+    float lastResetAngle;
 } Sword;
 
 typedef struct Dash {
@@ -104,7 +105,8 @@ typedef struct Spin {
     float radius;
     float cooldown;
     float cooldownTimer;
-    float lastHitAngle[MAX_ENEMIES];
+    u8 hitBits[MAX_ENEMIES / 8];
+    float lastResetAngle;
 } Spin;
 
 typedef struct Shotgun {

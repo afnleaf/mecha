@@ -9,6 +9,10 @@ static void SpawnDeployable(DeployableType type, Vector2 pos);
 static void SpawnFirePatch(Vector2 pos);
 static void UpdateParticles(float dt);
 static void UpdateProjectiles(float dt);
+static void UpdateMovement(Player *p, Vector2 moveDir, float moveLen, float dt);
+static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt);
+static void UpdateWeapon(Player *p, Vector2 toMouse, float dt);
+static void UpdateAbilities(Player *p, Vector2 toMouse, float dt);
 
 
 // Hitscan ------------------------------------------------------------------ /
@@ -341,43 +345,29 @@ static void UpdateSelect(void)
 static int SweepDamage(
     Vector2 origin, Vector2 sweepEnd, float sweepAngle,
     int damage, DamageType dmgType,
-    float *lastHitAngles, int *hitIndices, int maxHits)
+    u8 *hitBits, float *lastResetAngle, int *hitIndices, int maxHits)
 {
+    while (sweepAngle - *lastResetAngle >= PI) {
+        memset(hitBits, 0, MAX_ENEMIES / 8);
+        *lastResetAngle += PI;
+    }
     int hits = 0;
     for (int i = 0; i < MAX_ENEMIES && hits < maxHits; i++) {
         Enemy *ei = &g.enemies[i];
         if (!ei->active) continue;
-        if (sweepAngle - lastHitAngles[i] < PI) continue;
+        if (hitBits[i >> 3] & (1 << (i & 7))) continue;
         if (!EnemyHitSweep(ei, origin, sweepEnd)) continue;
         DamageEnemy(i, damage, dmgType, HIT_MELEE);
-        lastHitAngles[i] = sweepAngle;
+        hitBits[i >> 3] |= (1 << (i & 7));
         hitIndices[hits++] = i;
     }
     return hits;
 }
 
-// player inputs and mechanics
-// should we refactor this further?
-// or do we tackle that once we start adding different loadoats?
-// diff base mechas
-// adding abilities, etc
-static void UpdatePlayer(float dt)
+// player ------------------------------------------------------------------- /
+
+static void UpdateMovement(Player *p, Vector2 moveDir, float moveLen, float dt)
 {
-    Player *p = &g.player;
-    
-    Vector2 toMouse = UpdateMouseAim();
-
-    // --- Movement ---
-    // a movement function?
-    Vector2 moveDir = { 0, 0 };
-    if (IsKeyDown(KEY_W)) moveDir.y -= 1;
-    if (IsKeyDown(KEY_S)) moveDir.y += 1;
-    if (IsKeyDown(KEY_A)) moveDir.x -= 1;
-    if (IsKeyDown(KEY_D)) moveDir.x += 1;
-
-    float moveLen = Vector2Length(moveDir);
-    if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
-
     if (!p->dash.active) {
         float moveSpeed = p->speed;
         if (p->primary == WPN_GUN && p->minigun.slowTimer > 0)
@@ -411,7 +401,10 @@ static void UpdatePlayer(float dt)
     } else {
         p->vel = (Vector2){ 0, 0 };
     }
+}
 
+static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt)
+{
     // --- Dash (charge system) ---
     if (p->dash.charges < p->dash.maxCharges) {
         p->dash.rechargeTimer -= dt;
@@ -479,8 +472,9 @@ static void UpdatePlayer(float dt)
         // so press order (M1 before Space) doesn't matter
         if (p->sword.timer > 0 && !p->sword.dashSlash) {
             p->sword.dashSlash = true;
-            for (int i = 0; i < MAX_ENEMIES; i++)
-                p->sword.lastHitAngle[i] = -1000.0f;
+            memset(p->sword.hitBits, 0, sizeof(p->sword.hitBits));
+            p->sword.lastResetAngle = p->sword.angle
+                - (p->sword.arc * DASH_SLASH_ARC_MULT) / 2.0f;
         }
     }
 
@@ -511,7 +505,10 @@ static void UpdatePlayer(float dt)
             }
         }
     }
+}
 
+static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
+{
     // --- Weapon swap (Ctrl) ---
     if (IsKeyPressed(WEAPON_SWAP_KEY)) {
         WeaponType tmp = p->primary;
@@ -785,8 +782,8 @@ static void UpdatePlayer(float dt)
             p->sword.angle = p->angle;
             p->sword.lunge = false;
             p->sword.dashSlash = p->dash.active;
-            for (int i = 0; i < MAX_ENEMIES; i++)
-                p->sword.lastHitAngle[i] = -1000.0f;
+            memset(p->sword.hitBits, 0, sizeof(p->sword.hitBits));
+            p->sword.lastResetAngle = p->sword.angle - p->sword.arc / 2.0f;
 
             float arc = p->sword.arc;
             float radius = p->sword.radius;
@@ -813,8 +810,7 @@ static void UpdatePlayer(float dt)
             p->sword.angle = p->angle;
             p->sword.lunge = true;
             p->sword.dashSlash = p->dash.active;
-            for (int i = 0; i < MAX_ENEMIES; i++)
-                p->sword.lastHitAngle[i] = -1000.0f;
+            memset(p->sword.hitBits, 0, sizeof(p->sword.hitBits));
 
             // Spark burst along thrust line
             float range = p->dash.active ?
@@ -966,7 +962,8 @@ static void UpdatePlayer(float dt)
 
         int hits[MAX_ENEMIES];
         SweepDamage(p->pos, sweepEnd, sweepAngle,
-            dmg, DMG_SLASH, p->sword.lastHitAngle, hits, MAX_ENEMIES);
+            dmg, DMG_SLASH, p->sword.hitBits, &p->sword.lastResetAngle,
+            hits, MAX_ENEMIES);
         p->sword.timer -= dt;
     }
     if (p->sword.timer > 0 && p->sword.lunge) {
@@ -985,7 +982,7 @@ static void UpdatePlayer(float dt)
         for (int i = 0; i < MAX_ENEMIES; i++) {
             Enemy *ei = &g.enemies[i];
             if (!ei->active) continue;
-            if (p->sword.lastHitAngle[i] > -500.0f) continue; // already hit
+            if (p->sword.hitBits[i >> 3] & (1 << (i & 7))) continue; // already hit
 
             Vector2 toEnemy = Vector2Subtract(ei->pos, p->pos);
             float dist = Vector2Length(toEnemy);
@@ -995,14 +992,15 @@ static void UpdatePlayer(float dt)
             if (angleDiff > LUNGE_CONE_HALF) continue;
 
             DamageEnemy(i, dmg, DMG_PIERCE, HIT_MELEE);
-            p->sword.lastHitAngle[i] = 0.0f; // mark as hit
+            p->sword.hitBits[i >> 3] |= (1 << (i & 7)); // mark as hit
         }
         p->sword.timer -= dt;
     }
+}
 
-    // special
+static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
+{
     // --- Spin attack (Shift) ---
-    // activation of ability
     p->spin.cooldownTimer -= dt;
     if (p->spin.cooldownTimer < 0) p->spin.cooldownTimer = 0;
 
@@ -1012,8 +1010,8 @@ static void UpdatePlayer(float dt)
     ) {
         p->spin.timer = p->spin.duration;
         p->spin.cooldownTimer = p->spin.cooldown;
-        for (int i = 0; i < MAX_ENEMIES; i++)
-            p->spin.lastHitAngle[i] = -1000.0f;
+        memset(p->spin.hitBits, 0, sizeof(p->spin.hitBits));
+        p->spin.lastResetAngle = 0.0f;
 
         // animation of the ability at start
         for (int i = 0; i < SPIN_BURST_COUNT; i++) {
@@ -1030,8 +1028,7 @@ static void UpdatePlayer(float dt)
                 SPIN_BURST_SIZE, SPIN_BURST_LIFETIME);
         }
     }
-    
-    // duration of the ability
+
     // Spin damage — sweep line hits enemies as it passes over them
     if (p->spin.timer > 0) {
         float progress = 1.0f - (p->spin.timer / p->spin.duration);
@@ -1042,7 +1039,8 @@ static void UpdatePlayer(float dt)
 
         int hits[MAX_ENEMIES];
         int nhits = SweepDamage(p->pos, sweepEnd, sweepAngle,
-            SPIN_DAMAGE, DMG_SLASH, p->spin.lastHitAngle, hits, MAX_ENEMIES);
+            SPIN_DAMAGE, DMG_SLASH, p->spin.hitBits, &p->spin.lastResetAngle,
+            hits, MAX_ENEMIES);
         for (int h = 0; h < nhits; h++) {
             Enemy *ei = &g.enemies[hits[h]];
             float heal = SPIN_DAMAGE * SPIN_LIFESTEAL;
@@ -1104,8 +1102,6 @@ static void UpdatePlayer(float dt)
     }
 
     UpdateRailgun(p, toMouse, dt);
-
-    // sniper — primary weapon only, no secondary binding
 
     // bfg10k — charges from damage dealt, fires when full
     if (IsAbilityPressed(p, ABL_BFG) && p->bfg.charge >= BFG_CHARGE_COST && !p->bfg.active) {
@@ -1298,26 +1294,41 @@ static void UpdatePlayer(float dt)
                 p->flame.fuel = FLAME_FUEL_MAX;
         }
     }
+}
 
-    // don't let player p leave map boundary
+static void UpdatePlayer(float dt)
+{
+    Player *p = &g.player;
+    Vector2 toMouse = UpdateMouseAim();
+
+    // Compute move direction (shared by movement + dash)
+    Vector2 moveDir = { 0, 0 };
+    if (IsKeyDown(KEY_W)) moveDir.y -= 1;
+    if (IsKeyDown(KEY_S)) moveDir.y += 1;
+    if (IsKeyDown(KEY_A)) moveDir.x -= 1;
+    if (IsKeyDown(KEY_D)) moveDir.x += 1;
+    float moveLen = Vector2Length(moveDir);
+    if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
+
+    UpdateMovement(p, moveDir, moveLen, dt);
+    UpdateDash(p, moveDir, moveLen, dt);
+    UpdateWeapon(p, toMouse, dt);
+    UpdateAbilities(p, toMouse, dt);
+
+    // Boundary clamp
     if (p->pos.x < p->size) p->pos.x = p->size;
     if (p->pos.y < p->size) p->pos.y = p->size;
     if (p->pos.x > MAP_SIZE - p->size) p->pos.x = MAP_SIZE - p->size;
     if (p->pos.y > MAP_SIZE - p->size) p->pos.y = MAP_SIZE - p->size;
 
-    // Shadow lag — anchored during decoy, lerp otherwise
+    // Shadow lag
     if (p->dash.decoyActive) {
         p->shadowPos = p->dash.decoyPos;
     } else {
-        p->shadowPos = Vector2Lerp(
-            p->shadowPos, p->pos, SHADOW_LAG * dt);
+        p->shadowPos = Vector2Lerp(p->shadowPos, p->pos, SHADOW_LAG * dt);
     }
 
-    // ok this is an important piece of gamefeel we need to get right
-    // this means iframes after taking damage
-    // --- iFrames ---
     if (p->iFrames > 0) p->iFrames -= dt;
-
 }
 
 // enemy shoot functions --------------------------------------------------- /
@@ -1473,51 +1484,7 @@ static void UpdateEnemies(float dt) {
             if (g.enemies[i].active) { anyAlive = true; break; }
         }
         if (!anyAlive) {
-            // Spawn TRAP at map edge
-            for (int i = 0; i < MAX_ENEMIES; i++) {
-                if (!g.enemies[i].active) {
-                    Enemy *boss = &g.enemies[i];
-                    boss->active = true;
-                    boss->type = TRAP;
-                    boss->size = TRAP_SIZE;
-                    boss->speed = TRAP_SPEED_MIN;
-                    boss->hp = TRAP_HP;
-                    boss->maxHp = TRAP_HP;
-                    boss->contactDamage = TRAP_CONTACT_DAMAGE;
-                    boss->score = TRAP_SCORE;
-                    boss->hitFlash = 0;
-                    boss->shootTimer = TRAP_ATTACK_INTERVAL;
-                    boss->slowTimer = 0;
-                    boss->slowFactor = 1.0f;
-                    boss->rootTimer = 0;
-                    boss->stunTimer = 0;
-                    boss->aggroIdx = -1;
-                    boss->attackPhase = 0;
-                    boss->chargeTimer = 0;
-                    boss->chargeDir = (Vector2){ 0, 0 };
-                    boss->vel = (Vector2){ 0, 0 };
-                    int edge = GetRandomValue(0, 3);
-                    switch (edge) {
-                    case 0: boss->pos = (Vector2){
-                        (float)GetRandomValue(0, MAP_SIZE),
-                        p->pos.y - SPAWN_MARGIN }; break;
-                    case 1: boss->pos = (Vector2){
-                        (float)GetRandomValue(0, MAP_SIZE),
-                        p->pos.y + SPAWN_MARGIN }; break;
-                    case 2: boss->pos = (Vector2){
-                        p->pos.x - SPAWN_MARGIN,
-                        (float)GetRandomValue(0, MAP_SIZE) }; break;
-                    case 3: boss->pos = (Vector2){
-                        p->pos.x + SPAWN_MARGIN,
-                        (float)GetRandomValue(0, MAP_SIZE) }; break;
-                    }
-                    if (boss->pos.x < 0) boss->pos.x = 0;
-                    if (boss->pos.x > MAP_SIZE) boss->pos.x = MAP_SIZE;
-                    if (boss->pos.y < 0) boss->pos.y = 0;
-                    if (boss->pos.y > MAP_SIZE) boss->pos.y = MAP_SIZE;
-                    break;
-                }
-            }
+            SpawnBoss(TRAP);
             g.phase = 2;
         }
     }

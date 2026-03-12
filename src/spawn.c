@@ -129,28 +129,46 @@ void SpawnGrenade(Player *p, Vector2 toMouse) {
         GRENADE_MUZZLE_SIZE, GRENADE_MUZZLE_LIFETIME);
 }
 
-// this of course will need a lot of work
-// serves well for the mechanics practice / design phase
-// maybe we should scale up the number of enemies that spawn as time goes on?
-// or just make it slightly more likely to spawn?
-// the hardcoded positions for spawning are bad form like 500 around?
-// should be dependent on the game map? or does it matter rn?
+// spawn helpers ------------------------------------------------------------- /
+static void InitEnemy(Enemy *e) {
+    e->active = true;
+    e->hitFlash = 0;
+    e->shootTimer = 0;
+    e->slowTimer = 0;
+    e->slowFactor = 1.0f;
+    e->rootTimer = 0;
+    e->stunTimer = 0;
+    e->aggroIdx = -1;
+    e->attackPhase = 0;
+    e->chargeTimer = 0;
+    e->chargeDir = (Vector2){ 0, 0 };
+    e->vel = (Vector2){ 0, 0 };
+}
+
+static void SpawnAtEdge(Enemy *e) {
+    int edge = GetRandomValue(0, 3);
+    switch (edge) {
+        case 0: e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
+                e->pos.y = g.player.pos.y - SPAWN_MARGIN; break;
+        case 1: e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
+                e->pos.y = g.player.pos.y + SPAWN_MARGIN; break;
+        case 2: e->pos.x = g.player.pos.x - SPAWN_MARGIN;
+                e->pos.y = (float)GetRandomValue(0, MAP_SIZE); break;
+        case 3: e->pos.x = g.player.pos.x + SPAWN_MARGIN;
+                e->pos.y = (float)GetRandomValue(0, MAP_SIZE); break;
+    }
+    if (e->pos.x < 0) e->pos.x = 0;
+    if (e->pos.x > MAP_SIZE) e->pos.x = MAP_SIZE;
+    if (e->pos.y < 0) e->pos.y = 0;
+    if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
+}
+
 void SpawnEnemy(void)
 {
     for (int i = 0; i < MAX_ENEMIES; i++) {
         if (!g.enemies[i].active) {
             Enemy *e = &g.enemies[i];
-            e->active = true;
-            e->hitFlash = 0;
-            e->shootTimer = 0;
-            e->slowTimer = 0;
-            e->slowFactor = 1.0f;
-            e->rootTimer = 0;
-            e->stunTimer = 0;
-            e->aggroIdx = -1;
-            e->attackPhase = 0;
-            e->chargeTimer = 0;
-            e->chargeDir = (Vector2){ 0, 0 };
+            InitEnemy(e);
 
             // Roll for enemy type — priority table, TRI fallback
             EnemyType type = TRI;
@@ -171,44 +189,27 @@ void SpawnEnemy(void)
             e->maxHp         = d->hp;
             e->contactDamage = d->contactDamage;
             e->score         = d->score;
+            SpawnAtEdge(e);
+            return;
+        }
+    }
+}
 
-            // Spawn on random map edge, biased toward player vicinity
-            // clamp to map edges 0 -> 1600
-            int edge = GetRandomValue(0, 3);
-            float margin = SPAWN_MARGIN;
-            switch (edge) {
-                case 0: // top
-                    //e->pos.x = g.player.pos.x
-                    //    + (float)GetRandomValue(-500, 500);
-                    e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
-                    e->pos.y = g.player.pos.y - margin;
-                    break;
-                case 1: // bottom
-                    //e->pos.x = g.player.pos.x
-                    //    + (float)GetRandomValue(-500, 500);
-                    e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
-                    e->pos.y = g.player.pos.y + margin;
-                    break;
-                case 2: // left
-                    e->pos.x = g.player.pos.x - margin;
-                    e->pos.y = (float)GetRandomValue(0, MAP_SIZE);
-                    //e->pos.y = g.player.pos.y
-                    //    + (float)GetRandomValue(-500, 500);
-                    break;
-                case 3: // right
-                    e->pos.x = g.player.pos.x + margin;
-                    e->pos.y = (float)GetRandomValue(0, MAP_SIZE);
-                    //e->pos.y = g.player.pos.y
-                    //    + (float)GetRandomValue(-500, 500);
-                    break;
-            }
-            // Clamp to map
-            if (e->pos.x < 0) e->pos.x = 0;
-            if (e->pos.x > MAP_SIZE) e->pos.x = MAP_SIZE;
-            if (e->pos.y < 0) e->pos.y = 0;
-            if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
-
-            e->vel = (Vector2){ 0, 0 };
+void SpawnBoss(EnemyType type)
+{
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (!g.enemies[i].active) {
+            Enemy *e = &g.enemies[i];
+            InitEnemy(e);
+            const EnemyDef *d = &ENEMY_DEFS[type];
+            e->type          = type;
+            e->size          = d->size;
+            e->speed         = d->speedMin;
+            e->hp            = d->hp;
+            e->maxHp         = d->hp;
+            e->contactDamage = d->contactDamage;
+            e->score         = d->score;
+            SpawnAtEdge(e);
             return;
         }
     }

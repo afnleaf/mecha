@@ -147,7 +147,7 @@ DrawGame()
 │   ├── player shadow                   [shadowPos → dark projected solid]
 │   ├── player                          [pos, angle, rotY → DrawPlayerSolid (HSV rainbow)]
 │   │   └── DrawTetra2D / DrawCube2D / DrawOcta2D / DrawDodeca2D / DrawIcosa2D
-│   │       [3D→2D projection, face sorting by Z, HSV coloring per vertex]
+│   │       [shared helpers: ProjectVertices → CullSortFaces → SubdivDrawTri/Quad → edges]
 │   ├── weapon visuals
 │   │   ├── gun/minigun barrel          [pos, angle → rotated rectangle]
 │   │   ├── sword/lunge arc             [timer, angle → DrawRingSector]
