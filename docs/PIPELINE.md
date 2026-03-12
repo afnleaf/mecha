@@ -9,16 +9,14 @@ GameState g
 ├── Player         (pos, vel, angle, hp, 17 weapon/ability structs, slots[12])
 ├── Projectile     [1024]
 ├── Enemy          [1024]
-├── Deployable     [8]
-├── FirePatch      [64]
+├── Deployable     [1024] (turret, mine, heal, fire — type-switched via DeployableType)
 ├── LightningChain (single, complex)
 ├── VfxState vfx
 │   ├── Particle   [1024]
 │   ├── Beam       [8]
-│   ├── Explosive  [8]
-│   └── MineWebVfx [4]
+│   └── VfxTimer   [72] (explosion rings, mine webs — type-switched via VfxTimerType)
 ├── Camera2D
-└── scalars        (score, spawnTimer, spawnInterval, enemiesKilled, gameOver, paused, screen, selectIndex, selectPhase)
+└── scalars        (score, spawnTimer, spawnInterval, enemiesKilled, gameOver, paused, screen, phase, level, selectIndex, selectPhase)
 ```
 
 All pools are flat fixed-size arrays with an `active` bool as the allocation flag. Linear scan to find a free slot (spawn), linear scan to process active slots (update/draw). No pointers between entities — relationships are by index (`aggroIdx`, `targetIdx`, `hit[MAX_ENEMIES]`).
@@ -117,9 +115,8 @@ UpdateGame()
 ├── UpdateDeployables(dt)
 │   ├── TURRET                         [find nearest enemy → SpawnProjectile]
 │   ├── MINE                           [enemy in trigger radius → root AoE]
-│   └── HEAL                           [player in radius → heal tick]
-├── UpdateFirePatches(dt)              [timer tick, damage enemies in radius]
-├── UpdateExplosives(dt)               [timer tick → deactivate (VFX only)]
+│   ├── HEAL                           [player in radius → heal tick]
+│   └── FIRE                           [timer tick, damage enemies in radius]
 │
 └── MoveCamera(dt)                     [lerp camera.target → player.pos, handle resize]
 ```
@@ -141,8 +138,7 @@ DrawGame()
 │   DrawWorld()
 │   ├── grid                            [MAP_SIZE, GRID_STEP → lines]
 │   ├── map border                      [rectangle outline]
-│   ├── fire patches                    [pos, radius, timer → flickering circles]
-│   ├── mine webs                       [pos, timer → spoke+ring pattern]
+│   ├── fire zones (DEPLOY_FIRE)        [pos, radius, timer → flickering circles]
 │   ├── decoy                           [shadowPos → pulsing ghost solid]
 │   ├── player shadow                   [shadowPos → dark projected solid]
 │   ├── player                          [pos, angle, rotY → DrawPlayerSolid (HSV rainbow)]
@@ -169,10 +165,11 @@ DrawGame()
 │   ├── deployables
 │   │   ├── turret                      [pos, aim → base + barrel]
 │   │   ├── mine                        [pos → pulsing circle]
-│   │   └── heal field                  [pos, radius → green ring]
+│   │   ├── heal field                  [pos, radius → green ring]
+│   │   └── fire zone                   [pos, radius, timer → flickering circles]
 │   ├── beams                           [origin→tip, timer/duration → fading line+glow]
 │   ├── lightning arcs                  [from→to, jitter → segmented bolts]
-│   ├── explosives VFX                  [pos, timer → expanding ring]
+│   ├── vfxTimers                       [pos, timer → explosion rings or mine webs]
 │   └── particles                       [pos, lifetime/maxLifetime → fading circle]
 │   EndMode2D
 │
@@ -211,10 +208,9 @@ player         |   x    |        |   x    |   x     |   x    |        |   x    |
 enemies[1024]  |        |   x    |   x    |   x     |   x    |   x    |   x    |   x    |
 projectiles    |        |   x    |   x    |   x     |   x    |        |   x    |   x    |
 particles      |        |   x    |   x    |         |        |        |   x    |   x    |
-deployables[8] |        |   x    |        |   x     |   x    |        |   x    |   x    |
-firePatches    |        |   x    |        |   x     |   x    |        |   x    |   x    |
+deployables    |        |   x    |        |   x     |   x    |        |   x    |   x    |
 beams[8]       |        |   x    |        |         |        |        |   x    |   x    |
-explosives[8]  |        |   x    |        |         |        |        |   x    |   x    |
+vfxTimers[72]  |        |   x    |        |         |        |        |   x    |   x    |
 lightning      |        |   x    |        |   x     |   x    |        |   x    |   x    |
 camera         |        |        |   x    |         |        |        |        |        |
 ```
@@ -241,6 +237,7 @@ DamageEnemy ──→ bfg.charge += damage  (ult charge from all damage) │
 deploy.turret ──→ SpawnProjectile (auto-aim nearest enemy)         │
 deploy.mine ──→ enemy.rootTimer (AoE root)                         │
 deploy.heal ──→ player.hp++ / turret.hp++                          │
+deploy.fire ──→ damage enemies in radius per tick                  │
                                                                    │
 parry/spin/shield ──→ intercept enemy projectiles in UpdateProjectiles
 ```
@@ -271,10 +268,9 @@ INACTIVE
 
 ```c
 typedef struct VfxState {
-    Particle particles[MAX_PARTICLES];
-    Beam beams[MAX_BEAMS];
-    Explosive explosives[MAX_EXPLOSIVES];
-    MineWebVfx mineWebs[MAX_MINE_WEBS];
+    Particle particles[MAX_PARTICLES];      // 1024
+    Beam beams[MAX_BEAMS];                  // 8
+    VfxTimer timers[MAX_VFX_TIMERS];        // 72
 } VfxState;
 ```
 

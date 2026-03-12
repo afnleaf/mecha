@@ -17,10 +17,10 @@
 ### Crowd Control (Deadlock's taxonomy is the best reference)
 | CC Type | Effect | Your Game? |
 |---------|--------|-----------|
-| **Stun** | Full disable | No |
-| **Slow** | Reduced movement | Sniper debuff only |
+| **Stun** | Full disable | Ground Slam (AoE stun), Parry (stun on success) |
+| **Slow** | Reduced movement | Sniper debuff |
 | **Knockback** | Forced displacement | Shotgun, spin, rocket |
-| **Root/Immobilize** | Can't move, CAN still shoot | No |
+| **Root/Immobilize** | Can't move, CAN still shoot | Mine (AoE root on trigger) |
 | **Silence** | Can't use abilities, CAN shoot | No |
 | **Disarm** | Can't shoot, CAN use abilities | No |
 | **Fear** | Forces enemy to run away | No |
@@ -52,9 +52,9 @@ Key insight from Deadlock: **partial disables** create decision-making. Silence 
 ### Utility / Deployables
 | Type | Description | Your Game? |
 |------|-------------|-----------|
-| **Turret** | Auto-attacking stationary entity | No |
-| **Trap/Mine** | Trigger on proximity | No |
-| **Zone Denial** | Persistent damaging area | No |
+| **Turret** | Auto-attacking stationary entity | Yes (deployable, max 2, targetable + healable) |
+| **Trap/Mine** | Trigger on proximity | Yes (deployable, max 3, AoE root) |
+| **Zone Denial** | Persistent damaging area | Yes (fire zone flamethrower, heal field) |
 | **Stealth** | Become invisible | No |
 | **Decoy** | Aggro distraction | Yes (super dash decoy) |
 | **Tether** | Restrict enemy to radius | No |

@@ -1,7 +1,7 @@
 # Mecha — Project State
 
 Consolidated from GDD, PHILOSOPHY, NOTES, and codebase review.
-Last updated: 2026-03-10
+Last updated: 2026-03-12
 
 ---
 
@@ -77,8 +77,7 @@ UpdateGame (update.c)
   UpdateLightningChain(dt) — BFG chain propagation
   UpdateParticles(dt) — drag, lifetime
   UpdateBeams(dt) — linger decay
-  UpdateDeployables(dt) — turret, mine, heal field
-  UpdateFirePatches(dt) — flamethrower ground patches
+  UpdateDeployables(dt) — turret, mine, heal field, fire zone
   MoveCamera(dt)
 
 NextFrame (draw.c)
@@ -95,13 +94,11 @@ NextFrame (draw.c)
 |------|-----:|--------|-------|
 | projectiles | 1024 | Projectile | Shared player/enemy via `isEnemy` bool |
 | enemies | 1024 | Enemy | Type-driven via EnemyDef table |
+| deployables | 1024 | Deployable | Turret, mine, heal, fire — type-switched via DeployableType |
 | particles | 1024 | Particle | Universal VFX (all drawn as fading circles) |
-| explosives | 8 | Explosive | Visual ring only |
 | beams | 8 | Beam | Hitscan linger trails |
-| deployables | 8 | Deployable | Turret, mine, heal field, fire zone — type-switched |
-| firePatches | 64 | FirePatch | Flamethrower ground fire |
+| vfxTimers | 72 | VfxTimer | Explosion rings + mine webs — type-switched via VfxTimerType |
 | lightning | 1 | LightningChain | BFG chain arcs (256 max targets/arcs) |
-| mineWebs | 8 | MineWebVfx | Root visual effect |
 
 ---
 

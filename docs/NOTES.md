@@ -115,6 +115,7 @@ asset loader
 - [x] figure out how to do hitscan, what are the other weapon types?
 - [x] time to make src/ folder and split up the project?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
+- [] make weapon select menu accept enter and m1 for picking a chassis
 - [x] enemy debuff whack
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?

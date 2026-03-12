@@ -97,26 +97,73 @@ Two merges:
 
 Pools reduced from 8 → 6: projectiles, enemies, deployables, particles, beams, vfxTimers.
 
-### 4C. Consolidate Enemy Shoot Functions
-**Files**: `update.c`, `spawn.c`, `game.h`
-**Scope**: ~200 lines moved | **Risk**: Low
-
-Move `ShootRect`, `ShootPenta`, `ShootHexa`, `ShootTrap` from `update.c` to `spawn.c`. Make them `static`. Remove 4 declarations from `game.h`. All enemy definition (data table + shooting behavior) lives in one file. Unblocks adding `ShootCirc` for the CIRC boss cleanly.
-
 ### 4A. VFX Pool Helpers — DONE (absorbed by 4B)
 Inline pool-scan loops replaced by `SpawnVfxTimer(pos, duration, type)` helper as part of 4B pool consolidation.
 
-### 4D. Game Phase State Machine (design only)
-**Files**: `mecha.h`, `update.c`, `draw.c`
-**Scope**: Design first | **Risk**: Medium
+---
 
-Currently `g.screen` (`SELECT`/`PLAYING`) + `g.phase` (`0`/`1`/`2`) overlap in meaning. For v(-1) room system, unify into single state enum: `SELECT → ROUND → CLEARING → ITEM_PICK → BOSS → END`. Design only — don't implement until v(-1) scope is clear.
+## TIER 5: Structural Cleanup
+
+### 5A. Move Enemy Shoot Functions to spawn.c (= old 4C)
+**Files**: `update.c`, `spawn.c`, `game.h`
+**Scope**: ~136 lines moved | **Risk**: Low
+
+Move `ShootRect` (update.c:1335), `ShootPenta` (update.c:1352), `ShootHexa` (update.c:1388), `ShootTrap` (update.c:1415) from `update.c` to `spawn.c`. Make them `static`. Remove 4 declarations from `game.h`. All enemy definition (data table + shooting behavior) lives in one file. `UpdateEnemies` dispatches via `ENEMY_DEFS[e->type].shoot()` pointer — no cross-file calls needed. Unblocks adding `ShootCirc` for the CIRC boss cleanly.
+
+### 5B. selectWeapons[] Deduplication
+**Files**: `update.c`, `draw.c`, `mecha.h` or `default.h`
+**Scope**: ~6 lines | **Risk**: None
+
+Identical `selectWeapons[]` arrays declared locally in both `UpdateSelect()` (update.c:135) and `DrawSelect()` (draw.c:1282). Extract to a single `static const WeaponType SELECT_WEAPONS[]` in `mecha.h` (or `default.h` alongside `NUM_PRIMARY_WEAPONS`). Replace both local declarations. The associated `names[]`, `descs[]`, `solidFns[]` arrays stay local — they're draw-only or update-only.
+
+### 5C. Split DrawWorld
+**Files**: `draw.c` only
+**Scope**: ~632 lines → 5-6 functions | **Risk**: Low
+
+`DrawWorld()` (draw.c:641-1272) is the largest function in the codebase. Extract subsections into static helpers following existing pattern (like DrawHUD split in 3B):
+
+1. `DrawDeployableWorld()` (~76 lines) — turret/mine/heal/fire switch, currently lines 666-742
+2. `DrawVfxWorld()` (~36 lines) — explosion rings + mine webs, lines 744-780
+3. `DrawLightningWorld()` (~44 lines) — BFG chain arcs, lines 785-829
+4. `DrawEnemies()` (~100 lines) — enemy shapes, HP bars, hit flash
+5. `DrawPlayerWorld()` (~210 lines) — solid body + weapon barrels + sword/lunge arcs + ability visuals
+
+`DrawWorld()` becomes a ~40-line orchestrator: grid, border, particles, then calls. Same pattern as `UpdatePlayer` (3A) and `DrawHUD` (3B).
+
+### 5D. Inline Color Constants to default.h
+**Files**: `draw.c`, `default.h`
+**Scope**: ~10 constants | **Risk**: None
+
+Scattered magic colors in draw.c that should be named constants in default.h:
+- Revolver HUD arc color `(Color){ 220, 180, 80, 255 }` (draw.c:1675)
+- Crosshair color `(Color){ 0, 255, 0, 180 }` (draw.c ~2017)
+- Various enemy draw colors used inline rather than from constants
+- Any other `(Color){ ... }` literals in draw.c not already defined in default.h
+
+Audit draw.c for all inline `(Color)` literals, name them `*_COLOR` in the appropriate default.h section.
 
 ---
 
-##
+## TIER 6: v(-1) Architecture
 
-make weapon select menu accept enter and m1 for picking a chassis
+### 6A. Game Phase State Machine (= old 4D)
+**Files**: `mecha.h`, `update.c`, `draw.c`
+**Scope**: Design first | **Risk**: Medium
+
+Currently `g.screen` (`SELECT`/`PLAYING`) + `g.phase` (`0`/`1`/`2`) + `g.level` overlap in meaning. For v(-1) room system, unify into single state enum: `PHASE_SELECT → PHASE_ROUND → PHASE_CLEARING → PHASE_ITEM_PICK → PHASE_BOSS → PHASE_END`. Each phase has its own update function and draw function. `g.screen` and `g.phase` collapse into `g.phase`. Design the data shape (what state does each phase need?) before implementing.
+
+### 6B. Damage System Skeleton
+**Files**: `mecha.h`, `spawn.c`
+**Scope**: Design first | **Risk**: Medium
+
+`DamageEnemy`/`DamagePlayer` pass through `DamageType` and `DamageMethod` but ignore them. The commented-out `Damage` struct in mecha.h shows the intended future event system. Design the damage pipeline:
+- What are the input parameters? (base damage, type, method, source)
+- What are the transforms? (armor, resist, vulnerability, crit, damage amp debuffs)
+- What is the output? (final damage number, side effects like slow/stun)
+
+Don't implement — design the data transformation. The `EnemyDef` table may need `armor`/`resist` fields. This unblocks v(-1) enemy variety (boss phases that change vulnerability) and v(0) chassis differentiation (damage type specialization per solid).
+
+---
 
 ## Execution Order
 
@@ -124,6 +171,7 @@ make weapon select menu accept enter and m1 for picking a chassis
 Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
 Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
 Tier 3 (DONE):                         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
-Tier 4 (polish + v(-1) prep):          4B ✓, 4A ✓ (absorbed by 4B), 4C, 4D
+Tier 4 (polish + v(-1) prep):          4B ✓, 4A ✓ (absorbed by 4B)
+Tier 5 (structural cleanup):           5A, 5B, 5C, 5D
+Tier 6 (v(-1) architecture):           6A, 6B
 ```
-
