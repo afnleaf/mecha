@@ -115,7 +115,7 @@ asset loader
 - [x] figure out how to do hitscan, what are the other weapon types?
 - [x] time to make src/ folder and split up the project?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
-- [] enemy debuff whack
+- [x] enemy debuff whack
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
@@ -357,3 +357,10 @@ Blob
 
 See asset_blob/blobbert.c for details
 
+## HUD
+
+I find that when you play this game you stare at your cross hair, which moves around a lot left and right. You're looking for the enemy. And also looking around where your character is moving. In an FPS or 3rd person action game your crosshair is part of the movement. 
+
+Looking at the HUD in this game is not natural is what I am trying to say.
+
+Even the quick time events on your character are hard to time. You often miss out on knowing when your last revolver shot is to prime yourself for the event. This is a problem to solve, I think it can be done diagetically.
