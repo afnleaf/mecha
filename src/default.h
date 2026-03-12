@@ -8,6 +8,7 @@
 
 // misc
 #define ABILITY_SLOTS           12
+#define NUM_PRIMARY_WEAPONS     5
 #define MAX_DEPLOYABLES         1024
 #define MAX_EXPLOSIVES          8
 #define MAX_MINE_WEBS           64

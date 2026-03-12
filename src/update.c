@@ -105,20 +105,20 @@ static void UpdateRailgun(Player *p, Vector2 toMouse, float dt)
 }
 
 //
-static Vector2 mouse() {
+static Vector2 UpdateMouseAim() {
     Player *p = &g.player;
-    // ok I see now, this could be out? 
-    // we need toMouse as output? so a mouse function?
-    // --- Mouse aim ---
-    // this takes the position of the mouse and the camera
-    // trace a ray between them, figure out where mouse is
-    // then you have the player position in the world
-    // we should draw this out on paper to understand better
     Vector2 screenMouse = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
     p->angle = atan2f(toMouse.y, toMouse.x);
     return toMouse;
+}
+
+static int CountActiveDeployables(DeployableType type) {
+    int count = 0;
+    for (int i = 0; i < MAX_DEPLOYABLES; i++)
+        if (g.deployables[i].active && g.deployables[i].type == type) count++;
+    return count;
 }
 
 // Weapon Select Screen ----------------------------------------------------- /
@@ -187,9 +187,9 @@ static void UpdateSelect(void)
     p->angle = atan2f(toMouse.y, toMouse.x);
 
     // Pedestal positions (U curve, left to right by face count)
-    Vector2 pedestals[5];
+    Vector2 pedestals[NUM_PRIMARY_WEAPONS];
     float spacing = SELECT_ARENA_SIZE / 6.0f;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         float norm = (float)(i - 2) / 2.0f;
         pedestals[i] = (Vector2){
             spacing * (float)(i + 1),
@@ -200,7 +200,7 @@ static void UpdateSelect(void)
     // Find nearest pedestal within interact radius
     g.selectIndex = -1;
     float bestDist = SELECT_INTERACT_RADIUS;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         // Phase 1: skip already-chosen primary
         if (g.selectPhase == 1 && selectWeapons[i] == p->primary) continue;
         float d = Vector2Distance(p->pos, pedestals[i]);
@@ -299,10 +299,11 @@ static void UpdateSelect(void)
                 float spread = (float)(GetRandomValue(
                     -SNIPER_HIP_SPREAD, SNIPER_HIP_SPREAD)) / 1000.0f;
                 Vector2 dir = Vector2Rotate(aimDir, spread);
-                SpawnProjectile(muzzle, dir,
+                Projectile *sn = SpawnProjectile(muzzle, dir,
                     SNIPER_HIP_BULLET_SPEED, SNIPER_HIP_DAMAGE,
                     SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE,
                     false, false, PROJ_BULLET, DMG_PIERCE);
+                if (sn) sn->appliesSlow = true;
                 SpawnParticles(muzzle, (Color)SNIPER_COLOR,
                     SNIPER_MUZZLE_PARTICLES);
                 SpawnParticle(muzzle,
@@ -364,7 +365,7 @@ static void UpdatePlayer(float dt)
 {
     Player *p = &g.player;
     
-    Vector2 toMouse = mouse();
+    Vector2 toMouse = UpdateMouseAim();
 
     // --- Movement ---
     // a movement function?
@@ -748,10 +749,11 @@ static void UpdatePlayer(float dt)
             Vector2 muzzle = Vector2Add(p->pos,
                 Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
 
-            SpawnProjectile(muzzle, dir,
+            Projectile *sn = SpawnProjectile(muzzle, dir,
                 speed, damage,
                 SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE, false, false,
                 PROJ_BULLET, DMG_PIERCE);
+            if (sn) sn->appliesSlow = true;
             p->sniper.cooldownTimer = cooldown;
 
             // Muzzle flash — gold burst for super shot
@@ -1222,11 +1224,7 @@ static void UpdatePlayer(float dt)
     // --- Turret deploy ---
     if (p->turretCooldown > 0) p->turretCooldown -= dt;
     if (IsAbilityPressed(p, ABL_TURRET) && p->turretCooldown <= 0) {
-        int count = 0;
-        for (int i = 0; i < MAX_DEPLOYABLES; i++)
-            if (g.deployables[i].active
-                && g.deployables[i].type == DEPLOY_TURRET) count++;
-        if (count < TURRET_MAX_ACTIVE) {
+        if (CountActiveDeployables(DEPLOY_TURRET) < TURRET_MAX_ACTIVE) {
             float mouseDist = Vector2Length(toMouse);
             float placeDist = (mouseDist < TURRET_PLACEMENT_DIST) ? mouseDist : TURRET_PLACEMENT_DIST;
             Vector2 placePos = (mouseDist > 1.0f)
@@ -1240,11 +1238,7 @@ static void UpdatePlayer(float dt)
     // --- Mine deploy ---
     if (p->mineCooldown > 0) p->mineCooldown -= dt;
     if (IsAbilityPressed(p, ABL_MINE) && p->mineCooldown <= 0) {
-        int count = 0;
-        for (int i = 0; i < MAX_DEPLOYABLES; i++)
-            if (g.deployables[i].active
-                && g.deployables[i].type == DEPLOY_MINE) count++;
-        if (count < MINE_MAX_ACTIVE) {
+        if (CountActiveDeployables(DEPLOY_MINE) < MINE_MAX_ACTIVE) {
             SpawnDeployable(DEPLOY_MINE, p->pos);
             p->mineCooldown = MINE_COOLDOWN;
         }
@@ -1253,11 +1247,7 @@ static void UpdatePlayer(float dt)
     // --- Healing Field deploy ---
     if (p->healCooldown > 0) p->healCooldown -= dt;
     if (IsAbilityPressed(p, ABL_HEAL) && p->healCooldown <= 0) {
-        int count = 0;
-        for (int i = 0; i < MAX_DEPLOYABLES; i++)
-            if (g.deployables[i].active
-                && g.deployables[i].type == DEPLOY_HEAL) count++;
-        if (count < HEAL_MAX_ACTIVE) {
+        if (CountActiveDeployables(DEPLOY_HEAL) < HEAL_MAX_ACTIVE) {
             SpawnDeployable(DEPLOY_HEAL, p->pos);
             p->healCooldown = HEAL_COOLDOWN;
         }
@@ -2184,7 +2174,7 @@ static void UpdateProjectiles(float dt) {
                 if (hit) {
                     DamageEnemy(j, b->damage, b->dmgType, HIT_PROJ);
                     // sniper slow debuff (super shot gets enhanced slow)
-                    if (b->dmgType == DMG_PIERCE) {
+                    if (b->appliesSlow) {
                         if (b->damage >= SNIPER_SUPER_DAMAGE) {
                             ej->slowTimer = SNIPER_SUPER_SLOW_DUR;
                             ej->slowFactor = SNIPER_SUPER_SLOW_FACTOR;

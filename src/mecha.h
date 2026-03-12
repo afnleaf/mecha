@@ -301,6 +301,7 @@ typedef struct Projectile {
     bool active;
     bool isEnemy;
     bool knockback;
+    bool appliesSlow;
     u8 bounces;
     float height;       // visual-only: simulated height above ground
     float heightVel;    // visual-only: vertical velocity for bounce arc

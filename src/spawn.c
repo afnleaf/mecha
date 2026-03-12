@@ -51,6 +51,7 @@ Projectile* SpawnProjectile(
             b->damage = damage;
             b->isEnemy = isEnemy;
             b->knockback = knockback;
+            b->appliesSlow = false;
             b->type = type;
             b->dmgType = dmgType;
             return b;

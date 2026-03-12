@@ -35,39 +35,22 @@ Shared `static void SpawnExplosionVfx(pos, c1, c2, c3, fireColor)` in `update.c`
 
 ---
 
-## TIER 2: Quick Wins (5-15 min each)
+## TIER 2: Quick Wins (5-15 min each) — DONE
 
-### 2A. HUD Cooldown Helpers
-**Files**: `draw.c` only
-**Scope**: ~150 lines → ~30 | **Risk**: Low
+### 2A. HUD Cooldown Helpers — DONE
+`static void DrawCooldownBar(x, y, w, h, ratio, color, label, labelX, fontSize)` in `draw.c`. Takes a 0→1 fill ratio; draws ready state (WHITE outline, colored label) when ratio >= 1, cooling state (GRAY) otherwise. Replaced 8 identical blocks (rocket, railgun, sniper, grenade, slam, turret, mine, heal). BFG, shield, parry kept as custom (multi-state logic). Dash/shotgun pip bars left as-is (only 2 instances, each unique).
 
-9+ copy-paste cooldown bar blocks in `DrawHUD`. Extract two static helpers:
-- `DrawCooldownBar(x, y, w, h, timer, maxCd, color, label, ...)` — for most abilities
-- `DrawPipBar(x, y, w, h, current, max, rechargeTimer, ...)` — for dash charges, shotgun blasts
+### 2B. `mouse()` → `UpdateMouseAim()` — DONE
+Renamed definition and single call site in `update.c`.
 
-### 2B. `mouse()` → `UpdateMouseAim()`
-**Files**: `update.c` only
-**Scope**: ~10 lines | **Risk**: Low
+### 2C. `selectWeapons[]` + Hardcoded `5` — DONE
+Added `#define NUM_PRIMARY_WEAPONS 5` in `default.h`. Replaced 5 hardcoded `5` loop bounds in `update.c` and `draw.c`. Duplicate `selectWeapons[]` arrays kept local (used in separate static functions).
 
-Rename to PascalCase. Communicates that it mutates `p->angle` as a side effect.
+### 2D. Deployable Count Helper — DONE
+`static int CountActiveDeployables(DeployableType type)` in `update.c`. Replaced 3 identical loops (turret, mine, heal).
 
-### 2C. `selectWeapons[]` + Hardcoded `5`
-**Files**: `default.h`, `update.c`, `draw.c`
-**Scope**: ~10 lines | **Risk**: Low
-
-Add `#define NUM_PRIMARY_WEAPONS 5`. Replace hardcoded `5` in 5 loop sites. Consolidate duplicate array declaration.
-
-### 2D. Deployable Count Helper
-**Files**: `update.c` only
-**Scope**: ~15 lines | **Risk**: Low
-
-Three identical "count active deployables of type X" loops → `static int CountActiveDeployables(DeployableType type)`.
-
-### 2E. Sniper Slow Decoupling from DMG_PIERCE
-**Files**: `mecha.h`, `update.c`
-**Scope**: ~10 lines | **Risk**: Low
-
-`DMG_PIERCE` triggers sniper slow in projectile collision — any future pierce weapon inherits it. Add `bool appliesSlow` to Projectile, set true only for sniper shots.
+### 2E. Sniper Slow Decoupling from DMG_PIERCE — DONE
+Added `bool appliesSlow` to `Projectile` in `mecha.h`. Initialized `false` in `SpawnProjectile` (`spawn.c`). Set `true` only at sniper projectile spawn sites (gameplay + select demo). Collision check changed from `b->dmgType == DMG_PIERCE` to `b->appliesSlow`.
 
 ---
 
@@ -89,7 +72,7 @@ Extract into static functions:
 **Files**: `draw.c` only
 **Scope**: ~80 lines restructured | **Risk**: Low
 
-Extract: `DrawCooldownColumn()`, `DrawWeaponStatus()`, `DrawPauseMenu()`, `DrawGameOver()`. Do after 2A (cooldown helpers make the column very short).
+Extract: `DrawCooldownColumn()`, `DrawWeaponStatus()`, `DrawPauseMenu()`, `DrawGameOver()`. Unblocked by 2A.
 
 ### 3C. Boss Spawn Path
 **Files**: `spawn.c`, `update.c`, `game.h`
@@ -133,7 +116,7 @@ Remove unused `MAX_ENTITIES` define. Remove commented spawn positions in `spawn.
 
 ```
 Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
-Tier 2 (quick wins, any order):        2C, 2D, 2B, 2E, 2A
+Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
 Tier 3 (structural, has deps):         3C, 3A (1B+1C done), 3B (after 2A), 3D (1B done), 3E (no deps)
 Tier 4 (future):                        4B, 4A
 ```

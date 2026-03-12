@@ -1757,9 +1757,9 @@ static void DrawSelect(void)
     };
 
     // Pedestal positions (U curve, left to right by face count)
-    Vector2 pedestals[5];
+    Vector2 pedestals[NUM_PRIMARY_WEAPONS];
     float spacing = SELECT_ARENA_SIZE / 6.0f;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         float norm = (float)(i - 2) / 2.0f;
         pedestals[i] = (Vector2){
             spacing * (float)(i + 1),
@@ -1802,7 +1802,7 @@ static void DrawSelect(void)
     }
 
     // Pedestals
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         bool locked = (g.selectPhase == 1 && selectWeapons[i] == p->primary);
         bool highlighted = (i == g.selectIndex);
 
@@ -1886,7 +1886,7 @@ static void DrawSelect(void)
 
     // Locked primary label
     if (g.selectPhase == 1) {
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
             if (selectWeapons[i] != p->primary) continue;
             Vector2 screenPos = GetWorldToScreen2D(pedestals[i], g.camera);
             int lblFont = (int)(SELECT_PROMPT_FONT * ui);
@@ -1898,6 +1898,20 @@ static void DrawSelect(void)
     }
 
     EndDrawing();
+}
+
+static void DrawCooldownBar(int x, int y, int w, int h,
+    float ratio, Color color, const char *label, int labelX, int fontSize)
+{
+    if (ratio < 1.0f) {
+        DrawRectangle(x, y, (int)(w * ratio), h, color);
+        DrawRectangleLines(x, y, w, h, GRAY);
+        DrawText(label, labelX, y, fontSize, GRAY);
+    } else {
+        DrawRectangle(x, y, w, h, color);
+        DrawRectangleLines(x, y, w, h, WHITE);
+        DrawText(label, labelX, y, fontSize, color);
+    }
 }
 
 // Draw - HUD (screen space)
@@ -2013,86 +2027,40 @@ static void DrawHUD(void)
 
     // rockets
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        if (p->rocket.cooldownTimer > 0) {
-            float cdRatio = p->rocket.cooldownTimer / p->rocket.cooldown;
-            DrawRectangle(cdX, cdY,
-                (int)(cdBarW * (1.0f - cdRatio)), cdBarH, RED);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("ROCKET", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, RED);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("ROCKET", cdLabelX, cdY, cdFontSize, RED);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->rocket.cooldownTimer / p->rocket.cooldown,
+        RED, "ROCKET", cdLabelX, cdFontSize);
 
     // Railgun cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color rgColor = RAILGUN_COLOR;
-        if (p->railgun.cooldownTimer > 0) {
-            float ratio = 1.0f - (p->railgun.cooldownTimer / RAILGUN_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, rgColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("RAIL", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, rgColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("RAIL", cdLabelX, cdY, cdFontSize, rgColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->railgun.cooldownTimer / RAILGUN_COOLDOWN,
+        RAILGUN_COLOR, "RAIL", cdLabelX, cdFontSize);
 
     // Sniper cooldown (when sniper is equipped)
     if (p->primary == WPN_SNIPER || p->secondary == WPN_SNIPER) {
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        // Label and color change with mode
+        cdY += (int)(HUD_ROW_SPACING * ui);
         const char *snLabel;
         Color snColor;
         float snCooldown;
         if (p->sniper.superShotReady) {
-            snLabel = "SUPER";
-            snColor = GOLD;
-            snCooldown = SNIPER_AIM_COOLDOWN;
+            snLabel = "SUPER"; snColor = GOLD; snCooldown = SNIPER_AIM_COOLDOWN;
         } else if (p->sniper.aiming) {
-            snLabel = "AIM";
-            snColor = WHITE;
-            snCooldown = SNIPER_AIM_COOLDOWN;
+            snLabel = "AIM"; snColor = WHITE; snCooldown = SNIPER_AIM_COOLDOWN;
         } else {
-            snLabel = "HIP";
-            snColor = SNIPER_COLOR;
-            snCooldown = SNIPER_HIP_COOLDOWN;
+            snLabel = "HIP"; snColor = SNIPER_COLOR; snCooldown = SNIPER_HIP_COOLDOWN;
         }
-        if (p->sniper.cooldownTimer > 0) {
-            float ratio = 1.0f - (p->sniper.cooldownTimer / snCooldown);
-            if (ratio > 1.0f) ratio = 1.0f;
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, snColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText(snLabel, cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, snColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText(snLabel, cdLabelX, cdY, cdFontSize, snColor);
-        }
-    }
+        float snRatio = 1.0f - p->sniper.cooldownTimer / snCooldown;
+        if (snRatio > 1.0f) snRatio = 1.0f;
+        DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+            snRatio, snColor, snLabel, cdLabelX, cdFontSize);
     }
 
     // Grenade cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color grColor = GRENADE_COLOR;
-        if (p->grenade.cooldownTimer > 0) {
-            float ratio = 1.0f - (p->grenade.cooldownTimer / GRENADE_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, grColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("GREN", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, grColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("GREN", cdLabelX, cdY, cdFontSize, grColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
+        GRENADE_COLOR, "GREN", cdLabelX, cdFontSize);
 
     // BFG cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
@@ -2138,19 +2106,9 @@ static void DrawHUD(void)
 
     // Slam cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color slColor = SLAM_COLOR;
-        if (p->slam.cooldownTimer > 0) {
-            float ratio = 1.0f - (p->slam.cooldownTimer / SLAM_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, slColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("SLAM", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, slColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("SLAM", cdLabelX, cdY, cdFontSize, slColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
+        SLAM_COLOR, "SLAM", cdLabelX, cdFontSize);
 
     // Parry cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
@@ -2176,51 +2134,21 @@ static void DrawHUD(void)
 
     // Turret cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color tuColor = TURRET_COLOR;
-        if (p->turretCooldown > 0) {
-            float ratio = 1.0f - (p->turretCooldown / TURRET_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, tuColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("TURRT", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, tuColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("TURRT", cdLabelX, cdY, cdFontSize, tuColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->turretCooldown / TURRET_COOLDOWN,
+        TURRET_COLOR, "TURRT", cdLabelX, cdFontSize);
 
     // Mine cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color miColor = MINE_COLOR;
-        if (p->mineCooldown > 0) {
-            float ratio = 1.0f - (p->mineCooldown / MINE_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, miColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("MINE", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, miColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("MINE", cdLabelX, cdY, cdFontSize, miColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->mineCooldown / MINE_COOLDOWN,
+        MINE_COLOR, "MINE", cdLabelX, cdFontSize);
 
     // Heal cooldown
     cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color heColor = HEAL_COLOR;
-        if (p->healCooldown > 0) {
-            float ratio = 1.0f - (p->healCooldown / HEAL_COOLDOWN);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, heColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("HEAL", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, heColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("HEAL", cdLabelX, cdY, cdFontSize, heColor);
-        }
-    }
+    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+        1.0f - p->healCooldown / HEAL_COOLDOWN,
+        HEAL_COLOR, "HEAL", cdLabelX, cdFontSize);
 
     // Fuel bar
     cdY += (int)(HUD_ROW_SPACING * ui);
