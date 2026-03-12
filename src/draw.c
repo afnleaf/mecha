@@ -663,46 +663,6 @@ static void DrawWorld(void)
         DrawCircleV(pt->pos, pt->size * alpha, c);
     }
 
-    // --- Fire patches ---
-    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
-        FirePatch *fp = &g.firePatches[i];
-        if (!fp->active) continue;
-        float t = (float)GetTime();
-        float life = fp->timer / FLAME_PATCH_LIFETIME;
-        float fade = (life > FIRE_PATCH_FADE_THRESH) ? 1.0f : life / FIRE_PATCH_FADE_THRESH;
-        float r = fp->radius;
-        // scatter embers — deterministic offsets from patch index
-        int embers = FIRE_PATCH_EMBER_COUNT;
-        for (int j = 0; j < embers; j++) {
-            float seed = i * 7.13f + j * 3.71f;
-            // each ember drifts in a small loop
-            float ox = sinf(seed + t * 1.5f) * r * 0.6f
-                     + cosf(seed * 2.3f) * r * 0.3f;
-            float oy = cosf(seed * 1.7f + t * 1.8f) * r * 0.5f
-                     - (1.0f - life) * r * 0.4f; // drift upward as patch ages
-            float eSize = r * (0.3f + 0.25f * sinf(seed * 5.1f + t * FLAME_FLICKER_SPEED));
-            Vector2 ep = { fp->pos.x + ox, fp->pos.y + oy };
-            // color: outer embers red/orange, inner ones yellow
-            float heat = 1.0f - (fabsf(ox) + fabsf(oy)) / (r * 1.2f);
-            if (heat < 0) heat = 0;
-            Color c;
-            if (heat > 0.6f)
-                c = YELLOW;
-            else if (heat > 0.3f)
-                c = ORANGE;
-            else
-                c = (Color){ 255, 80, 20, 255 };
-            DrawCircleV(ep, eSize, Fade(c, 0.22f * fade));
-        }
-        // soft glow underneath
-        DrawCircleV(fp->pos, r * 0.8f,
-            Fade((Color){ 255, 60, 10, 255 }, 0.08f * fade));
-        // bright core flicker
-        float coreFlicker = 0.6f + 0.4f * sinf(t * 14.0f + i * 2.0f);
-        DrawCircleV(fp->pos, r * 0.2f * coreFlicker,
-            Fade(YELLOW, 0.35f * fade));
-    }
-
     // --- Deployables (ground level) ---
     for (int i = 0; i < MAX_DEPLOYABLES; i++) {
         Deployable *d = &g.deployables[i];
@@ -748,51 +708,79 @@ static void DrawWorld(void)
             DrawCircleLinesV(d->pos, d->radius,
                 Fade((Color)HEAL_COLOR, 0.4f));
         } break;
+        case DEPLOY_FIRE: {
+            float life = d->timer / FLAME_PATCH_LIFETIME;
+            float fade = (life > FIRE_PATCH_FADE_THRESH) ? 1.0f : life / FIRE_PATCH_FADE_THRESH;
+            float r = d->radius;
+            int embers = FIRE_PATCH_EMBER_COUNT;
+            for (int j = 0; j < embers; j++) {
+                float seed = i * 7.13f + j * 3.71f;
+                float ox = sinf(seed + t * 1.5f) * r * 0.6f
+                         + cosf(seed * 2.3f) * r * 0.3f;
+                float oy = cosf(seed * 1.7f + t * 1.8f) * r * 0.5f
+                         - (1.0f - life) * r * 0.4f;
+                float eSize = r * (0.3f + 0.25f * sinf(seed * 5.1f + t * FLAME_FLICKER_SPEED));
+                Vector2 ep = { d->pos.x + ox, d->pos.y + oy };
+                float heat = 1.0f - (fabsf(ox) + fabsf(oy)) / (r * 1.2f);
+                if (heat < 0) heat = 0;
+                Color c;
+                if (heat > 0.6f)
+                    c = YELLOW;
+                else if (heat > 0.3f)
+                    c = ORANGE;
+                else
+                    c = (Color){ 255, 80, 20, 255 };
+                DrawCircleV(ep, eSize, Fade(c, 0.22f * fade));
+            }
+            DrawCircleV(d->pos, r * 0.8f,
+                Fade((Color){ 255, 60, 10, 255 }, 0.08f * fade));
+            float coreFlicker = 0.6f + 0.4f * sinf(t * 14.0f + i * 2.0f);
+            DrawCircleV(d->pos, r * 0.2f * coreFlicker,
+                Fade(YELLOW, 0.35f * fade));
+        } break;
         }
     }
 
-    // --- Mine Web VFX ---
-    for (int i = 0; i < MAX_MINE_WEBS; i++) {
-        MineWebVfx *w = &g.vfx.mineWebs[i];
-        if (!w->active) continue;
-        float progress = 1.0f - (w->timer / MINE_WEB_DURATION);
-        float alpha = 1.0f - progress;
-        float r = MINE_ROOT_RADIUS;
-        // spokes
-        for (int s = 0; s < MINE_WEB_SPOKES; s++) {
-            float a = s * (2.0f * PI / MINE_WEB_SPOKES);
-            Vector2 tip = { w->pos.x + cosf(a) * r,
-                            w->pos.y + sinf(a) * r };
-            DrawLineEx(w->pos, tip, 1.0f, Fade(WHITE, alpha * 0.6f));
-        }
-        // concentric rings connecting the spokes
-        for (int ring = 1; ring <= MINE_WEB_RINGS; ring++) {
-            float rr = r * ring / (float)MINE_WEB_RINGS;
+    // --- VFX Timers (mine webs, explosion rings) ---
+    for (int i = 0; i < MAX_VFX_TIMERS; i++) {
+        VfxTimer *vt = &g.vfx.timers[i];
+        if (!vt->active) continue;
+        float t = vt->timer / vt->duration;
+
+        switch (vt->type) {
+        case VFX_MINE_WEB: {
+            float alpha = t;
+            float r = MINE_ROOT_RADIUS;
             for (int s = 0; s < MINE_WEB_SPOKES; s++) {
-                float a0 = s * (2.0f * PI / MINE_WEB_SPOKES);
-                float a1 = (s + 1) * (2.0f * PI / MINE_WEB_SPOKES);
-                Vector2 p0 = { w->pos.x + cosf(a0) * rr,
-                               w->pos.y + sinf(a0) * rr };
-                Vector2 p1 = { w->pos.x + cosf(a1) * rr,
-                               w->pos.y + sinf(a1) * rr };
-                DrawLineEx(p0, p1, 1.0f, Fade(WHITE, alpha * 0.4f));
+                float a = s * (2.0f * PI / MINE_WEB_SPOKES);
+                Vector2 tip = { vt->pos.x + cosf(a) * r,
+                                vt->pos.y + sinf(a) * r };
+                DrawLineEx(vt->pos, tip, 1.0f, Fade(WHITE, alpha * 0.6f));
             }
+            for (int ring = 1; ring <= MINE_WEB_RINGS; ring++) {
+                float rr = r * ring / (float)MINE_WEB_RINGS;
+                for (int s = 0; s < MINE_WEB_SPOKES; s++) {
+                    float a0 = s * (2.0f * PI / MINE_WEB_SPOKES);
+                    float a1 = (s + 1) * (2.0f * PI / MINE_WEB_SPOKES);
+                    Vector2 p0 = { vt->pos.x + cosf(a0) * rr,
+                                   vt->pos.y + sinf(a0) * rr };
+                    Vector2 p1 = { vt->pos.x + cosf(a1) * rr,
+                                   vt->pos.y + sinf(a1) * rr };
+                    DrawLineEx(p0, p1, 1.0f, Fade(WHITE, alpha * 0.4f));
+                }
+            }
+        } break;
+        case VFX_EXPLOSION: {
+            float alpha = t * EXPLOSION_RING_ALPHA;
+            float radius = ROCKET_EXPLOSION_RADIUS * (1.0f - t * EXPLOSION_RING_DECAY);
+            DrawCircleLinesV(vt->pos, radius, Fade(ORANGE, alpha));
+            DrawCircleLinesV(vt->pos, radius - 2.0f, Fade(RED, alpha * 0.6f));
+        } break;
         }
     }
 
     // --- Projectiles ---
     DrawProjectiles();
-
-    // --- Explosion rings ---
-    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        Explosive *ex = &g.vfx.explosives[i];
-        if (!ex->active) continue;
-        float t = ex->timer / ex->duration;
-        float alpha = t * EXPLOSION_RING_ALPHA;
-        float radius = ROCKET_EXPLOSION_RADIUS * (1.0f - t * EXPLOSION_RING_DECAY);
-        DrawCircleLinesV(ex->pos, radius, Fade(ORANGE, alpha));
-        DrawCircleLinesV(ex->pos, radius - 2.0f, Fade(RED, alpha * 0.6f));
-    }
 
     // --- Lightning chain arcs (BFG) ---
     if (g.lightning.active) {

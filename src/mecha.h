@@ -182,6 +182,7 @@ typedef enum DeployableType {
     DEPLOY_TURRET,
     DEPLOY_MINE,
     DEPLOY_HEAL,
+    DEPLOY_FIRE,
 } DeployableType;
 
 
@@ -309,12 +310,18 @@ typedef struct Projectile {
     float heightVel;    // visual-only: vertical velocity for bounce arc
 } Projectile;
 
-typedef struct Explosive {
+typedef enum VfxTimerType {
+    VFX_EXPLOSION,
+    VFX_MINE_WEB,
+} VfxTimerType;
+
+typedef struct VfxTimer {
     Vector2 pos;
     float timer;
     float duration;
     bool active;
-} Explosive;
+    VfxTimerType type;
+} VfxTimer;
 
 typedef struct LightningArc {
     Vector2 from;
@@ -405,27 +412,12 @@ typedef struct Particle {
 } Particle;
 
 
-typedef struct FirePatch {
-    Vector2 pos;
-    float timer;        // lifetime remaining
-    float actionTimer;  // damage tick countdown
-    float radius;
-    bool active;
-} FirePatch;
 
 // vfx ---------------------------------------------------------------------- /
-typedef struct MineWebVfx {
-    Vector2 pos;
-    float timer;
-    bool active;
-} MineWebVfx;
-
-
 typedef struct VfxState {
     Particle particles[MAX_PARTICLES];
     Beam beams[MAX_BEAMS];
-    Explosive explosives[MAX_EXPLOSIVES];
-    MineWebVfx mineWebs[MAX_MINE_WEBS];
+    VfxTimer timers[MAX_VFX_TIMERS];
 } VfxState;
 
 // State -------------------------------------------------------------------- /
@@ -437,7 +429,6 @@ typedef struct GameState {
     Projectile projectiles[MAX_PROJECTILES];
     Enemy enemies[MAX_ENEMIES];
     Deployable deployables[MAX_DEPLOYABLES];
-    FirePatch firePatches[MAX_FIRE_PATCHES];
     LightningChain lightning;
     // vfx event buffer — update writes, draw reads
     VfxState vfx;

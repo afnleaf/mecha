@@ -65,8 +65,9 @@ Key documentation: `docs/NOTES.md` (todo list), `docs/GDD.md` (game design doc),
 - All gameplay constants belong in `default.h`, not as magic numbers in source files
 - HUD scales via `ui = screenHeight / 450.0f`
 - Player-relative HUD: weapon status (revolver rounds, gun heat, reload/overheat QTE) drawn as `DrawRing` arcs near the player via `GetWorldToScreen2D`. Constants prefixed `HUD_ARC_*` in default.h. Left-side HUD column is for all cooldowns.
-- Pools: projectiles[1024], enemies[1024], particles[1024], explosives[8], beams[8], deployables[8]
+- Pools: projectiles[1024], enemies[1024], deployables[1024], particles[1024], beams[8], vfxTimers[72]
 - Deployable pool: shared by turret, mine, heal field, fire zone — type-switched via `DeployableType`
+- VfxTimer pool: shared by explosion rings and mine webs — type-switched via `VfxTimerType`
 - Enemy debuffs: `slowTimer`/`slowFactor` (reduced speed), `rootTimer` (no move, can shoot), `stunTimer` (no move, no shoot)
 
 ## Code Style

@@ -84,17 +84,37 @@ Replaced two `float[1024]` arrays (8KB) in `Sword` and `Spin` with `u8 hitBits[1
 
 ---
 
-## TIER 4: Long-term (v(-1) and beyond)
+## TIER 4: Polish & v(-1) Prep
 
-### 4A. Update/Draw Separation
-See notes at top of this file. Revisit when adding room transitions or if determinism matters.
+### 4B. Pool Consolidation — DONE
+**Files**: `mecha.h`, `default.h`, `update.c`, `draw.c`
 
-### 4B. Code Cleanup
-Remove unused `MAX_ENTITIES` define. Remove commented spawn positions in `spawn.c`. Keep `#if 0` laser block (intentional).
+Two merges:
+
+**1. FirePatch → Deployable** — `FirePatch` struct deleted, fire zones now use `DEPLOY_FIRE` in the deployable pool. `SpawnFirePatch` replaced by `SpawnDeployable(DEPLOY_FIRE, pos)`. Update logic is a `case DEPLOY_FIRE:` in `UpdateDeployables`. Draw logic is a `case DEPLOY_FIRE:` in the deployable draw switch.
+
+**2. Explosive + MineWebVfx → VfxTimer** — Both structs deleted. Replaced with `VfxTimer` (pos, timer, duration, type) and `VfxTimerType` enum (`VFX_EXPLOSION`, `VFX_MINE_WEB`). Pool: `VfxState.timers[MAX_VFX_TIMERS]` (72). `SpawnVfxTimer(pos, duration, type)` helper deduplicates all 3 spawn sites. Single tick loop in game loop, single draw loop with type switch.
+
+Pools reduced from 8 → 6: projectiles, enemies, deployables, particles, beams, vfxTimers.
+
+### 4C. Consolidate Enemy Shoot Functions
+**Files**: `update.c`, `spawn.c`, `game.h`
+**Scope**: ~200 lines moved | **Risk**: Low
+
+Move `ShootRect`, `ShootPenta`, `ShootHexa`, `ShootTrap` from `update.c` to `spawn.c`. Make them `static`. Remove 4 declarations from `game.h`. All enemy definition (data table + shooting behavior) lives in one file. Unblocks adding `ShootCirc` for the CIRC boss cleanly.
+
+### 4A. VFX Pool Helpers — DONE (absorbed by 4B)
+Inline pool-scan loops replaced by `SpawnVfxTimer(pos, duration, type)` helper as part of 4B pool consolidation.
+
+### 4D. Game Phase State Machine (design only)
+**Files**: `mecha.h`, `update.c`, `draw.c`
+**Scope**: Design first | **Risk**: Medium
+
+Currently `g.screen` (`SELECT`/`PLAYING`) + `g.phase` (`0`/`1`/`2`) overlap in meaning. For v(-1) room system, unify into single state enum: `SELECT → ROUND → CLEARING → ITEM_PICK → BOSS → END`. Design only — don't implement until v(-1) scope is clear.
 
 ---
 
-## 
+##
 
 make weapon select menu accept enter and m1 for picking a chassis
 
@@ -103,7 +123,7 @@ make weapon select menu accept enter and m1 for picking a chassis
 ```
 Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
 Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
-Tier 3 (structural, has deps):         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
-Tier 4 (future):                        4B, 4A
+Tier 3 (DONE):                         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
+Tier 4 (polish + v(-1) prep):          4B ✓, 4A ✓ (absorbed by 4B), 4C, 4D
 ```
 

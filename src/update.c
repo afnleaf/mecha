@@ -6,7 +6,7 @@
 // forward declarations for functions used before defined
 static void RocketExplode(Vector2 pos);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
-static void SpawnFirePatch(Vector2 pos);
+static void SpawnVfxTimer(Vector2 pos, float duration, VfxTimerType type);
 static void UpdateParticles(float dt);
 static void UpdateProjectiles(float dt);
 static void UpdateMovement(Player *p, Vector2 moveDir, float moveLen, float dt);
@@ -1268,7 +1268,7 @@ static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
             float a = baseAngle + spread;
             Vector2 patchPos = Vector2Add(p->pos,
                 (Vector2){ cosf(a) * dist, sinf(a) * dist });
-            SpawnFirePatch(patchPos);
+            SpawnDeployable(DEPLOY_FIRE, patchPos);
 
             // spray particles along the path
             for (int i = 0; i < 3; i++) {
@@ -1537,15 +1537,7 @@ static void UpdateEnemies(float dt) {
                     DamagePlayer(TRAP_SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
                 }
                 SpawnParticles(e->pos, TRAP_COLOR, 16);
-                for (int v = 0; v < MAX_EXPLOSIVES; v++) {
-                    if (!g.vfx.explosives[v].active) {
-                        g.vfx.explosives[v].active = true;
-                        g.vfx.explosives[v].pos = e->pos;
-                        g.vfx.explosives[v].timer = EXPLOSION_VFX_DURATION;
-                        g.vfx.explosives[v].duration = EXPLOSION_VFX_DURATION;
-                        break;
-                    }
-                }
+                SpawnVfxTimer(e->pos, EXPLOSION_VFX_DURATION, VFX_EXPLOSION);
             }
         } else if (!rooted && dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toTarget, 1.0f / dist);
@@ -1671,15 +1663,7 @@ static void SpawnExplosionVfx(Vector2 pos, Color c1, Color c2, Color c3, Color f
             EXPLOSION_SMOKE_LIFETIME);
     }
     // spawn radius ring
-    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.vfx.explosives[i].active) {
-            g.vfx.explosives[i].active = true;
-            g.vfx.explosives[i].pos = pos;
-            g.vfx.explosives[i].timer = EXPLOSION_VFX_DURATION;
-            g.vfx.explosives[i].duration = EXPLOSION_VFX_DURATION;
-            break;
-        }
-    }
+    SpawnVfxTimer(pos, EXPLOSION_VFX_DURATION, VFX_EXPLOSION);
 }
 
 static void RocketExplode(Vector2 pos) {
@@ -1755,6 +1739,10 @@ static void SpawnDeployable(DeployableType type, Vector2 pos) {
                     d->timer = HEAL_LIFETIME;
                     d->radius = HEAL_RADIUS;
                     break;
+                case DEPLOY_FIRE:
+                    d->timer = FLAME_PATCH_LIFETIME;
+                    d->radius = FLAME_PATCH_RADIUS;
+                    break;
             }
             break;
         }
@@ -1829,16 +1817,7 @@ static void UpdateDeployables(float dt) {
                 d->active = false;
                 SpawnParticles(d->pos, (Color)MINE_COLOR, 10);
                 // spawn web VFX
-                for (int j = 0; j < MAX_MINE_WEBS; j++) {
-                    if (!g.vfx.mineWebs[j].active) {
-                        g.vfx.mineWebs[j] = (MineWebVfx){
-                            .pos = d->pos,
-                            .timer = MINE_WEB_DURATION,
-                            .active = true,
-                        };
-                        break;
-                    }
-                }
+                SpawnVfxTimer(d->pos, MINE_WEB_DURATION, VFX_MINE_WEB);
             }
         } break;
 
@@ -1859,51 +1838,39 @@ static void UpdateDeployables(float dt) {
             }
         } break;
 
-        }
-    }
-
-    // tick mine web VFX
-    for (int i = 0; i < MAX_MINE_WEBS; i++) {
-        if (!g.vfx.mineWebs[i].active) continue;
-        g.vfx.mineWebs[i].timer -= dt;
-        if (g.vfx.mineWebs[i].timer <= 0) g.vfx.mineWebs[i].active = false;
-    }
-}
-
-// fire patches ------------------------------------------------------------ /
-static void SpawnFirePatch(Vector2 pos) {
-    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
-        if (!g.firePatches[i].active) {
-            g.firePatches[i] = (FirePatch){
-                .pos = pos,
-                .timer = FLAME_PATCH_LIFETIME,
-                .actionTimer = 0,
-                .radius = FLAME_PATCH_RADIUS,
-                .active = true,
-            };
-            return;
-        }
-    }
-}
-
-static void UpdateFirePatches(float dt) {
-    for (int i = 0; i < MAX_FIRE_PATCHES; i++) {
-        FirePatch *fp = &g.firePatches[i];
-        if (!fp->active) continue;
-        fp->timer -= dt;
-        if (fp->timer <= 0) { fp->active = false; continue; }
-        fp->actionTimer -= dt;
-        if (fp->actionTimer <= 0) {
-            fp->actionTimer = FLAME_PATCH_TICK;
-            for (int j = 0; j < MAX_ENEMIES; j++) {
-                Enemy *e = &g.enemies[j];
-                if (!e->active) continue;
-                if (Vector2Distance(fp->pos, e->pos) < fp->radius + e->size) {
-                    DamageEnemy(j,
-                        (int)(FLAME_PATCH_DPS * FLAME_PATCH_TICK),
-                        DMG_ABILITY, HIT_AOE);
+        case DEPLOY_FIRE: {
+            d->actionTimer -= dt;
+            if (d->actionTimer <= 0) {
+                d->actionTimer = FLAME_PATCH_TICK;
+                for (int j = 0; j < MAX_ENEMIES; j++) {
+                    Enemy *e = &g.enemies[j];
+                    if (!e->active) continue;
+                    if (Vector2Distance(d->pos, e->pos) < d->radius + e->size) {
+                        DamageEnemy(j,
+                            (int)(FLAME_PATCH_DPS * FLAME_PATCH_TICK),
+                            DMG_ABILITY, HIT_AOE);
+                    }
                 }
             }
+        } break;
+
+        }
+    }
+
+}
+
+// vfx timers -------------------------------------------------------------- /
+static void SpawnVfxTimer(Vector2 pos, float duration, VfxTimerType type) {
+    for (int i = 0; i < MAX_VFX_TIMERS; i++) {
+        if (!g.vfx.timers[i].active) {
+            g.vfx.timers[i] = (VfxTimer){
+                .pos = pos,
+                .timer = duration,
+                .duration = duration,
+                .active = true,
+                .type = type,
+            };
+            return;
         }
     }
 }
@@ -2308,13 +2275,12 @@ void UpdateGame(void)
     UpdateParticles(dt);
     UpdateBeams(dt);
     UpdateDeployables(dt);
-    UpdateFirePatches(dt);
 
-    for (int i = 0; i < MAX_EXPLOSIVES; i++) {
-        if (!g.vfx.explosives[i].active) continue;
-        g.vfx.explosives[i].timer -= dt;
-        if (g.vfx.explosives[i].timer <= 0)
-            g.vfx.explosives[i].active = false;
+    for (int i = 0; i < MAX_VFX_TIMERS; i++) {
+        if (!g.vfx.timers[i].active) continue;
+        g.vfx.timers[i].timer -= dt;
+        if (g.vfx.timers[i].timer <= 0)
+            g.vfx.timers[i].active = false;
     }
 
     MoveCamera(dt);

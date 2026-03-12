@@ -2,23 +2,23 @@
 // game configuration constants, tweak these to tune gameplay
 #pragma once
 
-// Window / Pools
+// Window
 #define SCREEN_W                1443
 #define SCREEN_H                1000
 
-// misc
+// Kit
 #define ABILITY_SLOTS           12
 #define NUM_PRIMARY_WEAPONS     5
-#define MAX_DEPLOYABLES         1024
-#define MAX_EXPLOSIVES          8
-#define MAX_MINE_WEBS           64
 
-// Entities
+// Entity Pools
 #define MAX_PROJECTILES         1024
 #define MAX_ENEMIES             1024
 #define MAX_PARTICLES           1024
 #define MAX_BEAMS               8
+#define MAX_DEPLOYABLES         1024
+#define MAX_VFX_TIMERS          72      // this could be more?
 #define MAX_ENTITIES // of a type, just seeing that this is all the same
+// looks good for now
 
 // Map
 #define MAP_SIZE                2000.0f
@@ -349,7 +349,6 @@
 #define FLAME_PARTICLE_SPEED    30.0f
 #define FLAME_PARTICLE_SIZE     2.0f
 #define FLAME_PARTICLE_LIFETIME 0.3f
-#define MAX_FIRE_PATCHES        64
 
 // Hitscan weapons ---------------------------------------------------------- /
 #if 0 // laser constants — preserved for future use
