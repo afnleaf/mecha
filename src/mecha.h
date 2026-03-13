@@ -25,6 +25,10 @@ typedef enum WeaponType {
     WPN_SNIPER,
 } WeaponType;
 
+static const WeaponType SELECT_WEAPONS[] = {
+    WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
+};
+
 typedef enum GameScreen {
     SCREEN_SELECT,
     SCREEN_PLAYING,

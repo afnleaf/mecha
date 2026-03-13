@@ -85,6 +85,8 @@ NextFrame (draw.c)
   DrawGame()
     DrawSelect (if SCREEN_SELECT)
     BeginMode2D -> DrawWorld -> EndMode2D
+      DrawDeployables, DrawVfxTimers, DrawProjectiles,
+      DrawLightning, DrawEnemies, DrawPlayer
     DrawHUD
 ```
 
@@ -190,15 +192,14 @@ All use shared static helpers in `draw.c`: `ProjectVertices` (rotation + 3D→2D
 
 ## Open Refactoring
 
-### DONE (Tiers 1-3)
+### DONE (Tiers 1-4)
 
 - Enemy shooting dispatch table (1A), sweep damage dedup (1B), explosion VFX dedup (1C)
 - HUD cooldown helper (2A), mouse rename (2B), NUM_PRIMARY_WEAPONS (2C), deployable count helper (2D), sniper slow decoupling (2E)
 - UpdatePlayer split (3A), DrawHUD split (3B), boss spawn path (3C), draw shape dedup (3E), lastHitAngle bitfield (3D)
+- Pool consolidation (4B/4A), enemy shoot fns to spawn.c (5A), selectWeapons dedup (5B), DrawWorld split (5C), inline colors to default.h (5D)
 
 ### REMAINING
-
-**8. `selectWeapons[]` declared twice.** Once in UpdateSelect, again in DrawSelect. Should be file-scope `static const`.
 
 ### LOW — cleanup
 

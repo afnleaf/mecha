@@ -107,6 +107,8 @@ asset loader
 - [x] mouse visible on top of crosshair on native (fixed)
 - [x] move reload and overheat bars somehwere more visible than the left side
 - [x] cleanup controls hud menu to be properly visible and programmatic
+- [] hud fix level placement
+- [] hud new style
 
 ### refactorin time
 - [x] ok let's do a header file and remake the build
@@ -116,6 +118,7 @@ asset loader
 - [x] time to make src/ folder and split up the project?
 - [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
 - [] make weapon select menu accept enter and m1 for picking a chassis
+- [] game camera does a wonky teleport to the proper game map from the weapon select zone, also there are artifacts from the weapon seleection still on the screen like exploding rockets
 - [x] enemy debuff whack
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?

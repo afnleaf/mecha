@@ -89,6 +89,7 @@
 #define GUN_VENT_STEAM_COLOR     (Color){ 200, 200, 200, 150 }
 #define GUN_VENT_STEAM_SIZE      2.0f
 #define GUN_VENT_STEAM_LIFETIME  0.3f
+#define GUN_VENT_FAIL_COLOR      (Color){ 80, 20, 20, 255 }
 
 // Minigun
 #define MINIGUN_MAX_FIRE_RATE    40.0f
@@ -186,6 +187,10 @@
 #define REVOLVER_RELOAD_SWEET_END   0.75f
 #define REVOLVER_RELOAD_FAST_TIME   0.08f
 #define REVOLVER_RELOAD_FAIL_PENALTY 0.5f
+#define REVOLVER_ARC_COLOR      (Color){ 220, 180, 80, 255 }
+#define RELOAD_HIT_COLOR        (Color){ 60, 255, 60, 120 }
+#define RELOAD_MISS_COLOR       (Color){ 255, 60, 60, 120 }
+#define RELOAD_SWEET_COLOR      (Color){ 255, 255, 100, 100 }
 
 // Rocket Launcher
 #define ROCKET_SPEED            800.0f
@@ -345,6 +350,8 @@
 #define FLAME_PATCH_DPS         30.0f    // damage per second per patch
 #define FLAME_PATCH_TICK        0.2f     // damage tick interval
 #define FLAME_COLOR             (Color){ 255, 120, 30, 150 }
+#define FIRE_EMBER_COLOR        (Color){ 255, 80, 20, 255 }
+#define FIRE_GLOW_COLOR         (Color){ 255, 60, 10, 255 }
 #define FLAME_FLICKER_SPEED     10.0f
 #define FLAME_PARTICLE_SPEED    30.0f
 #define FLAME_PARTICLE_SIZE     2.0f
@@ -734,6 +741,7 @@
 #define HUD_ARC_SEG_GAP         2.0f
 #define HUD_ARC_LABEL_FONT      8
 #define HUD_ARC_LABEL_PAD       4.0f
+#define HUD_ARC_BG_COLOR        (Color){ 40, 40, 40, 160 }
 // Info text
 #define HUD_BOTTOM_Y            20
 #define HUD_TITLE_FONT          12

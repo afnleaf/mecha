@@ -104,43 +104,25 @@ Inline pool-scan loops replaced by `SpawnVfxTimer(pos, duration, type)` helper a
 
 ## TIER 5: Structural Cleanup
 
-### 5A. Move Enemy Shoot Functions to spawn.c (= old 4C)
+### 5A. Move Enemy Shoot Functions to spawn.c (= old 4C) — DONE
 **Files**: `update.c`, `spawn.c`, `game.h`
-**Scope**: ~136 lines moved | **Risk**: Low
 
-Move `ShootRect` (update.c:1335), `ShootPenta` (update.c:1352), `ShootHexa` (update.c:1388), `ShootTrap` (update.c:1415) from `update.c` to `spawn.c`. Make them `static`. Remove 4 declarations from `game.h`. All enemy definition (data table + shooting behavior) lives in one file. `UpdateEnemies` dispatches via `ENEMY_DEFS[e->type].shoot()` pointer — no cross-file calls needed. Unblocks adding `ShootCirc` for the CIRC boss cleanly.
+Moved `ShootRect`, `ShootPenta`, `ShootHexa`, `ShootTrap` from `update.c` to `spawn.c` as `static` functions above `ENEMY_DEFS` table. Removed 4 declarations from `game.h`. All enemy definition (data table + shooting behavior) lives in one file. Adding `ShootCirc` for the CIRC boss just needs a static function + one table entry in `spawn.c`.
 
-### 5B. selectWeapons[] Deduplication
-**Files**: `update.c`, `draw.c`, `mecha.h` or `default.h`
-**Scope**: ~6 lines | **Risk**: None
+### 5B. selectWeapons[] Deduplication — DONE
+**Files**: `update.c`, `draw.c`, `mecha.h`
 
-Identical `selectWeapons[]` arrays declared locally in both `UpdateSelect()` (update.c:135) and `DrawSelect()` (draw.c:1282). Extract to a single `static const WeaponType SELECT_WEAPONS[]` in `mecha.h` (or `default.h` alongside `NUM_PRIMARY_WEAPONS`). Replace both local declarations. The associated `names[]`, `descs[]`, `solidFns[]` arrays stay local — they're draw-only or update-only.
+Extracted `static const WeaponType SELECT_WEAPONS[]` into `mecha.h` (after `WeaponType` enum — `default.h` is included before the type is defined so it couldn't go there). Removed both local declarations, renamed all references. `names[]`, `descs[]`, `solidFns[]` stay local in `draw.c`.
 
-### 5C. Split DrawWorld
+### 5C. Split DrawWorld — DONE
 **Files**: `draw.c` only
-**Scope**: ~632 lines → 5-6 functions | **Risk**: Low
 
-`DrawWorld()` (draw.c:641-1272) is the largest function in the codebase. Extract subsections into static helpers following existing pattern (like DrawHUD split in 3B):
+Extracted 5 static functions: `DrawDeployables()` (~77 lines, turret/mine/heal/fire), `DrawVfxTimers()` (~37 lines, explosion rings + mine webs), `DrawLightning()` (~35 lines, BFG chain arcs), `DrawEnemies()` (~161 lines, enemy shapes + HP bars + hit flash), `DrawPlayer()` (~289 lines, solid body + dash ghosts + decoy + shadow + weapon barrels + shield/slam/parry + sword/lunge/spin arcs). `DrawWorld` is now a ~30-line orchestrator: grid, border, particles, calls, beams.
 
-1. `DrawDeployableWorld()` (~76 lines) — turret/mine/heal/fire switch, currently lines 666-742
-2. `DrawVfxWorld()` (~36 lines) — explosion rings + mine webs, lines 744-780
-3. `DrawLightningWorld()` (~44 lines) — BFG chain arcs, lines 785-829
-4. `DrawEnemies()` (~100 lines) — enemy shapes, HP bars, hit flash
-5. `DrawPlayerWorld()` (~210 lines) — solid body + weapon barrels + sword/lunge arcs + ability visuals
-
-`DrawWorld()` becomes a ~40-line orchestrator: grid, border, particles, then calls. Same pattern as `UpdatePlayer` (3A) and `DrawHUD` (3B).
-
-### 5D. Inline Color Constants to default.h
+### 5D. Inline Color Constants to default.h — DONE
 **Files**: `draw.c`, `default.h`
-**Scope**: ~10 constants | **Risk**: None
 
-Scattered magic colors in draw.c that should be named constants in default.h:
-- Revolver HUD arc color `(Color){ 220, 180, 80, 255 }` (draw.c:1675)
-- Crosshair color `(Color){ 0, 255, 0, 180 }` (draw.c ~2017)
-- Various enemy draw colors used inline rather than from constants
-- Any other `(Color){ ... }` literals in draw.c not already defined in default.h
-
-Audit draw.c for all inline `(Color)` literals, name them `*_COLOR` in the appropriate default.h section.
+Extracted 8 inline `(Color){...}` literals from draw.c into named constants in default.h: `FIRE_EMBER_COLOR`, `FIRE_GLOW_COLOR` (fire zone section), `REVOLVER_ARC_COLOR`, `RELOAD_HIT_COLOR`, `RELOAD_MISS_COLOR`, `RELOAD_SWEET_COLOR` (revolver section), `HUD_ARC_BG_COLOR` (HUD arc section, used at 2 sites), `GUN_VENT_FAIL_COLOR` (gun overheat section). 4 remaining `(Color){...}` in draw.c are algorithmic (HSVToColor, barrel heat lerp, gun heat gradient).
 
 ---
 
@@ -165,6 +147,16 @@ Don't implement — design the data transformation. The `EnemyDef` table may nee
 
 ---
 
+## TIER X: Maybe
+
+### X1. Split update.c by Entity
+**Files**: `update.c` → `update_player.c` + `update.c`
+**Scope**: ~900 lines moved | **Risk**: Low
+
+Extract all player update logic (movement, dash, weapons, abilities) into `update_player.c`. `update.c` keeps the orchestrator + shared systems (enemies, projectiles, deployables, VFX, camera). The player side is self-contained — it fires into pools but doesn't read back in the same frame. The enemy/projectile/deployable side has heavy cross-cutting (projectiles hit both sides, deployables bridge both, SweepDamage operates on enemy pool from player weapons) so it stays together. Revisit when CIRC boss or v(-1) room system tips the complexity scale.
+
+---
+
 ## Execution Order
 
 ```
@@ -172,6 +164,6 @@ Tier 1 (DONE):                         1A ✓, 1B ✓, 1C ✓
 Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
 Tier 3 (DONE):                         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
 Tier 4 (polish + v(-1) prep):          4B ✓, 4A ✓ (absorbed by 4B)
-Tier 5 (structural cleanup):           5A, 5B, 5C, 5D
+Tier 5 (DONE):                         5A ✓, 5B ✓, 5C ✓, 5D ✓
 Tier 6 (v(-1) architecture):           6A, 6B
 ```

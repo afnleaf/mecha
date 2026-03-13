@@ -638,32 +638,9 @@ static void DrawSwordArc(Vector2 origin, float timer, float duration,
 }
 
 // Draw - World (camera space) ---------------------------------------------- /
-static void DrawWorld(void)
+
+static void DrawDeployables(void)
 {
-    Player *p = &g.player;
-
-    // --- Map grid ---
-    for (float x = 0; x <= MAP_SIZE; x += GRID_STEP) {
-        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, GRID_COLOR);
-    }
-    for (float y = 0; y <= MAP_SIZE; y += GRID_STEP) {
-        DrawLineV((Vector2){ 0, y }, (Vector2){ MAP_SIZE, y }, GRID_COLOR);
-    }
-
-    // Map boundary
-    DrawRectangleLinesEx((Rectangle){ 0, 0, MAP_SIZE, MAP_SIZE },
-        MAP_BORDER_THICKNESS, RED);
-
-    // --- Particles (behind entities) ---
-    for (int i = 0; i < MAX_PARTICLES; i++) {
-        Particle *pt = &g.vfx.particles[i];
-        if (!pt->active) continue;
-        float alpha = pt->lifetime / pt->maxLifetime;
-        Color c = Fade(pt->color, alpha);
-        DrawCircleV(pt->pos, pt->size * alpha, c);
-    }
-
-    // --- Deployables (ground level) ---
     for (int i = 0; i < MAX_DEPLOYABLES; i++) {
         Deployable *d = &g.deployables[i];
         if (!d->active) continue;
@@ -729,19 +706,21 @@ static void DrawWorld(void)
                 else if (heat > 0.3f)
                     c = ORANGE;
                 else
-                    c = (Color){ 255, 80, 20, 255 };
+                    c = FIRE_EMBER_COLOR;
                 DrawCircleV(ep, eSize, Fade(c, 0.22f * fade));
             }
             DrawCircleV(d->pos, r * 0.8f,
-                Fade((Color){ 255, 60, 10, 255 }, 0.08f * fade));
+                Fade(FIRE_GLOW_COLOR, 0.08f * fade));
             float coreFlicker = 0.6f + 0.4f * sinf(t * 14.0f + i * 2.0f);
             DrawCircleV(d->pos, r * 0.2f * coreFlicker,
                 Fade(YELLOW, 0.35f * fade));
         } break;
         }
     }
+}
 
-    // --- VFX Timers (mine webs, explosion rings) ---
+static void DrawVfxTimers(void)
+{
     for (int i = 0; i < MAX_VFX_TIMERS; i++) {
         VfxTimer *vt = &g.vfx.timers[i];
         if (!vt->active) continue;
@@ -778,47 +757,47 @@ static void DrawWorld(void)
         } break;
         }
     }
+}
 
-    // --- Projectiles ---
-    DrawProjectiles();
+static void DrawLightning(void)
+{
+    if (!g.lightning.active) return;
+    LightningChain *lc = &g.lightning;
+    for (int i = 0; i < lc->arcCount; i++) {
+        LightningArc *a = &lc->arcs[i];
+        if (!a->active) continue;
+        float t = a->timer / a->duration;
 
-    // --- Lightning chain arcs (BFG) ---
-    if (g.lightning.active) {
-        LightningChain *lc = &g.lightning;
-        for (int i = 0; i < lc->arcCount; i++) {
-            LightningArc *a = &lc->arcs[i];
-            if (!a->active) continue;
-            float t = a->timer / a->duration;
+        // jagged line: 3 midpoints with perpendicular jitter
+        Vector2 diff = Vector2Subtract(a->to, a->from);
+        Vector2 perp = { -diff.y, diff.x };
+        float pLen = Vector2Length(perp);
+        if (pLen > 0.1f) perp = Vector2Scale(perp, 1.0f / pLen);
 
-            // jagged line: 3 midpoints with perpendicular jitter
-            Vector2 diff = Vector2Subtract(a->to, a->from);
-            Vector2 perp = { -diff.y, diff.x };
-            float pLen = Vector2Length(perp);
-            if (pLen > 0.1f) perp = Vector2Scale(perp, 1.0f / pLen);
+        Vector2 pts[5];
+        pts[0] = a->from;
+        pts[4] = a->to;
+        for (int m = 1; m <= 3; m++) {
+            float frac = (float)m / 4.0f;
+            Vector2 base = Vector2Lerp(a->from, a->to, frac);
+            float jitter = (float)GetRandomValue(
+                -(int)BFG_ARC_JITTER, (int)BFG_ARC_JITTER);
+            pts[m] = Vector2Add(base, Vector2Scale(perp, jitter));
+        }
 
-            Vector2 pts[5];
-            pts[0] = a->from;
-            pts[4] = a->to;
-            for (int m = 1; m <= 3; m++) {
-                float frac = (float)m / 4.0f;
-                Vector2 base = Vector2Lerp(a->from, a->to, frac);
-                float jitter = (float)GetRandomValue(
-                    -(int)BFG_ARC_JITTER, (int)BFG_ARC_JITTER);
-                pts[m] = Vector2Add(base, Vector2Scale(perp, jitter));
-            }
-
-            // draw glow then core
-            Color glow = { BFG_GLOW_COLOR.r, BFG_GLOW_COLOR.g,
-                           BFG_GLOW_COLOR.b, (u8)(BFG_GLOW_COLOR.a * t) };
-            Color core = Fade((Color)BFG_COLOR, t);
-            for (int s = 0; s < 4; s++) {
-                DrawLineEx(pts[s], pts[s + 1], BFG_ARC_GLOW_WIDTH * t, glow);
-                DrawLineEx(pts[s], pts[s + 1], BFG_ARC_CORE_WIDTH, core);
-            }
+        // draw glow then core
+        Color glow = { BFG_GLOW_COLOR.r, BFG_GLOW_COLOR.g,
+                       BFG_GLOW_COLOR.b, (u8)(BFG_GLOW_COLOR.a * t) };
+        Color core = Fade((Color)BFG_COLOR, t);
+        for (int s = 0; s < 4; s++) {
+            DrawLineEx(pts[s], pts[s + 1], BFG_ARC_GLOW_WIDTH * t, glow);
+            DrawLineEx(pts[s], pts[s + 1], BFG_ARC_CORE_WIDTH, core);
         }
     }
+}
 
-    // --- Enemies ---
+static void DrawEnemies(void)
+{
     for (int i = 0; i < MAX_ENEMIES; i++) {
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
@@ -833,24 +812,24 @@ static void DrawWorld(void)
         switch (e->type) {
         case TRI: {
             Vector2 tip = Vector2Add(
-                    e->pos, 
-                    (Vector2){ 
-                        cosf(eAngle) * e->size, 
-                        sinf(eAngle) * e->size 
+                    e->pos,
+                    (Vector2){
+                        cosf(eAngle) * e->size,
+                        sinf(eAngle) * e->size
                     }
                 );
             Vector2 left = Vector2Add(
-                    e->pos, 
-                    (Vector2){ 
+                    e->pos,
+                    (Vector2){
                         cosf(eAngle + TRI_WING_ANGLE) * e->size,
-                        sinf(eAngle + TRI_WING_ANGLE) * e->size 
+                        sinf(eAngle + TRI_WING_ANGLE) * e->size
                     }
                 );
             Vector2 right = Vector2Add(
-                    e->pos, 
-                    (Vector2){ 
+                    e->pos,
+                    (Vector2){
                         cosf(eAngle - TRI_WING_ANGLE) * e->size,
-                        sinf(eAngle - TRI_WING_ANGLE) * e->size 
+                        sinf(eAngle - TRI_WING_ANGLE) * e->size
                     }
                 );
             DrawTriangle(tip, right, left, eColor);
@@ -867,21 +846,21 @@ static void DrawWorld(void)
                 rFill);
             // Corner outline
             Vector2 corners[4] = {
-                    { 
-                        e->pos.x + (-hw)*ca - (-hh)*sa, 
-                        e->pos.y + (-hw)*sa + (-hh)*ca 
+                    {
+                        e->pos.x + (-hw)*ca - (-hh)*sa,
+                        e->pos.y + (-hw)*sa + (-hh)*ca
                     },
-                    { 
-                        e->pos.x + ( hw)*ca - (-hh)*sa, 
-                        e->pos.y + ( hw)*sa + (-hh)*ca 
+                    {
+                        e->pos.x + ( hw)*ca - (-hh)*sa,
+                        e->pos.y + ( hw)*sa + (-hh)*ca
                     },
-                    { 
-                        e->pos.x + ( hw)*ca - ( hh)*sa, 
-                        e->pos.y + ( hw)*sa + ( hh)*ca 
+                    {
+                        e->pos.x + ( hw)*ca - ( hh)*sa,
+                        e->pos.y + ( hw)*sa + ( hh)*ca
                     },
-                    { 
-                        e->pos.x + (-hw)*ca - ( hh)*sa, 
-                        e->pos.y + (-hw)*sa + ( hh)*ca 
+                    {
+                        e->pos.x + (-hw)*ca - ( hh)*sa,
+                        e->pos.y + (-hw)*sa + ( hh)*ca
                     },
             };
             for (int ci = 0; ci < 4; ci++)
@@ -973,14 +952,18 @@ static void DrawWorld(void)
                 DARKGRAY);
             DrawRectangle(
                 (int)(e->pos.x - barW / 2),
-                (int)(e->pos.y - e->size - ENEMY_HPBAR_YOFFSET), 
-                (int)(barW * hpRatio), 
-                (int)barH, 
+                (int)(e->pos.y - e->size - ENEMY_HPBAR_YOFFSET),
+                (int)(barW * hpRatio),
+                (int)barH,
                 RED);
         }
     }
+}
 
-    // --- Player — RGB color cube ---
+static void DrawPlayer(void)
+{
+    Player *p = &g.player;
+
     bool visible = true;
     if (p->iFrames > 0) {
         visible = ((int)(p->iFrames * PLAYER_BLINK_RATE) % 2 == 0);
@@ -1159,25 +1142,13 @@ static void DrawWorld(void)
 #endif
     }
 
-    // --- Beam pool (railgun lingering flash) ---
-    for (int i = 0; i < MAX_BEAMS; i++) {
-        Beam *b = &g.vfx.beams[i];
-        if (!b->active) continue;
-        float t = b->timer / b->duration;
-        Color glow = { RAILGUN_GLOW_COLOR.r, RAILGUN_GLOW_COLOR.g,
-                       RAILGUN_GLOW_COLOR.b, (u8)(80.0f * t) };
-        Color core = { b->color.r, b->color.g, b->color.b, (u8)(255.0f * t) };
-        DrawLineEx(b->origin, b->tip, RAILGUN_GLOW_WIDTH * t, glow);
-        DrawLineEx(b->origin, b->tip, b->width, core);
-    }
-
-    // --- Sword swing arc ---
+    // Sword swing arc
     if (p->sword.timer > 0 && !p->sword.lunge) {
         Color arcColor = p->sword.dashSlash ? SKYBLUE : ORANGE;
         DrawSwordArc(p->pos, p->sword.timer, p->sword.duration,
             p->sword.angle, p->sword.arc, p->sword.radius, arcColor);
     }
-    // --- Sword lunge thrust ---
+    // Sword lunge thrust
     if (p->sword.timer > 0 && p->sword.lunge) {
         float range = p->sword.dashSlash ?
             LUNGE_RANGE * LUNGE_DASH_RANGE_MULT : LUNGE_RANGE;
@@ -1210,7 +1181,7 @@ static void DrawWorld(void)
         DrawCircleV(tip, 4.0f, Fade(lungeColor, fadeOut));
     }
 
-    // --- Spin attack trailing arc ---
+    // Spin attack trailing arc
     if (p->spin.timer > 0) {
         float progress = 1.0f - (p->spin.timer / p->spin.duration);
         float fadeOut = p->spin.timer / p->spin.duration;
@@ -1271,6 +1242,44 @@ static void DrawWorld(void)
     }
 }
 
+static void DrawWorld(void)
+{
+    // Map grid
+    for (float x = 0; x <= MAP_SIZE; x += GRID_STEP)
+        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, GRID_COLOR);
+    for (float y = 0; y <= MAP_SIZE; y += GRID_STEP)
+        DrawLineV((Vector2){ 0, y }, (Vector2){ MAP_SIZE, y }, GRID_COLOR);
+    DrawRectangleLinesEx((Rectangle){ 0, 0, MAP_SIZE, MAP_SIZE },
+        MAP_BORDER_THICKNESS, RED);
+
+    // Particles (behind entities)
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        Particle *pt = &g.vfx.particles[i];
+        if (!pt->active) continue;
+        float alpha = pt->lifetime / pt->maxLifetime;
+        DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
+    }
+
+    DrawDeployables();
+    DrawVfxTimers();
+    DrawProjectiles();
+    DrawLightning();
+    DrawEnemies();
+    DrawPlayer();
+
+    // Beams (railgun linger)
+    for (int i = 0; i < MAX_BEAMS; i++) {
+        Beam *b = &g.vfx.beams[i];
+        if (!b->active) continue;
+        float t = b->timer / b->duration;
+        Color glow = { RAILGUN_GLOW_COLOR.r, RAILGUN_GLOW_COLOR.g,
+                       RAILGUN_GLOW_COLOR.b, (u8)(80.0f * t) };
+        Color core = { b->color.r, b->color.g, b->color.b, (u8)(255.0f * t) };
+        DrawLineEx(b->origin, b->tip, RAILGUN_GLOW_WIDTH * t, glow);
+        DrawLineEx(b->origin, b->tip, b->width, core);
+    }
+}
+
 static void DrawSelect(void)
 {
     int sw = GetScreenWidth();
@@ -1279,9 +1288,6 @@ static void DrawSelect(void)
     Player *p = &g.player;
     float t = (float)GetTime();
 
-    WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
-    };
     const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
     const char *descs[] = {
         "M1 sweep, M2 lunge, dash slash",
@@ -1343,7 +1349,7 @@ static void DrawSelect(void)
 
     // Pedestals
     for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
-        bool locked = (g.selectPhase == 1 && selectWeapons[i] == p->primary);
+        bool locked = (g.selectPhase == 1 && SELECT_WEAPONS[i] == p->primary);
         bool highlighted = (i == g.selectIndex);
 
         // Ground ring
@@ -1427,7 +1433,7 @@ static void DrawSelect(void)
     // Locked primary label
     if (g.selectPhase == 1) {
         for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
-            if (selectWeapons[i] != p->primary) continue;
+            if (SELECT_WEAPONS[i] != p->primary) continue;
             Vector2 screenPos = GetWorldToScreen2D(pedestals[i], g.camera);
             int lblFont = (int)(SELECT_PROMPT_FONT * ui);
             const char *lbl = "PRIMARY";
@@ -1672,7 +1678,7 @@ static void DrawWeaponStatus(Player *p, float ui)
 
     // Revolver arc (always visible for revolver players)
     if (p->primary == WPN_REVOLVER) {
-        Color revColor = (Color){ 220, 180, 80, 255 };
+        Color revColor = REVOLVER_ARC_COLOR;
         Color bonusColor = GOLD;
         float segGap = HUD_ARC_SEG_GAP;
         float segAngle = (arcSpan
@@ -1702,7 +1708,7 @@ static void DrawWeaponStatus(Player *p, float ui)
             } else {
                 DrawRing(pScreen, arcInner, arcOuter,
                     sStart, sEnd, arcSegs,
-                    (Color){ 40, 40, 40, 160 });
+                    HUD_ARC_BG_COLOR);
             }
         }
 
@@ -1724,10 +1730,10 @@ static void DrawWeaponStatus(Player *p, float ui)
                 bool hit = p->revolver.reloadTimer
                     <= REVOLVER_RELOAD_FAST_TIME + 0.01f;
                 sweetColor = hit
-                    ? (Color){ 60, 255, 60, 120 }
-                    : (Color){ 255, 60, 60, 120 };
+                    ? RELOAD_HIT_COLOR
+                    : RELOAD_MISS_COLOR;
             } else {
-                sweetColor = (Color){ 255, 255, 100, 100 };
+                sweetColor = RELOAD_SWEET_COLOR;
             }
             DrawRing(pScreen, arcInner, arcOuter,
                 sweetSA, sweetEA, arcSegs, sweetColor);
@@ -1769,7 +1775,7 @@ static void DrawWeaponStatus(Player *p, float ui)
 
         // Background arc (always present)
         DrawRing(pScreen, arcInner, arcOuter,
-            arcStart, arcEnd, arcSegs, (Color){ 40, 40, 40, 160 });
+            arcStart, arcEnd, arcSegs, HUD_ARC_BG_COLOR);
 
         // Heat fill — color gradient WHITE -> YELLOW -> RED
         if (h > 0) {
@@ -1800,7 +1806,7 @@ static void DrawWeaponStatus(Player *p, float ui)
                 - p->gun.ventZoneStart * arcSpan;
             Color zoneColor = (p->gun.ventResult == 1) ? GREEN
                 : (p->gun.ventResult == -1)
-                    ? (Color){ 80, 20, 20, 255 } : YELLOW;
+                    ? GUN_VENT_FAIL_COLOR : YELLOW;
             DrawRing(pScreen, arcInner, arcOuter,
                 zSA, zEA, arcSegs, zoneColor);
 

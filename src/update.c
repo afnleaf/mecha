@@ -132,10 +132,6 @@ static void UpdateSelect(void)
     if (dt > DT_MAX) dt = DT_MAX;
     Player *p = &g.player;
 
-    WeaponType selectWeapons[] = {
-        WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
-    };
-
     // WASD movement
     Vector2 moveDir = { 0, 0 };
     if (IsKeyDown(KEY_W)) moveDir.y -= 1;
@@ -206,7 +202,7 @@ static void UpdateSelect(void)
     float bestDist = SELECT_INTERACT_RADIUS;
     for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         // Phase 1: skip already-chosen primary
-        if (g.selectPhase == 1 && selectWeapons[i] == p->primary) continue;
+        if (g.selectPhase == 1 && SELECT_WEAPONS[i] == p->primary) continue;
         float d = Vector2Distance(p->pos, pedestals[i]);
         if (d < bestDist) {
             bestDist = d;
@@ -217,10 +213,10 @@ static void UpdateSelect(void)
     // M1 selects weapon
     if (g.selectIndex >= 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         if (g.selectPhase == 0) {
-            p->primary = selectWeapons[g.selectIndex];
+            p->primary = SELECT_WEAPONS[g.selectIndex];
             g.selectPhase = 1;
         } else {
-            p->secondary = selectWeapons[g.selectIndex];
+            p->secondary = SELECT_WEAPONS[g.selectIndex];
             // Transition to gameplay
             p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
             p->shadowPos = p->pos;
@@ -1329,144 +1325,6 @@ static void UpdatePlayer(float dt)
     }
 
     if (p->iFrames > 0) p->iFrames -= dt;
-}
-
-// enemy shoot functions --------------------------------------------------- /
-void ShootRect(Enemy *e, Vector2 toTarget, float dist, float dt) {
-    e->shootTimer -= dt;
-    if (e->shootTimer <= 0 && dist > 1.0f) {
-        e->shootTimer = RECT_SHOOT_INTERVAL;
-        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
-        Vector2 muzzle = Vector2Add(e->pos,
-            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-        SpawnProjectile(muzzle, shootDir, RECT_BULLET_SPEED,
-            RECT_BULLET_DAMAGE, RECT_BULLET_LIFETIME,
-            RECT_PROJECTILE_SIZE, true, false,
-            PROJ_BULLET, DMG_BALLISTIC);
-        SpawnParticle(muzzle,
-            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-            MAGENTA, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-    }
-}
-
-void ShootPenta(Enemy *e, Vector2 toTarget, float dist, float dt) {
-    e->shootTimer -= dt;
-    if (e->shootTimer <= 0 && dist > 1.0f) {
-        e->shootTimer = PENTA_SHOOT_INTERVAL;
-        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
-        Vector2 perp = { -shootDir.y, shootDir.x };
-
-        for (int r = -1; r <= 1; r += 2) {
-            Vector2 rowOff = Vector2Scale(perp,
-                PENTA_ROW_OFFSET * r);
-            for (int b = 0; b < PENTA_BULLETS_PER_ROW; b++) {
-                Vector2 bpos = Vector2Add(e->pos, rowOff);
-                bpos = Vector2Add(bpos,
-                    Vector2Scale(shootDir,
-                        e->size + MUZZLE_OFFSET
-                        + b * PENTA_BULLET_SPACING));
-                SpawnProjectile(bpos, shootDir,
-                    PENTA_BULLET_SPEED, PENTA_BULLET_DAMAGE,
-                    PENTA_BULLET_LIFETIME, PENTA_PROJECTILE_SIZE,
-                    true, false, PROJ_BULLET, DMG_BALLISTIC);
-            }
-        }
-        Vector2 muzzle = Vector2Add(e->pos,
-            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-        SpawnParticle(muzzle,
-            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-            PENTA_COLOR, PENTA_MUZZLE_SIZE, PENTA_MUZZLE_LIFETIME);
-        SpawnParticle(muzzle,
-            Vector2Scale(perp, PENTA_SIDE_SPEED),
-            PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-        SpawnParticle(muzzle,
-            Vector2Scale(perp, -PENTA_SIDE_SPEED),
-            PENTA_COLOR, ENEMY_MUZZLE_SIZE, ENEMY_MUZZLE_LIFETIME);
-    }
-}
-
-void ShootHexa(Enemy *e, Vector2 toTarget, float dist, float dt) {
-    e->shootTimer -= dt;
-    if (e->shootTimer <= 0 && dist > 1.0f) {
-        e->shootTimer = HEXA_SHOOT_INTERVAL;
-        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
-        float baseAngle = atan2f(shootDir.y, shootDir.x);
-        float halfSpread = HEXA_FAN_SPREAD / 2.0f;
-        float step = HEXA_FAN_SPREAD / (HEXA_FAN_COUNT - 1);
-
-        for (int b = 0; b < HEXA_FAN_COUNT; b++) {
-            float angle = baseAngle - halfSpread + step * b;
-            Vector2 dir = { cosf(angle), sinf(angle) };
-            Vector2 muzzle = Vector2Add(e->pos,
-                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-            SpawnProjectile(muzzle, dir, HEXA_BULLET_SPEED,
-                HEXA_BULLET_DAMAGE, HEXA_BULLET_LIFETIME,
-                HEXA_PROJECTILE_SIZE, true, false,
-                PROJ_BULLET, DMG_BALLISTIC);
-        }
-        Vector2 muzzle = Vector2Add(e->pos,
-            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
-        SpawnParticle(muzzle,
-            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-            HEXA_COLOR, HEXA_MUZZLE_SIZE, HEXA_MUZZLE_LIFETIME);
-    }
-}
-
-void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt) {
-    if (e->chargeTimer > 0) return;
-    e->shootTimer -= dt;
-    if (e->shootTimer <= 0 && dist > 1.0f) {
-        int pattern = e->attackPhase % 3;
-        switch (pattern) {
-        case 0: { // Aimed burst — cone at player
-            Vector2 shootDir = Vector2Scale(
-                toTarget, 1.0f / dist);
-            float baseAngle = atan2f(shootDir.y, shootDir.x);
-            float halfSpread = TRAP_BURST_SPREAD / 2.0f;
-            float step = TRAP_BURST_SPREAD
-                / (TRAP_BURST_COUNT - 1);
-            for (int b = 0; b < TRAP_BURST_COUNT; b++) {
-                float a = baseAngle - halfSpread + step * b;
-                Vector2 dir = { cosf(a), sinf(a) };
-                Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                SpawnProjectile(muzzle, dir,
-                    TRAP_BULLET_SPEED, TRAP_BULLET_DAMAGE,
-                    TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
-                    true, false, PROJ_BULLET, DMG_BALLISTIC);
-            }
-            Vector2 muzzle = Vector2Add(e->pos,
-                Vector2Scale(shootDir,
-                    e->size + MUZZLE_OFFSET));
-            SpawnParticle(muzzle,
-                Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                TRAP_COLOR, PENTA_MUZZLE_SIZE,
-                PENTA_MUZZLE_LIFETIME);
-        } break;
-        case 1: { // Ring shot — bullets in all directions
-            float step = 2.0f * PI / TRAP_RING_COUNT;
-            for (int b = 0; b < TRAP_RING_COUNT; b++) {
-                float a = step * b;
-                Vector2 dir = { cosf(a), sinf(a) };
-                Vector2 muzzle = Vector2Add(e->pos,
-                    Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-                SpawnProjectile(muzzle, dir,
-                    TRAP_RING_SPEED, TRAP_RING_DAMAGE,
-                    TRAP_BULLET_LIFETIME, TRAP_PROJECTILE_SIZE,
-                    true, false, PROJ_BULLET, DMG_BALLISTIC);
-            }
-            SpawnParticles(e->pos, TRAP_COLOR, 12);
-        } break;
-        case 2: { // Charge at player
-            Vector2 shootDir = Vector2Scale(
-                toTarget, 1.0f / dist);
-            e->chargeDir = shootDir;
-            e->chargeTimer = TRAP_CHARGE_DURATION;
-        } break;
-        }
-        e->attackPhase++;
-        e->shootTimer = TRAP_ATTACK_INTERVAL;
-    }
 }
 
 // enemy AI

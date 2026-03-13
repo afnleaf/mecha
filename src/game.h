@@ -41,10 +41,6 @@ bool EnemyHitCircle(Enemy *e, Vector2 center, float radius);
 
 // update.c
 void UpdateGame(void);
-void ShootRect(Enemy *e, Vector2 toTarget, float dist, float dt);
-void ShootPenta(Enemy *e, Vector2 toTarget, float dist, float dt);
-void ShootHexa(Enemy *e, Vector2 toTarget, float dist, float dt);
-void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt);
 
 // draw.c
 void NextFrame(void);
