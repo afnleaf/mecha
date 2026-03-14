@@ -6,8 +6,18 @@
 #define SCREEN_W                1443
 #define SCREEN_H                1000
 
+// Keyboard-only controls (right hand)
+#define AIM_UP_KEY              KEY_O
+#define AIM_DOWN_KEY            KEY_L
+#define AIM_LEFT_KEY            KEY_K
+#define AIM_RIGHT_KEY           KEY_SEMICOLON
+#define KB_M1_KEY               KEY_RIGHT_SHIFT
+#define KB_M2_KEY               KEY_ENTER
+#define ARROW_AIM_DIST          150.0f
+#define AIM_KEY_GRACE           0.08f
+
 // Kit
-#define ABILITY_SLOTS           12
+#define ABILITY_SLOTS           13
 #define NUM_PRIMARY_WEAPONS     5
 
 // Entity Pools
@@ -144,6 +154,10 @@
 #define DECOY_MIN_ALPHA         0.15f
 #define DECOY_MAX_ALPHA         0.45f
 #define DECOY_EXPIRE_PARTICLES  10
+// Dash orbs (diegetic charge display)
+#define DASH_ORB_SPEED          2.0f    // rad/s orbit speed
+#define DASH_ORB_RADIUS         40.0f   // orbit distance from player center
+#define DASH_ORB_SIZE           4.0f    // orb draw radius
 
 // Spin
 #define SPIN_DURATION           0.32f
@@ -291,7 +305,7 @@
 #define PARRY_IFRAMES           0.5f    // iframes granted on success
 #define PARRY_STUN_DURATION     2.75f   // stun applied to enemies on parry
 #define PARRY_KNOCKBACK         400.0f  // knockback on parried contact
-#define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
+#define PARRY_COLOR             (Color){ 220, 180, 50, 220 }
 
 // Turret ------------------------------------------------------------------- /
 #define TURRET_LIFETIME         64.0f
@@ -312,7 +326,7 @@
 #define TURRET_COLOR            (Color){ 100, 200, 255, 255 }
 
 // Root Mine ---------------------------------------------------------------- /
-#define MINE_LIFETIME           20.0f
+#define MINE_LIFETIME           1024.0f
 #define MINE_TRIGGER_RADIUS     40.0f
 #define MINE_ROOT_RADIUS        100.0f
 #define MINE_ROOT_DURATION      3.0f
@@ -326,7 +340,7 @@
 
 // Healing Field ------------------------------------------------------------ /
 #define HEAL_LIFETIME           8.0f
-#define HEAL_RADIUS             100.0f
+#define HEAL_RADIUS             160.0f
 #define HEAL_PER_SEC            15.0f
 #define HEAL_COOLDOWN           15.0f
 #define HEAL_MAX_ACTIVE         1
@@ -354,6 +368,19 @@
 #define FLAME_PARTICLE_SPEED    30.0f
 #define FLAME_PARTICLE_SIZE     2.0f
 #define FLAME_PARTICLE_LIFETIME 0.3f
+
+// Blink Dagger ------------------------------------------------------------- /
+#define BLINK_DISTANCE          480.0f      // 1.5x dash distance (320)
+#define BLINK_COOLDOWN          10.0f       // base cd when undamaged
+#define BLINK_COOLDOWN_HIT      3.0f        // cd after taking damage
+#define BLINK_DAMAGE            40
+#define BLINK_DAMAGE_DELAY      1.6f        // seconds before slash damage
+#define BLINK_BEAM_DURATION     0.25f       // trail linger time
+#define BLINK_BEAM_WIDTH        16.0f
+#define BLINK_BEAM_OFFSET       12.0f       // perpendicular spread between lines
+#define BLINK_COLOR             (Color){ 80, 140, 255, 40 }
+#define BLINK_GLOW_COLOR        (Color){ 80, 140, 255, 40 }
+#define BLINK_GLOW_WIDTH        22.0f
 
 // Hitscan weapons ---------------------------------------------------------- /
 #if 0 // laser constants — preserved for future use
@@ -402,7 +429,7 @@
 
 // Sniper — M2 aimed shot (hold M2 + click M1)
 #define SNIPER_AIM_SPREAD        0        // zero
-#define SNIPER_AIM_COOLDOWN      1.2f     // punishing on miss
+#define SNIPER_AIM_COOLDOWN      0.915f   // same as hip
 #define SNIPER_AIM_BULLET_SPEED  2800.0f  // faster travel
 #define SNIPER_AIM_SLOW          0.35f    // movement multiplier while ADS
 
@@ -712,15 +739,18 @@
 #define HUD_KILLS_Y             58
 #define HUD_KILLS_FONT          16
 #define HUD_LEVEL_Y             78
-// Cooldown bars
-#define HUD_CD_W                28
-#define HUD_CD_H                10
-#define HUD_CD_Y                82
-#define HUD_CD_FONT             12
-#define HUD_CD_LABEL_GAP        6
+// Cooldown bottom bar
+#define HUD_CD_W                22
+#define HUD_CD_H                22
+#define HUD_CD_FONT             13
+#define HUD_CD_ALPHA            0.6f    // bar fill transparency
+#define HUD_CD_LABEL_GAP        2       // gap between label and bar
+#define HUD_CD_COL_GAP          12      // horizontal gap between slots
+#define HUD_CD_BOTTOM_Y         30      // distance from screen bottom
 #define HUD_PIP_W               12
 #define HUD_PIP_GAP             4
-#define HUD_ROW_SPACING         16
+// Weapon swap (top-left, below Level)
+#define HUD_SWAP_Y              98
 // FPS
 #define HUD_FPS_FONT            16
 #define HUD_FPS_X               80
@@ -746,10 +776,10 @@
 #define HUD_TITLE_X             210
 // Pause
 #define HUD_PAUSE_FONT          60
-#define HUD_PAUSE_Y             80
+#define HUD_PAUSE_Y             130
 #define HUD_RESUME_FONT         20
-#define HUD_RESUME_Y            -10
-#define HUD_PAUSE_KEYS_Y        40
+#define HUD_RESUME_Y            -60
+#define HUD_PAUSE_KEYS_Y        -30
 #define HUD_PAUSE_KEYS_FONT     16
 #define HUD_PAUSE_KEYS_SPACING  24
 #define HUD_PAUSE_KEYS_COL_W    200

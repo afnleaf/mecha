@@ -443,6 +443,8 @@ void DamagePlayer(int damage, DamageType dmgType, DamageMethod method)
     if (p->iFrames > 0) return;
     p->hp -= damage;
     p->iFrames = IFRAME_DURATION;
+    if (p->blink.cooldown <= 0)
+        p->blink.cooldown = BLINK_COOLDOWN_HIT;
     SpawnParticles(p->pos, RED, CONTACT_HIT_PARTICLES);
     if (p->hp <= 0) {
         p->hp = 0;

@@ -16,6 +16,7 @@ static const char* AbilityName(AbilityID id) {
         case ABL_PARRY:   return "Parry";
         case ABL_HEAL:    return "Heal";
         case ABL_FIRE:    return "Flame";
+        case ABL_BLINK:   return "Blink";
         default:          return NULL;
     }
 }
@@ -25,11 +26,12 @@ static const char* KeyName(int key) {
         case KEY_Q:             return "Q";
         case KEY_E:             return "E";
         case KEY_F:             return "F";
+        case KEY_R:             return "R";
         case KEY_Z:             return "Z";
         case KEY_X:             return "X";
         case KEY_C:             return "C";
         case KEY_V:             return "V";
-        case KEY_LEFT_SHIFT:    return "Shift";
+        case KEY_LEFT_SHIFT:    return "^";
         case KEY_LEFT_CONTROL:  return "Ctrl";
         case KEY_ONE:           return "1";
         case KEY_TWO:           return "2";
@@ -37,6 +39,14 @@ static const char* KeyName(int key) {
         case KEY_FOUR:          return "4";
         default:                return "?";
     }
+}
+
+static const char* SlotLabel(Player *p, AbilityID abl) {
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        if (p->slots[i].ability == abl)
+            return KeyName(p->slots[i].key);
+    }
+    return "?";
 }
 
 static const char* WeaponName(WeaponType w) {
@@ -939,6 +949,18 @@ static void DrawEnemies(void)
         default: break;
         }
 
+        // Blink dagger slash mark
+        if (e->blinkMark > 0) {
+            float mt = e->blinkMark / BLINK_DAMAGE_DELAY;
+            float r = e->size * 1.2f;
+            Color mc = { BLINK_COLOR.r, BLINK_COLOR.g, BLINK_COLOR.b,
+                         (u8)(255.0f * mt) };
+            // diagonal slash through enemy
+            Vector2 a = { e->pos.x - r * 0.7f, e->pos.y - r };
+            Vector2 b = { e->pos.x + r * 0.7f, e->pos.y + r };
+            DrawLineEx(a, b, 3.0f, mc);
+        }
+
         // HP bar
         if (e->hp < e->maxHp) {
             float barW = e->size * 2.0f;
@@ -1067,6 +1089,23 @@ static void DrawPlayer(void)
                 Fade((Color)PARRY_COLOR, alpha));
             DrawCircleLinesV(p->pos, p->size + 16.0f,
                 Fade((Color)PARRY_COLOR, alpha * 0.5f));
+        }
+
+        // Dash orbs (diegetic charge display)
+        for (int i = 0; i < p->dash.maxCharges; i++) {
+            float a = p->dash.orbAngle + i * (2.0f * PI / p->dash.maxCharges);
+            Vector2 orbPos = {
+                p->pos.x + cosf(a) * DASH_ORB_RADIUS,
+                p->pos.y + sinf(a) * DASH_ORB_RADIUS
+            };
+            if (i < p->dash.charges) {
+                DrawCircleV(orbPos, DASH_ORB_SIZE, SKYBLUE);
+            } else if (i == p->dash.charges && p->dash.charges < p->dash.maxCharges) {
+                float ratio = 1.0f - p->dash.rechargeTimer / p->dash.rechargeTime;
+                DrawCircleV(orbPos, DASH_ORB_SIZE, Fade(SKYBLUE, ratio));
+            } else {
+                DrawCircleLinesV(orbPos, DASH_ORB_SIZE, Fade(SKYBLUE, 0.3f));
+            }
         }
 
         // Gun barrel (heat-tinted)
@@ -1248,10 +1287,10 @@ static void DrawWorld(void)
         Beam *b = &g.vfx.beams[i];
         if (!b->active) continue;
         float t = b->timer / b->duration;
-        Color glow = { RAILGUN_GLOW_COLOR.r, RAILGUN_GLOW_COLOR.g,
-                       RAILGUN_GLOW_COLOR.b, (u8)(80.0f * t) };
-        Color core = { b->color.r, b->color.g, b->color.b, (u8)(255.0f * t) };
-        DrawLineEx(b->origin, b->tip, RAILGUN_GLOW_WIDTH * t, glow);
+        float a = (float)b->color.a * t;
+        Color glow = { b->color.r, b->color.g, b->color.b, (u8)(a * 0.4f) };
+        Color core = { b->color.r, b->color.g, b->color.b, (u8)a };
+        DrawLineEx(b->origin, b->tip, (b->width + 5.0f) * t, glow);
         DrawLineEx(b->origin, b->tip, b->width, core);
     }
 }
@@ -1382,6 +1421,15 @@ static void DrawSelect(void)
     int descFont = (int)(SELECT_DESC_FONT * ui);
     int gap = (int)(SELECT_HINT_GAP * ui);
 
+    // Game title at top
+    {
+        int gtFont = (int)(HUD_TITLE_FONT * ui);
+        const char *gt = "Untitled Mecha Game - Version 0.0.1";
+        int gtW = MeasureText(gt, gtFont);
+        DrawText(gt, sw / 2 - gtW / 2, (int)(HUD_MARGIN * ui),
+            gtFont, Fade(WHITE, 0.8f));
+    }
+
     // Title + hint at top
     const char *title = g.selectPhase == 0
         ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
@@ -1425,217 +1473,208 @@ static void DrawSelect(void)
     EndDrawing();
 }
 
-static void DrawCooldownBar(int x, int y, int w, int h,
-    float ratio, Color color, const char *label, int labelX, int fontSize)
+static void DrawCooldownBar(int x, int barY, int w, int h,
+    float ratio, Color color, const char *label, int labelY, int fontSize)
 {
+    int lblW = MeasureText(label, fontSize);
+    int lblX = x + w / 2 - lblW / 2;
+    int lblY = barY + h / 2 - fontSize / 2;
     if (ratio < 1.0f) {
-        DrawRectangle(x, y, (int)(w * ratio), h, color);
-        DrawRectangleLines(x, y, w, h, GRAY);
-        DrawText(label, labelX, y, fontSize, GRAY);
+        int fillH = (int)(h * ratio);
+        DrawRectangle(x, barY + h - fillH, w, fillH, Fade(color, HUD_CD_ALPHA));
+        DrawRectangleLines(x, barY, w, h, GRAY);
     } else {
-        DrawRectangle(x, y, w, h, color);
-        DrawRectangleLines(x, y, w, h, WHITE);
-        DrawText(label, labelX, y, fontSize, color);
+        DrawRectangle(x, barY, w, h, Fade(color, HUD_CD_ALPHA));
+        DrawRectangleLines(x, barY, w, h, WHITE);
     }
+    DrawText(label, lblX, lblY, fontSize, WHITE);
 }
 
-static void DrawPipBar(int x, int y, int pipW, int pipH, int pipGap,
+static void DrawPipBar(int x, int barY, int pipW, int pipH, int pipGap,
     int maxPips, int filledPips, bool recharging, float rechargeRatio,
-    Color color, const char *label, int labelX, int fontSize)
+    Color color, const char *label, int labelY, int fontSize)
 {
-    for (int i = 0; i < maxPips; i++) {
-        int pipX = x + i * (pipW + pipGap);
-        if (i < filledPips) {
-            DrawRectangle(pipX, y, pipW, pipH, color);
-            DrawRectangleLines(pipX, y, pipW, pipH, WHITE);
-        } else if (i == filledPips && recharging) {
-            DrawRectangle(pipX, y, (int)(pipW * rechargeRatio), pipH,
+    int totalW = maxPips * pipW + (maxPips - 1) * pipGap;
+    int lblW = MeasureText(label, fontSize);
+    int lblY = barY + pipH / 2 - fontSize / 2;
+    if (recharging) {
+        for (int i = 0; i < maxPips; i++) {
+            int pipX = x + i * (pipW + pipGap);
+            int fillH = (int)(pipH * rechargeRatio);
+            DrawRectangle(pipX, barY + pipH - fillH, pipW, fillH,
                 Fade(color, 0.4f));
-            DrawRectangleLines(pipX, y, pipW, pipH, GRAY);
-        } else {
-            DrawRectangleLines(pipX, y, pipW, pipH, GRAY);
+            DrawRectangleLines(pipX, barY, pipW, pipH, GRAY);
+        }
+    } else {
+        int spent = maxPips - filledPips;
+        int nextPip = (filledPips > 0) ? spent : -1;
+        for (int i = 0; i < maxPips; i++) {
+            int pipX = x + i * (pipW + pipGap);
+            if (i < spent) {
+                DrawRectangleLines(pipX, barY, pipW, pipH, GRAY);
+            } else {
+                DrawRectangle(pipX, barY, pipW, pipH, color);
+                DrawRectangleLines(pipX, barY, pipW, pipH, WHITE);
+            }
+            if (i == nextPip) {
+                int lblX = pipX + pipW / 2 - lblW / 2;
+                DrawText(label, lblX, lblY, fontSize, WHITE);
+            }
         }
     }
-    DrawText(label, labelX, y, fontSize, filledPips > 0 ? color : GRAY);
 }
 
-// Draw - Cooldown Column ------------------------------------------------- /
+// Draw - Cooldown Bar (bottom center) ------------------------------------ /
 static void DrawCooldownColumn(Player *p, float ui)
 {
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
     int cdBarW = (int)(HUD_CD_W * ui);
     int cdBarH = (int)(HUD_CD_H * ui);
-    int cdX = (int)(HUD_MARGIN * ui);
-    int cdY = (int)(HUD_CD_Y * ui);
-    int cdFontSize = (int)(HUD_CD_FONT * ui);
-    int cdLabelX = cdX + cdBarW + (int)(HUD_CD_LABEL_GAP * ui);
+    int cdFont = (int)(HUD_CD_FONT * ui);
+    int colGap = (int)(HUD_CD_COL_GAP * ui);
+    int pipW = (int)(HUD_PIP_W * ui);
+    int pipGap = (int)(HUD_PIP_GAP * ui);
 
-    // Dash charges
+    int barY = sh - (int)(HUD_CD_BOTTOM_Y * ui);
+    int labelY = barY - (int)(HUD_CD_LABEL_GAP * ui) - cdFont;
+
+    // Compute total width for centering
+    int shtgnW = SHOTGUN_BLASTS * pipW
+        + (SHOTGUN_BLASTS - 1) * pipGap;
+    int nBarSlots = 12;
+#if 0 // dash pips — replaced by diegetic orbs
+    int dashW = p->dash.maxCharges * pipW
+        + (p->dash.maxCharges - 1) * pipGap;
+    int totalW = dashW + shtgnW + nBarSlots * cdBarW
+        + (nBarSlots + 1) * colGap;
+#else
+    int totalW = shtgnW + nBarSlots * cdBarW
+        + nBarSlots * colGap;
+#endif
+    int cdX = sw / 2 - totalW / 2;
+
+#if 0 // dash pips — replaced by diegetic orbs
     {
-        int pipW = (int)(HUD_PIP_W * ui);
-        int pipGap = (int)(HUD_PIP_GAP * ui);
         bool recharging = p->dash.charges < p->dash.maxCharges;
         float rechargeRatio = recharging
-            ? 1.0f - (p->dash.rechargeTimer / p->dash.rechargeTime) : 0;
-        int labelX = cdX + p->dash.maxCharges * (pipW + pipGap) + (int)(2 * ui);
-        DrawPipBar(cdX, cdY, pipW, cdBarH, pipGap,
+            ? 1.0f - (p->dash.rechargeTimer / p->dash.rechargeTime)
+            : 0;
+        DrawPipBar(cdX, barY, pipW, cdBarH, pipGap,
             p->dash.maxCharges, p->dash.charges,
             recharging, rechargeRatio,
-            SKYBLUE, "DASH", labelX, cdFontSize);
+            SKYBLUE, "DASH", labelY, cdFont);
+        cdX += dashW + colGap;
     }
+#endif
 
-    // Shotgun blasts (pip display like dash)
-    cdY += (int)(HUD_ROW_SPACING * ui);
+    // R — BFG (charge bar)
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        p->bfg.active ? 0 : p->bfg.charge / BFG_CHARGE_COST,
+        BFG_COLOR, SlotLabel(p, ABL_BFG), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // Q — Shotgun (pip bar)
     {
-        int pipW = (int)(HUD_PIP_W * ui);
-        int pipGap = (int)(HUD_PIP_GAP * ui);
         bool recharging = p->shotgun.blastsLeft == 0
             && p->shotgun.cooldownTimer > 0;
         float rechargeRatio = recharging
-            ? 1.0f - (p->shotgun.cooldownTimer / SHOTGUN_COOLDOWN) : 0;
-        int labelX = cdX + SHOTGUN_BLASTS * (pipW + pipGap) + (int)(2 * ui);
-        DrawPipBar(cdX, cdY, pipW, cdBarH, pipGap,
+            ? 1.0f - (p->shotgun.cooldownTimer / SHOTGUN_COOLDOWN)
+            : 0;
+        DrawPipBar(cdX, barY, pipW, cdBarH, pipGap,
             SHOTGUN_BLASTS, p->shotgun.blastsLeft,
             recharging, rechargeRatio,
-            ORANGE, "SHTGN", labelX, cdFontSize);
+            ORANGE, SlotLabel(p, ABL_SHOTGUN), labelY, cdFont);
+        cdX += shtgnW + colGap;
     }
 
-
-    // rockets
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-        1.0f - p->rocket.cooldownTimer / p->rocket.cooldown,
-        RED, "ROCKET", cdLabelX, cdFontSize);
-
-    // Railgun cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+    // E — Railgun
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->railgun.cooldownTimer / RAILGUN_COOLDOWN,
-        RAILGUN_COLOR, "RAIL", cdLabelX, cdFontSize);
+        RAILGUN_COLOR, SlotLabel(p, ABL_RAILGUN), labelY, cdFont);
+    cdX += cdBarW + colGap;
 
-    // Sniper cooldown (when sniper is equipped)
-    if (p->primary == WPN_SNIPER || p->secondary == WPN_SNIPER) {
-        cdY += (int)(HUD_ROW_SPACING * ui);
-        const char *snLabel;
-        Color snColor;
-        float snCooldown;
-        if (p->sniper.superShotReady) {
-            snLabel = "SUPER"; snColor = GOLD; snCooldown = SNIPER_AIM_COOLDOWN;
-        } else if (p->sniper.aiming) {
-            snLabel = "AIM"; snColor = WHITE; snCooldown = SNIPER_AIM_COOLDOWN;
-        } else {
-            snLabel = "HIP"; snColor = SNIPER_COLOR; snCooldown = SNIPER_HIP_COOLDOWN;
-        }
-        float snRatio = 1.0f - p->sniper.cooldownTimer / snCooldown;
-        if (snRatio > 1.0f) snRatio = 1.0f;
-        DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-            snRatio, snColor, snLabel, cdLabelX, cdFontSize);
-    }
+    // Shift — Spin
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        1.0f - p->spin.cooldownTimer / SPIN_COOLDOWN,
+        YELLOW, SlotLabel(p, ABL_SPIN), labelY, cdFont);
+    cdX += cdBarW + colGap;
 
-    // Grenade cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-        1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
-        GRENADE_COLOR, "GREN", cdLabelX, cdFontSize);
-
-    // BFG cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
+    // F — Parry
     {
-        Color bfgColor = BFG_COLOR;
-        float chargeRatio = p->bfg.charge / BFG_CHARGE_COST;
-        if (chargeRatio < 1.0f || p->bfg.active) {
-            DrawRectangle(cdX, cdY, (int)(cdBarW * chargeRatio), cdBarH, bfgColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("BFG", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, bfgColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("BFG", cdLabelX, cdY, cdFontSize, bfgColor);
-        }
-    }
-
-    // Shield HP bar
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color shColor = (Color)SHIELD_COLOR;
-        float hpRatio = p->shield.hp / p->shield.maxHp;
-        bool broken = p->shield.regenTimer < 0;
-        if (broken) {
-            // Show broken cooldown
-            float cd = -p->shield.regenTimer / SHIELD_BROKEN_COOLDOWN;
-            DrawRectangle(cdX, cdY,
-                (int)(cdBarW * (1.0f - cd)), cdBarH,
-                Fade(RED, 0.6f));
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("SHLD", cdLabelX, cdY, cdFontSize, RED);
-        } else if (hpRatio < 1.0f) {
-            DrawRectangle(cdX, cdY,
-                (int)(cdBarW * hpRatio), cdBarH, shColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("SHLD", cdLabelX, cdY, cdFontSize, GRAY);
-        } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, shColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("SHLD", cdLabelX, cdY, cdFontSize, shColor);
-        }
-    }
-
-    // Slam cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-        1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
-        SLAM_COLOR, "SLAM", cdLabelX, cdFontSize);
-
-    // Parry cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    {
-        Color paColor = PARRY_COLOR;
+        float ratio; Color color;
         if (p->parry.active) {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("PARRY", cdLabelX, cdY, cdFontSize, WHITE);
+            ratio = 1.0f; color = WHITE;
         } else if (p->parry.cooldownTimer > 0) {
             float maxCd = p->parry.succeeded
                 ? PARRY_SUCCESS_COOLDOWN : PARRY_COOLDOWN;
-            float ratio = 1.0f - (p->parry.cooldownTimer / maxCd);
-            DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, paColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, GRAY);
-            DrawText("PARRY", cdLabelX, cdY, cdFontSize, GRAY);
+            ratio = 1.0f - (p->parry.cooldownTimer / maxCd);
+            color = PARRY_COLOR;
         } else {
-            DrawRectangle(cdX, cdY, cdBarW, cdBarH, paColor);
-            DrawRectangleLines(cdX, cdY, cdBarW, cdBarH, WHITE);
-            DrawText("PARRY", cdLabelX, cdY, cdFontSize, paColor);
+            ratio = 1.0f; color = PARRY_COLOR;
         }
+        DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+            ratio, color, SlotLabel(p, ABL_PARRY), labelY, cdFont);
+        cdX += cdBarW + colGap;
     }
 
-    // Turret cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-        1.0f - p->turretCooldown / TURRET_COOLDOWN,
-        TURRET_COLOR, "TURRT", cdLabelX, cdFontSize);
-
-    // Mine cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
-        1.0f - p->mineCooldown / MINE_COOLDOWN,
-        MINE_COLOR, "MINE", cdLabelX, cdFontSize);
-
-    // Heal cooldown
-    cdY += (int)(HUD_ROW_SPACING * ui);
-    DrawCooldownBar(cdX, cdY, cdBarW, cdBarH,
+    // Z — Heal
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->healCooldown / HEAL_COOLDOWN,
-        HEAL_COLOR, "HEAL", cdLabelX, cdFontSize);
+        HEAL_COLOR, SlotLabel(p, ABL_HEAL), labelY, cdFont);
+    cdX += cdBarW + colGap;
 
-    // Fuel bar
-    cdY += (int)(HUD_ROW_SPACING * ui);
+    // X — Shield
     {
-        Color fiColor = FLAME_COLOR;
-        float ratio = p->flame.fuel / FLAME_FUEL_MAX;
-        DrawRectangle(cdX, cdY, (int)(cdBarW * ratio), cdBarH, fiColor);
-        DrawRectangleLines(cdX, cdY, cdBarW, cdBarH,
-            p->flame.active ? WHITE : GRAY);
-        DrawText("FUEL", cdLabelX, cdY, cdFontSize,
-            (p->flame.fuel > 0) ? fiColor : RED);
+        float ratio; Color color;
+        if (p->shield.regenTimer < 0) {
+            ratio = 1.0f + p->shield.regenTimer / SHIELD_BROKEN_COOLDOWN;
+            color = RED;
+        } else {
+            ratio = p->shield.hp / p->shield.maxHp;
+            color = (Color)SHIELD_COLOR;
+        }
+        DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+            ratio, color, SlotLabel(p, ABL_SHIELD), labelY, cdFont);
+        cdX += cdBarW + colGap;
     }
+
+    // C — Grenade
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
+        GRENADE_COLOR, SlotLabel(p, ABL_GRENADE), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // V — Fuel
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        p->flame.fuel / FLAME_FUEL_MAX,
+        FLAME_COLOR, SlotLabel(p, ABL_FIRE), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // 1 — Slam
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
+        SLAM_COLOR, SlotLabel(p, ABL_SLAM), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // 2 — Blink
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        p->blink.cooldown > 0
+            ? 1.0f - p->blink.cooldown / BLINK_COOLDOWN : 1.0f,
+        BLINK_COLOR, SlotLabel(p, ABL_BLINK), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // 3 — Turret
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        1.0f - p->turretCooldown / TURRET_COOLDOWN,
+        TURRET_COLOR, SlotLabel(p, ABL_TURRET), labelY, cdFont);
+    cdX += cdBarW + colGap;
+
+    // 4 — Mine
+    DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
+        1.0f - p->mineCooldown / MINE_COOLDOWN,
+        MINE_COLOR, SlotLabel(p, ABL_MINE), labelY, cdFont);
+    cdX += cdBarW + colGap;
 }
 
 static void DrawArcCursor(Vector2 center, float angleDeg, float innerR,
@@ -1813,6 +1852,16 @@ static void DrawWeaponStatus(Player *p, float ui)
 static void DrawPauseMenu(int sw, int sh, float ui)
 {
     DrawRectangle(0, 0, sw, sh, Fade(BLACK, 0.5f));
+
+    // Game title at top center
+    {
+        int gtFont = (int)(HUD_TITLE_FONT * ui);
+        const char *gt = "Untitled Mecha Game - Version 0.0.1";
+        int gtW = MeasureText(gt, gtFont);
+        DrawText(gt, sw / 2 - gtW / 2, (int)(HUD_MARGIN * ui),
+            gtFont, Fade(WHITE, 0.8f));
+    }
+
     int pauseFont = (int)(HUD_PAUSE_FONT * ui);
     const char *pauseText = "PAUSED";
     int pW = MeasureText(pauseText, pauseFont);
@@ -1839,14 +1888,15 @@ static void DrawPauseMenu(int sw, int sh, float ui)
     int pkTabW = (int)(62 * ui);
 
     // Left column: core controls
+    const char *fsDesc = IsWindowFullscreen() ? "FS: ON" : "FS: OFF";
     const char *lKeys[] = {
-        "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "0"
+        "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "F", "0"
     };
     const char *lDescs[] = {
         "Move", "Dash", "Primary", "Alt Fire",
-        "Swap", "Pause", "Exit"
+        "Swap", "Pause", fsDesc, "Exit"
     };
-    int lCount = 7;
+    int lCount = 8;
 
     int totalW = (int)(420 * ui);
     int colW = totalW / 3;
@@ -1879,12 +1929,6 @@ static void DrawPauseMenu(int sw, int sh, float ui)
             colX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
     }
 
-    // Fullscreen toggle
-    int maxRows = lCount > half ? lCount : half;
-    int fsY = pkY + (maxRows + 1) * pkSpacing;
-    const char *fsLabel = IsWindowFullscreen() ? "[F] Fullscreen: ON" : "[F] Fullscreen: OFF";
-    int fsW = MeasureText(fsLabel, pkFont);
-    DrawText(fsLabel, sw / 2 - fsW / 2, fsY, pkFont, Fade(WHITE, 0.6f));
 }
 
 // Draw - Game Over ------------------------------------------------------- /
@@ -1960,7 +2004,7 @@ static void DrawHUD(void)
     {
         int wFont = (int)(HUD_CD_FONT * ui);
         int wX = (int)(HUD_MARGIN * ui);
-        int wY = (int)(HUD_CD_Y * ui) - (int)(20 * ui);
+        int wY = (int)(HUD_SWAP_Y * ui);
         const char *pri = WeaponName(p->primary);
         const char *sec = WeaponName(p->secondary);
         DrawText(pri, wX, wY, wFont, SELECT_HIGHLIGHT_COLOR);
@@ -2004,13 +2048,6 @@ static void DrawHUD(void)
         (Vector2){ mouse.x, mouse.y + chGap },
         chThick, chColor);
 
-    // bottom right, game title text
-    int titleFont = (int)(HUD_TITLE_FONT * ui);
-    DrawText("Untitled Mecha Game - Version 0.0.1",
-             sw - (int)(HUD_TITLE_X * ui),
-             sh - (int)(HUD_BOTTOM_Y * ui),
-             titleFont,
-             Fade(WHITE, 0.8f));
 
     if (g.paused && !g.gameOver) DrawPauseMenu(sw, sh, ui);
 

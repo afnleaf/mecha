@@ -107,8 +107,7 @@ asset loader
 - [x] mouse visible on top of crosshair on native (fixed)
 - [x] move reload and overheat bars somehwere more visible than the left side
 - [x] cleanup controls hud menu to be properly visible and programmatic
-- [] hud fix level placement
-- [] hud new style
+- [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
 
 ### refactorin time
 - [x] ok let's do a header file and remake the build
@@ -189,12 +188,13 @@ explosives as primary? is that possible? (yes)
 - [x] parry (longer?) kinda works like deadlock melee parry
 - [] summons (npcs who take aggro for you) 
     - [x] turret needs to be targetable by enemies and healable by your field
-    - [] drone, damage drone and heal drone?
+    - [] damage drone
+    - [] heal drone
 - [x] root mines when exploded aoe web effect 
 - [x] ground slam (what should this do?) less damage more stun, like reinhardt mini slam
 - [x] fire (more like a flamethrower that you can spread infront on the ground)
 - [x] heal field? (current is fine)
-- [] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
+- [x] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
 - [] dva matrix
 
 ### players
@@ -267,6 +267,22 @@ levels
 - [] rounds/rooms
 - [] pick new item between rounds]
 
+## HUD
+- [x] hud fix level placement
+- [x] redesign hud simple
+- [x] diagetic dash cd
+- [] more diagetic effects for weapons/abilities
+
+were going to make the dash cooldown diagetic, it will be 3 orbs moving, rotating, counter-clockwise around the player, they represent the dash cooldown via their color, and alpha. going from gray to the same blue color currently used by the dash HUD.
+
+keep hp bar and score, kills, level revolve/gun where they are, move the game title to only be visible in the top middle in weapon select menu and pause screen. cooldowns go to the bottom we have a full bottom bar free with the title moved. save bottom corners for minimap on either left or right.
+
+I find that when you play this game you stare at your cross hair, which moves around a lot left and right. You're looking for the enemy. And also looking around where your character is moving. In an FPS or 3rd person action game your crosshair is part of the movement. 
+
+Looking at the HUD in this game is not natural is what I am trying to say.
+
+Even the quick time events on your character are hard to time. You often miss out on knowing when your last revolver shot is to prime yourself for the event. This is a problem to solve, I think it can be done diagetically.
+
 ## Research
 - [x] read many parts of raylib.h
 - [x] study vector 2 implementation (raymath.h)
@@ -300,7 +316,9 @@ Row major vs Column major math? Why is it cache friendly?
 
 What are the implications of input parameters received by value only? 
 
-## Damage/Delivery System
+## Damage/Delivery System / Interaction Design
+The game is clearly borrowing from the moba genre, where there are tons of different damage types.
+
 The core question to figuring out the weapons is designing some kind of damage calculating system. what types of damage are there, gun, explosive, pierce melee, ability (ap), true/pure damage what does it scale with (deadlock style). Is there bullet/spirit resist on enemies, do you want to build shred. 
 
 Types of damage: Explosive, Balistic, Hitscan, Melee(Pierce/Blunt/Sharp), Ability, Pure
@@ -331,9 +349,6 @@ idea: a docker image for dev environment (0QUAY)
 rooms = zones = objectives, a level to challenge your mechanics against
 
 like a song, the addition of elements to the music, through loops simple combinations of instruments together (enemies) the absence and removal of a sound is just as artful. this can be programmatic. the enemies and music go together. that is techno. phylyps trak - basic channel. that is that music programming language.
-
-## Damage interaction design
-The game is clearly borrowing from the moba genre, where there are tons of different damage types.
 
 ## Custom asset blob encoder/loader
 The point of implementing this is that we can have one asset blob that is packed inside our game binary. 
@@ -366,10 +381,3 @@ Blob
 
 See asset_blob/blobbert.c for details
 
-## HUD
-
-I find that when you play this game you stare at your cross hair, which moves around a lot left and right. You're looking for the enemy. And also looking around where your character is moving. In an FPS or 3rd person action game your crosshair is part of the movement. 
-
-Looking at the HUD in this game is not natural is what I am trying to say.
-
-Even the quick time events on your character are hard to time. You often miss out on knowing when your last revolver shot is to prime yourself for the event. This is a problem to solve, I think it can be done diagetically.

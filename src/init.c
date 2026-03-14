@@ -62,18 +62,19 @@ void InitPlayer(void)
     // ability slots — default layout
     // this will get changed eventually
     // needs to be easy to customize
-    p->slots[0]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
-    p->slots[1]  = (AbilitySlot){ ABL_RAILGUN,  KEY_E };
-    p->slots[2]  = (AbilitySlot){ ABL_SPIN,     KEY_LEFT_SHIFT };
-    p->slots[3]  = (AbilitySlot){ ABL_SLAM,     KEY_ONE };
-    p->slots[4]  = (AbilitySlot){ ABL_PARRY,    KEY_TWO };
-    p->slots[5]  = (AbilitySlot){ ABL_TURRET,   KEY_THREE };
-    p->slots[6]  = (AbilitySlot){ ABL_MINE,     KEY_FOUR };
-    p->slots[7]  = (AbilitySlot){ ABL_HEAL,     KEY_Z };
-    p->slots[8]  = (AbilitySlot){ ABL_SHIELD,   KEY_X };
-    p->slots[9]  = (AbilitySlot){ ABL_GRENADE,  KEY_C };
-    p->slots[10] = (AbilitySlot){ ABL_FIRE,     KEY_V };
-    p->slots[11] = (AbilitySlot){ ABL_BFG,      KEY_F };
+    p->slots[0]  = (AbilitySlot){ ABL_BFG,      KEY_R };
+    p->slots[1]  = (AbilitySlot){ ABL_SHOTGUN,  KEY_Q };
+    p->slots[2]  = (AbilitySlot){ ABL_RAILGUN,  KEY_E };
+    p->slots[3]  = (AbilitySlot){ ABL_SPIN,     KEY_LEFT_SHIFT };
+    p->slots[4]  = (AbilitySlot){ ABL_PARRY,    KEY_F };
+    p->slots[5]  = (AbilitySlot){ ABL_HEAL,     KEY_Z };
+    p->slots[6]  = (AbilitySlot){ ABL_SHIELD,   KEY_X };
+    p->slots[7]  = (AbilitySlot){ ABL_GRENADE,  KEY_C };
+    p->slots[8]  = (AbilitySlot){ ABL_FIRE,     KEY_V };
+    p->slots[9]  = (AbilitySlot){ ABL_SLAM,     KEY_ONE };
+    p->slots[10] = (AbilitySlot){ ABL_BLINK,    KEY_TWO };
+    p->slots[11] = (AbilitySlot){ ABL_TURRET,   KEY_THREE };
+    p->slots[12] = (AbilitySlot){ ABL_MINE,     KEY_FOUR };
 
     p->shadowPos            = p->pos;
 }

@@ -49,6 +49,7 @@ typedef enum AbilityID {
     ABL_PARRY,
     ABL_HEAL,
     ABL_FIRE,
+    ABL_BLINK,
     ABL_COUNT,
 } AbilityID;
 
@@ -101,6 +102,7 @@ typedef struct Dash {
     bool decoyActive;
     Vector2 decoyPos;
     float decoyTimer;
+    float orbAngle;     // visual orbit angle, ticks continuously
 } Dash;
 
 typedef struct Spin {
@@ -181,6 +183,14 @@ typedef struct Flamethrower {
     bool  active;        // currently spraying
 } Flamethrower;
 
+typedef struct BlinkDagger {
+    float cooldown;
+    bool  damageActive;
+    float damageTimer;
+    Vector2 slashOrigin;
+    Vector2 slashTip;
+} BlinkDagger;
+
 // deployables -------------------------------------------------------------- /
 typedef enum DeployableType {
     DEPLOY_TURRET,
@@ -248,6 +258,7 @@ typedef struct Player {
     Flamethrower flame;
     GroundSlam slam;
     Parry   parry;
+    BlinkDagger blink;
     float turretCooldown;
     float mineCooldown;
     float healCooldown;
@@ -384,6 +395,7 @@ typedef struct Enemy {
     u8 attackPhase;     // boss attack cycle counter
     float chargeTimer;  // boss charge duration remaining
     Vector2 chargeDir;  // committed charge direction
+    float blinkMark;    // blink dagger slash mark timer
 } Enemy;
 
 // shoot function pointer — NULL means no shooting AI

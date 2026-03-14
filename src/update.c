@@ -3,6 +3,12 @@
 // handle input
 #include "game.h"
 
+// M1/M2 wrappers — mouse buttons OR keyboard equivalents
+static inline bool M1Down(void)    { return IsMouseButtonDown(MOUSE_BUTTON_LEFT)    || IsKeyDown(KB_M1_KEY); }
+static inline bool M1Pressed(void) { return IsMouseButtonPressed(MOUSE_BUTTON_LEFT)  || IsKeyPressed(KB_M1_KEY); }
+static inline bool M2Down(void)    { return IsMouseButtonDown(MOUSE_BUTTON_RIGHT)    || IsKeyDown(KB_M2_KEY); }
+static inline bool M2Pressed(void) { return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KB_M2_KEY); }
+
 // forward declarations for functions used before defined
 static void RocketExplode(Vector2 pos);
 static void SpawnDeployable(DeployableType type, Vector2 pos);
@@ -109,8 +115,46 @@ static void UpdateRailgun(Player *p, Vector2 toMouse, float dt)
 }
 
 //
+static Vector2 lastKbAim = { 1, 0 };
+static bool kbAimActive = false;
+static float aimGrace[4] = { 0 }; // right, left, down, up
+
 static Vector2 UpdateMouseAim() {
     Player *p = &g.player;
+    float dt = GetFrameTime();
+    // Keyboard aim with grace period for diagonals
+    bool held[4] = {
+        IsKeyDown(KEY_RIGHT) || IsKeyDown(AIM_RIGHT_KEY),
+        IsKeyDown(KEY_LEFT)  || IsKeyDown(AIM_LEFT_KEY),
+        IsKeyDown(KEY_DOWN)  || IsKeyDown(AIM_DOWN_KEY),
+        IsKeyDown(KEY_UP)    || IsKeyDown(AIM_UP_KEY),
+    };
+    for (int i = 0; i < 4; i++) {
+        if (held[i]) aimGrace[i] = AIM_KEY_GRACE;
+        else         aimGrace[i] -= dt;
+    }
+    bool anyHeld = held[0] || held[1] || held[2] || held[3];
+    Vector2 arrowDir = { 0, 0 };
+    if (anyHeld) {
+        if (held[0] || aimGrace[0] > 0) arrowDir.x += 1;
+        if (held[1] || aimGrace[1] > 0) arrowDir.x -= 1;
+        if (held[2] || aimGrace[2] > 0) arrowDir.y += 1;
+        if (held[3] || aimGrace[3] > 0) arrowDir.y -= 1;
+    }
+    float arrowLen = Vector2Length(arrowDir);
+    if (arrowLen > 0) {
+        arrowDir = Vector2Scale(arrowDir, 1.0f / arrowLen);
+        lastKbAim = arrowDir;
+        kbAimActive = true;
+    }
+    // Mouse movement disengages keyboard aim
+    Vector2 mouseDelta = GetMouseDelta();
+    if (mouseDelta.x != 0 || mouseDelta.y != 0) kbAimActive = false;
+    if (kbAimActive) {
+        Vector2 toAim = Vector2Scale(lastKbAim, ARROW_AIM_DIST);
+        p->angle = atan2f(toAim.y, toAim.x);
+        return toAim;
+    }
     Vector2 screenMouse = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
     Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
@@ -238,7 +282,7 @@ static void UpdateSelect(void)
 
     // M1 or Enter selects weapon
     if (g.selectIndex >= 0 && g.transitionTimer <= 0 &&
-        (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_ENTER))) {
+        (M1Pressed() || IsKeyPressed(KEY_ENTER))) {
         if (g.selectPhase == 0) {
             p->primary = SELECT_WEAPONS[g.selectIndex];
             g.selectPhase = 1;
@@ -422,6 +466,8 @@ static void UpdateMovement(Player *p, Vector2 moveDir, float moveLen, float dt)
 
 static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt)
 {
+    p->dash.orbAngle += DASH_ORB_SPEED * dt;
+
     // --- Dash (charge system) ---
     if (p->dash.charges < p->dash.maxCharges) {
         p->dash.rechargeTimer -= dt;
@@ -507,7 +553,7 @@ static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt)
             DASH_TRAIL_SIZE, DASH_TRAIL_LIFETIME);
 
         // Sniper: track M2 pressed (not held) during dash
-        if (p->primary == WPN_SNIPER && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+        if (p->primary == WPN_SNIPER && M2Pressed())
             p->sniper.adsDuringDash = true;
 
         if (p->dash.timer <= 0) {
@@ -576,7 +622,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
                 if (p->gun.ventCursor >= 1.0f) {
                     p->gun.ventResult = -1; // missed — no press
                 }
-                bool m1Pressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+                bool m1Pressed = M1Pressed();
                 bool dashPressed = IsKeyPressed(KEY_SPACE);
                 if (m1Pressed || dashPressed) {
                     float c = p->gun.ventCursor;
@@ -628,7 +674,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
 
         // --- M2: Minigun mode — spin-up + high volume fire, slows movement ---
         p->minigun.cooldown -= dt;
-        if (!p->gun.overheated && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        if (!p->gun.overheated && M2Down()) {
             p->minigun.slowTimer = MINIGUN_SLOW_LINGER;
             p->minigun.spinUp += dt / MINIGUN_SPIN_UP_TIME;
             if (p->minigun.spinUp > 1.0f) p->minigun.spinUp = 1.0f;
@@ -665,7 +711,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             if (p->minigun.spinUp < 0) p->minigun.spinUp = 0;
 
             // M1: Normal machine gun (only when not spinning minigun)
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)
+            if (M1Down()
                 && p->gun.cooldown <= 0
                 && p->sword.timer <= 0
             ) {
@@ -717,7 +763,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
     } break;
 #if 0 // laser primary — preserved for future use
     case WPN_LASER:
-        p->laser.active = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        p->laser.active = M1Down();
         if (p->laser.active) {
             Vector2 aimDir = Vector2Normalize(toMouse);
             Vector2 muzzle = Vector2Add(p->pos,
@@ -737,10 +783,10 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             p->sniper.cooldownTimer -= dt;
 
         // ADS state from M2
-        p->sniper.aiming = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+        p->sniper.aiming = M2Down();
 
         // M1 fires — behavior depends on aiming state
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && p->sniper.cooldownTimer <= 0) {
+        if (M1Pressed() && p->sniper.cooldownTimer <= 0) {
             Vector2 aimDir = Vector2Normalize(toMouse);
             int spreadVal;
             float speed, cooldown;
@@ -791,7 +837,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
     }
     case WPN_SWORD:
         // M1: Sweep
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
+        if (M1Pressed()
             && p->sword.timer <= 0
             && p->spin.timer <= 0
         ) {
@@ -805,7 +851,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             SpawnSwordSparks(p->pos, p->sword.angle, p->sword.arc, p->sword.radius);
         }
         // M2: Lunge
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)
+        if (M2Pressed()
             && p->sword.timer <= 0
             && p->spin.timer <= 0
         ) {
@@ -835,7 +881,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
         if (p->revolver.reloadTimer > 0) {
             float progress = 1.0f - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
             // Active reload: M1 or Space during reload
-            bool reloadInput = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_SPACE);
+            bool reloadInput = M1Pressed() || IsKeyPressed(KEY_SPACE);
             if (reloadInput && !p->revolver.reloadLocked) {
                 bool inSweet = progress >= REVOLVER_RELOAD_SWEET_START
                     && progress <= REVOLVER_RELOAD_SWEET_END;
@@ -885,7 +931,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             break;
         }
         // M1 precise shot — fires as fast as you click
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
+        if (M1Pressed()
             && p->revolver.rounds > 0
         ) {
             int dmg = REVOLVER_DAMAGE;
@@ -908,7 +954,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             p->revolver.rounds--;
         }
         // M2 press starts fanning
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)
+        if (M2Pressed()
             && p->revolver.rounds > 0
         ) {
             p->revolver.fanning = true;
@@ -923,14 +969,14 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
         break;
     case WPN_ROCKET:
         // M1: Rocket (one at a time)
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)
+        if (M1Pressed()
             && p->rocket.cooldownTimer <= 0
             && !p->rocket.inFlight) {
             SpawnRocket(p, toMouse);
             p->rocket.cooldownTimer = ROCKET_COOLDOWN;
         }
         // M2: Detonate in-flight rocket
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)
+        if (M2Pressed()
             && p->rocket.inFlight) {
             for (int i = 0; i < MAX_PROJECTILES; i++) {
                 Projectile *b = &g.projectiles[i];
@@ -998,6 +1044,74 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             p->sword.hitBits[i >> 3] |= (1 << (i & 7)); // mark as hit
         }
         p->sword.timer -= dt;
+    }
+}
+
+static void UpdateBlinkDagger(Player *p, Vector2 toMouse, float dt)
+{
+    if (p->blink.cooldown > 0) p->blink.cooldown -= dt;
+
+    // Delayed damage tick
+    if (p->blink.damageActive) {
+        p->blink.damageTimer -= dt;
+        if (p->blink.damageTimer <= 0) {
+            p->blink.damageActive = false;
+            for (int i = 0; i < MAX_ENEMIES; i++) {
+                Enemy *e = &g.enemies[i];
+                if (!e->active) continue;
+                if (EnemyHitSweep(e, p->blink.slashOrigin,
+                    p->blink.slashTip, BLINK_BEAM_WIDTH))
+                {
+                    DamageEnemy(i, BLINK_DAMAGE,
+                        DMG_SLASH, HIT_MELEE);
+                }
+            }
+        }
+    }
+
+    if (!IsAbilityPressed(p, ABL_BLINK)) return;
+    if (p->blink.cooldown > 0) return;
+
+    Vector2 dir = Vector2Normalize(toMouse);
+    Vector2 origin = p->pos;
+    Vector2 dest = Vector2Add(origin,
+        Vector2Scale(dir, BLINK_DISTANCE));
+
+    // Clamp to map bounds
+    dest = Vector2Clamp(dest,
+        (Vector2){ p->size, p->size },
+        (Vector2){ MAP_SIZE - p->size, MAP_SIZE - p->size });
+
+    // Teleport
+    p->pos = dest;
+
+    // Always 10s — damage cuts it to 3s via DamagePlayer
+    p->blink.cooldown = BLINK_COOLDOWN;
+
+    // Queue delayed damage + mark enemies in the path
+    p->blink.damageActive = true;
+    p->blink.damageTimer  = BLINK_DAMAGE_DELAY;
+    p->blink.slashOrigin  = origin;
+    p->blink.slashTip     = dest;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        Enemy *e = &g.enemies[i];
+        if (!e->active) continue;
+        if (EnemyHitSweep(e, origin, dest, BLINK_BEAM_WIDTH))
+            e->blinkMark = BLINK_DAMAGE_DELAY;
+    }
+
+    // Spawn 3 beam trails (center + 2 offset)
+    Vector2 perp = { -dir.y, dir.x };
+    for (int i = -1; i <= 1; i++) {
+        Vector2 off = Vector2Scale(perp,
+            (float)i * BLINK_BEAM_OFFSET);
+        SpawnBeam(
+            Vector2Add(origin, off),
+            Vector2Add(dest, off),
+            BLINK_BEAM_DURATION,
+            BLINK_COLOR,
+            BLINK_BEAM_WIDTH
+        );
     }
 }
 
@@ -1287,6 +1401,9 @@ static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
                 p->flame.fuel = FLAME_FUEL_MAX;
         }
     }
+
+    // --- Blink Dagger (2) ---
+    UpdateBlinkDagger(p, toMouse, dt);
 }
 
 static void UpdatePlayer(float dt)
@@ -1437,6 +1554,7 @@ static void UpdateEnemies(float dt) {
 
         // Hit flash decay
         if (e->hitFlash > 0) e->hitFlash -= dt;
+        if (e->blinkMark > 0) e->blinkMark -= dt;
 
         // Collide with player
         bool contact = EnemyHitCircle(e, p->pos, p->size);
