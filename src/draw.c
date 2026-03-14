@@ -1014,33 +1014,22 @@ static void DrawPlayer(void)
         if (p->shield.active && p->shield.hp > 0) {
             float shieldAlpha = p->shield.hp / p->shield.maxHp;
             float startAngle = p->shield.angle - SHIELD_ARC / 2.0f;
+            float innerR = SHIELD_RADIUS * 0.85f;
             for (int si = 0; si < SHIELD_SEGMENTS; si++) {
-                float t0 = (float)si / SHIELD_SEGMENTS;
-                float t1 = (float)(si + 1) / SHIELD_SEGMENTS;
-                float a0 = startAngle + SHIELD_ARC * t0;
-                float a1 = startAngle + SHIELD_ARC * t1;
-                Vector2 p0 = Vector2Add(p->pos,
-                    (Vector2){ cosf(a0) * SHIELD_RADIUS,
-                               sinf(a0) * SHIELD_RADIUS });
-                Vector2 p1 = Vector2Add(p->pos,
-                    (Vector2){ cosf(a1) * SHIELD_RADIUS,
-                               sinf(a1) * SHIELD_RADIUS });
-                DrawLineEx(p0, p1, 3.0f,
-                    Fade((Color)SHIELD_COLOR, shieldAlpha));
-            }
-            // Inner glow arc
-            for (int si = 0; si < SHIELD_SEGMENTS; si++) {
-                float t0 = (float)si / SHIELD_SEGMENTS;
-                float t1 = (float)(si + 1) / SHIELD_SEGMENTS;
-                float a0 = startAngle + SHIELD_ARC * t0;
-                float a1 = startAngle + SHIELD_ARC * t1;
-                float innerR = SHIELD_RADIUS * 0.85f;
-                Vector2 p0 = Vector2Add(p->pos,
-                    (Vector2){ cosf(a0) * innerR, sinf(a0) * innerR });
-                Vector2 p1 = Vector2Add(p->pos,
-                    (Vector2){ cosf(a1) * innerR, sinf(a1) * innerR });
-                DrawLineEx(p0, p1, 1.5f,
-                    Fade((Color)SHIELD_COLOR, shieldAlpha * 0.3f));
+                float a0 = startAngle + SHIELD_ARC * (float)si / SHIELD_SEGMENTS;
+                float a1 = startAngle + SHIELD_ARC * (float)(si + 1) / SHIELD_SEGMENTS;
+                float c0 = cosf(a0), s0 = sinf(a0);
+                float c1 = cosf(a1), s1 = sinf(a1);
+                // Outer arc
+                DrawLineEx(
+                    (Vector2){ p->pos.x + c0 * SHIELD_RADIUS, p->pos.y + s0 * SHIELD_RADIUS },
+                    (Vector2){ p->pos.x + c1 * SHIELD_RADIUS, p->pos.y + s1 * SHIELD_RADIUS },
+                    3.0f, Fade((Color)SHIELD_COLOR, shieldAlpha));
+                // Inner glow arc
+                DrawLineEx(
+                    (Vector2){ p->pos.x + c0 * innerR, p->pos.y + s0 * innerR },
+                    (Vector2){ p->pos.x + c1 * innerR, p->pos.y + s1 * innerR },
+                    1.5f, Fade((Color)SHIELD_COLOR, shieldAlpha * 0.3f));
             }
         }
 
@@ -1194,44 +1183,26 @@ static void DrawPlayer(void)
         float trailLength = SPIN_TRAIL_LENGTH;
         float actualTrail = fminf(trailLength, sweepAngle);
 
-        // Outer trailing arc (YELLOW)
+        // Trailing arcs (outer YELLOW + inner ORANGE)
+        float innerR = p->spin.radius * SPIN_INNER_RADIUS_FRAC;
         for (int i = 0; i < numSegments; i++) {
             float t = (float)(i + 1) / numSegments;
-            float segAlpha = t * t * fadeOut * 0.9f;
-            float thick = 2.0f + t * 5.0f;
-
             float a0 = sweepAngle
                 - actualTrail * (1.0f - (float)i / numSegments);
             float a1 = sweepAngle
                 - actualTrail * (1.0f - (float)(i + 1) / numSegments);
-
-            Vector2 pt0 = Vector2Add(p->pos,
-                (Vector2){ cosf(a0) * p->spin.radius,
-                           sinf(a0) * p->spin.radius });
-            Vector2 pt1 = Vector2Add(p->pos,
-                (Vector2){ cosf(a1) * p->spin.radius,
-                           sinf(a1) * p->spin.radius });
-            DrawLineEx(pt0, pt1, thick, Fade(YELLOW, segAlpha));
-        }
-
-        // Inner trailing arc (ORANGE, smaller radius)
-        for (int i = 0; i < numSegments; i++) {
-            float t = (float)(i + 1) / numSegments;
-            float segAlpha = t * t * fadeOut * 0.4f;
-            float thick = 1.0f + t * 3.0f;
-
-            float a0 = sweepAngle
-                - actualTrail * (1.0f - (float)i / numSegments);
-            float a1 = sweepAngle
-                - actualTrail * (1.0f - (float)(i + 1) / numSegments);
-
-            Vector2 pt0 = Vector2Add(p->pos,
-                (Vector2){ cosf(a0) * p->spin.radius * SPIN_INNER_RADIUS_FRAC,
-                           sinf(a0) * p->spin.radius * SPIN_INNER_RADIUS_FRAC });
-            Vector2 pt1 = Vector2Add(p->pos,
-                (Vector2){ cosf(a1) * p->spin.radius * SPIN_INNER_RADIUS_FRAC,
-                           sinf(a1) * p->spin.radius * SPIN_INNER_RADIUS_FRAC });
-            DrawLineEx(pt0, pt1, thick, Fade(ORANGE, segAlpha));
+            float c0 = cosf(a0), s0 = sinf(a0);
+            float c1 = cosf(a1), s1 = sinf(a1);
+            // Outer arc
+            DrawLineEx(
+                (Vector2){ p->pos.x + c0 * p->spin.radius, p->pos.y + s0 * p->spin.radius },
+                (Vector2){ p->pos.x + c1 * p->spin.radius, p->pos.y + s1 * p->spin.radius },
+                2.0f + t * 5.0f, Fade(YELLOW, t * t * fadeOut * 0.9f));
+            // Inner arc
+            DrawLineEx(
+                (Vector2){ p->pos.x + c0 * innerR, p->pos.y + s0 * innerR },
+                (Vector2){ p->pos.x + c1 * innerR, p->pos.y + s1 * innerR },
+                1.0f + t * 3.0f, Fade(ORANGE, t * t * fadeOut * 0.4f));
         }
 
         // White leading edge line
@@ -1239,6 +1210,16 @@ static void DrawPlayer(void)
             (Vector2){ cosf(sweepAngle) * p->spin.radius,
                        sinf(sweepAngle) * p->spin.radius });
         DrawLineEx(p->pos, sweepEnd, 3.0f, Fade(WHITE, fadeOut));
+    }
+}
+
+static void DrawParticles(void)
+{
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        Particle *pt = &g.vfx.particles[i];
+        if (!pt->active) continue;
+        float alpha = pt->lifetime / pt->maxLifetime;
+        DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
     }
 }
 
@@ -1253,12 +1234,7 @@ static void DrawWorld(void)
         MAP_BORDER_THICKNESS, RED);
 
     // Particles (behind entities)
-    for (int i = 0; i < MAX_PARTICLES; i++) {
-        Particle *pt = &g.vfx.particles[i];
-        if (!pt->active) continue;
-        float alpha = pt->lifetime / pt->maxLifetime;
-        DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
-    }
+    DrawParticles();
 
     DrawDeployables();
     DrawVfxTimers();
@@ -1317,16 +1293,8 @@ static void DrawSelect(void)
         DrawTetra2D, DrawCube2D, DrawOcta2D, DrawDodeca2D, DrawIcosa2D,
     };
 
-    // Pedestal positions (U curve, left to right by face count)
-    Vector2 pedestals[NUM_PRIMARY_WEAPONS];
-    float spacing = SELECT_ARENA_SIZE / 6.0f;
-    for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
-        float norm = (float)(i - 2) / 2.0f;
-        pedestals[i] = (Vector2){
-            spacing * (float)(i + 1),
-            SELECT_PEDESTAL_Y + SELECT_PEDESTAL_CURVE * (1.0f - norm * norm)
-        };
-    }
+    // Pedestal positions (computed in UpdateSelect)
+    Vector2 *pedestals = g.selectPedestals;
 
     BeginDrawing();
     ClearBackground(SELECT_BG_COLOR);
@@ -1346,12 +1314,7 @@ static void DrawSelect(void)
         MAP_BORDER_THICKNESS, Fade(SELECT_HIGHLIGHT_COLOR, 0.3f));
 
     // Particles (behind everything)
-    for (int i = 0; i < MAX_PARTICLES; i++) {
-        Particle *pt = &g.vfx.particles[i];
-        if (!pt->active) continue;
-        float alpha = pt->lifetime / pt->maxLifetime;
-        DrawCircleV(pt->pos, pt->size * alpha, Fade(pt->color, alpha));
-    }
+    DrawParticles();
 
     // Projectiles
     DrawProjectiles();
@@ -1476,6 +1439,26 @@ static void DrawCooldownBar(int x, int y, int w, int h,
     }
 }
 
+static void DrawPipBar(int x, int y, int pipW, int pipH, int pipGap,
+    int maxPips, int filledPips, bool recharging, float rechargeRatio,
+    Color color, const char *label, int labelX, int fontSize)
+{
+    for (int i = 0; i < maxPips; i++) {
+        int pipX = x + i * (pipW + pipGap);
+        if (i < filledPips) {
+            DrawRectangle(pipX, y, pipW, pipH, color);
+            DrawRectangleLines(pipX, y, pipW, pipH, WHITE);
+        } else if (i == filledPips && recharging) {
+            DrawRectangle(pipX, y, (int)(pipW * rechargeRatio), pipH,
+                Fade(color, 0.4f));
+            DrawRectangleLines(pipX, y, pipW, pipH, GRAY);
+        } else {
+            DrawRectangleLines(pipX, y, pipW, pipH, GRAY);
+        }
+    }
+    DrawText(label, labelX, y, fontSize, filledPips > 0 ? color : GRAY);
+}
+
 // Draw - Cooldown Column ------------------------------------------------- /
 static void DrawCooldownColumn(Player *p, float ui)
 {
@@ -1490,26 +1473,14 @@ static void DrawCooldownColumn(Player *p, float ui)
     {
         int pipW = (int)(HUD_PIP_W * ui);
         int pipGap = (int)(HUD_PIP_GAP * ui);
-        for (int i = 0; i < p->dash.maxCharges; i++) {
-            int pipX = cdX + i * (pipW + pipGap);
-            if (i < p->dash.charges) {
-                DrawRectangle(pipX, cdY, pipW, cdBarH, SKYBLUE);
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
-            } else if (i == p->dash.charges
-                && p->dash.charges < p->dash.maxCharges) {
-                float ratio = 1.0f
-                    - (p->dash.rechargeTimer / p->dash.rechargeTime);
-                DrawRectangle(pipX, cdY, (int)(pipW * ratio), cdBarH,
-                    Fade(SKYBLUE, 0.4f));
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
-            } else {
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
-            }
-        }
-        int labelX = cdX
-            + p->dash.maxCharges * (pipW + pipGap) + (int)(2 * ui);
-        DrawText("DASH", labelX, cdY, cdFontSize,
-            p->dash.charges > 0 ? SKYBLUE : GRAY);
+        bool recharging = p->dash.charges < p->dash.maxCharges;
+        float rechargeRatio = recharging
+            ? 1.0f - (p->dash.rechargeTimer / p->dash.rechargeTime) : 0;
+        int labelX = cdX + p->dash.maxCharges * (pipW + pipGap) + (int)(2 * ui);
+        DrawPipBar(cdX, cdY, pipW, cdBarH, pipGap,
+            p->dash.maxCharges, p->dash.charges,
+            recharging, rechargeRatio,
+            SKYBLUE, "DASH", labelX, cdFontSize);
     }
 
     // Shotgun blasts (pip display like dash)
@@ -1517,26 +1488,15 @@ static void DrawCooldownColumn(Player *p, float ui)
     {
         int pipW = (int)(HUD_PIP_W * ui);
         int pipGap = (int)(HUD_PIP_GAP * ui);
-        for (int i = 0; i < SHOTGUN_BLASTS; i++) {
-            int pipX = cdX + i * (pipW + pipGap);
-            if (i < p->shotgun.blastsLeft) {
-                DrawRectangle(pipX, cdY, pipW, cdBarH, ORANGE);
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, WHITE);
-            } else if (p->shotgun.blastsLeft == 0
-                && p->shotgun.cooldownTimer > 0) {
-                float ratio = 1.0f
-                    - (p->shotgun.cooldownTimer / SHOTGUN_COOLDOWN);
-                DrawRectangle(pipX, cdY, (int)(pipW * ratio), cdBarH,
-                    Fade(ORANGE, 0.4f));
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
-            } else {
-                DrawRectangleLines(pipX, cdY, pipW, cdBarH, GRAY);
-            }
-        }
-        int labelX = cdX
-            + SHOTGUN_BLASTS * (pipW + pipGap) + (int)(2 * ui);
-        DrawText("SHTGN", labelX, cdY, cdFontSize,
-            p->shotgun.blastsLeft > 0 ? ORANGE : GRAY);
+        bool recharging = p->shotgun.blastsLeft == 0
+            && p->shotgun.cooldownTimer > 0;
+        float rechargeRatio = recharging
+            ? 1.0f - (p->shotgun.cooldownTimer / SHOTGUN_COOLDOWN) : 0;
+        int labelX = cdX + SHOTGUN_BLASTS * (pipW + pipGap) + (int)(2 * ui);
+        DrawPipBar(cdX, cdY, pipW, cdBarH, pipGap,
+            SHOTGUN_BLASTS, p->shotgun.blastsLeft,
+            recharging, rechargeRatio,
+            ORANGE, "SHTGN", labelX, cdFontSize);
     }
 
 
@@ -1678,6 +1638,17 @@ static void DrawCooldownColumn(Player *p, float ui)
     }
 }
 
+static void DrawArcCursor(Vector2 center, float angleDeg, float innerR,
+    float outerR, float pad, float ui)
+{
+    float curRad = angleDeg * DEG2RAD;
+    Vector2 c1 = { center.x + (innerR - pad) * cosf(curRad),
+                   center.y + (innerR - pad) * sinf(curRad) };
+    Vector2 c2 = { center.x + (outerR + pad) * cosf(curRad),
+                   center.y + (outerR + pad) * sinf(curRad) };
+    DrawLineEx(c1, c2, 2.0f * ui, WHITE);
+}
+
 // Draw - Weapon Status --------------------------------------------------- /
 static void DrawWeaponStatus(Player *p, float ui)
 {
@@ -1761,18 +1732,7 @@ static void DrawWeaponStatus(Player *p, float ui)
                 Fade(SKYBLUE, 0.3f));
 
             // Cursor line
-            float curRad = progressA * DEG2RAD;
-            Vector2 c1 = {
-                pScreen.x + (arcInner - arcCurPad)
-                    * cosf(curRad),
-                pScreen.y + (arcInner - arcCurPad)
-                    * sinf(curRad) };
-            Vector2 c2 = {
-                pScreen.x + (arcOuter + arcCurPad)
-                    * cosf(curRad),
-                pScreen.y + (arcOuter + arcCurPad)
-                    * sinf(curRad) };
-            DrawLineEx(c1, c2, 2.0f * ui, WHITE);
+            DrawArcCursor(pScreen, progressA, arcInner, arcOuter, arcCurPad, ui);
 
             // Label
             const char *rlText = "RELOAD";
@@ -1830,18 +1790,7 @@ static void DrawWeaponStatus(Player *p, float ui)
             if (p->gun.ventResult == 0) {
                 float curA = arcEnd
                     - p->gun.ventCursor * arcSpan;
-                float curRad = curA * DEG2RAD;
-                Vector2 c1 = {
-                    pScreen.x + (arcInner - arcCurPad)
-                        * cosf(curRad),
-                    pScreen.y + (arcInner - arcCurPad)
-                        * sinf(curRad) };
-                Vector2 c2 = {
-                    pScreen.x + (arcOuter + arcCurPad)
-                        * cosf(curRad),
-                    pScreen.y + (arcOuter + arcCurPad)
-                        * sinf(curRad) };
-                DrawLineEx(c1, c2, 2.0f * ui, WHITE);
+                DrawArcCursor(pScreen, curA, arcInner, arcOuter, arcCurPad, ui);
             }
 
             // QTE label
@@ -2034,49 +1983,27 @@ static void DrawHUD(void)
 
     // Crosshair cursor
     Vector2 mouse = GetMousePosition();
-    // we can refactor this crosshair to default
-    // eventually make it editable
     float ch = HUD_CROSSHAIR_SIZE * ui;
     float chThick = HUD_CROSSHAIR_THICKNESS * ui;
     float chGap = HUD_CROSSHAIR_GAP * ui;
-    //Color chColor = Fade(WHITE, 0.8f);
     Color chColor = Fade(GREEN, 1.0f);
-    // we're going to create a gap between in the middle of the cross hair
-    // so we need 4 lines
-    // middle left
-    //DrawLineEx(
-    //    (Vector2){ mouse.x - ch, mouse.y }, 
-    //    (Vector2){ mouse.x + ch, mouse.y }, 
-    //    chThick, chColor);
     DrawLineEx(
         (Vector2){ mouse.x - chGap, mouse.y },
         (Vector2){ mouse.x - ch - chGap, mouse.y },
-        chThick, chColor
-    );
-    // middle right
+        chThick, chColor);
     DrawLineEx(
         (Vector2){ mouse.x + chGap, mouse.y },
         (Vector2){ mouse.x + ch + chGap, mouse.y },
-        chThick, chColor
-    );
-    // top
-    //DrawLineEx(
-    //    (Vector2){ mouse.x, mouse.y - ch }, 
-    //    (Vector2){ mouse.x, mouse.y + ch }, 
-    //    chThick, chColor);
+        chThick, chColor);
     DrawLineEx(
-        (Vector2){ mouse.x, mouse.y - chGap},
-        (Vector2){ mouse.x, mouse.y - ch - chGap},
-        chThick, chColor
-    );
-    // bottom
+        (Vector2){ mouse.x, mouse.y - chGap },
+        (Vector2){ mouse.x, mouse.y - ch - chGap },
+        chThick, chColor);
     DrawLineEx(
-        (Vector2){ mouse.x, mouse.y + ch + chGap},
-        (Vector2){ mouse.x, mouse.y + chGap},
-        chThick, chColor
-    );
-    //DrawCircleLines((int)mouse.x, (int)mouse.y, 6.0f * ui, chColor);
-    
+        (Vector2){ mouse.x, mouse.y + ch + chGap },
+        (Vector2){ mouse.x, mouse.y + chGap },
+        chThick, chColor);
+
     // bottom right, game title text
     int titleFont = (int)(HUD_TITLE_FONT * ui);
     DrawText("Untitled Mecha Game - Version 0.0.1",

@@ -125,6 +125,33 @@ static int CountActiveDeployables(DeployableType type) {
     return count;
 }
 
+static void SpawnDeployable(DeployableType type, Vector2 pos);
+static void TrySpawnDeployable(Player *p, AbilityID ability, DeployableType type,
+    float *cooldown, float cooldownTime, int maxActive, Vector2 pos, float dt)
+{
+    if (*cooldown > 0) *cooldown -= dt;
+    if (IsAbilityPressed(p, ability) && *cooldown <= 0) {
+        if (CountActiveDeployables(type) < maxActive) {
+            SpawnDeployable(type, pos);
+            *cooldown = cooldownTime;
+        }
+    }
+}
+
+static void SpawnSwordSparks(Vector2 origin, float angle, float arc, float radius) {
+    for (int i = 0; i < SWORD_SPARK_COUNT; i++) {
+        float a = angle - arc / 2.0f
+            + arc * (float)i / (SWORD_SPARK_COUNT - 1);
+        Vector2 particlePos = Vector2Add(origin,
+            (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
+                       sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC });
+        Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
+                                sinf(a) * SWORD_SPARK_SPEED };
+        SpawnParticle(particlePos, particleVel, ORANGE,
+            SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
+    }
+}
+
 // Weapon Select Screen ----------------------------------------------------- /
 static void UpdateSelect(void)
 {
@@ -175,10 +202,9 @@ static void UpdateSelect(void)
 
     // Clamp to arena bounds
     float margin = p->size;
-    if (p->pos.x < margin) p->pos.x = margin;
-    if (p->pos.y < margin) p->pos.y = margin;
-    if (p->pos.x > SELECT_ARENA_SIZE - margin) p->pos.x = SELECT_ARENA_SIZE - margin;
-    if (p->pos.y > SELECT_ARENA_SIZE - margin) p->pos.y = SELECT_ARENA_SIZE - margin;
+    p->pos = Vector2Clamp(p->pos,
+        (Vector2){margin, margin},
+        (Vector2){SELECT_ARENA_SIZE - margin, SELECT_ARENA_SIZE - margin});
 
     // Mouse aim
     Vector2 screenMouse = GetMousePosition();
@@ -187,15 +213,15 @@ static void UpdateSelect(void)
     p->angle = atan2f(toMouse.y, toMouse.x);
 
     // Pedestal positions (U curve, left to right by face count)
-    Vector2 pedestals[NUM_PRIMARY_WEAPONS];
     float spacing = SELECT_ARENA_SIZE / 6.0f;
     for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         float norm = (float)(i - 2) / 2.0f;
-        pedestals[i] = (Vector2){
+        g.selectPedestals[i] = (Vector2){
             spacing * (float)(i + 1),
             SELECT_PEDESTAL_Y + SELECT_PEDESTAL_CURVE * (1.0f - norm * norm)
         };
     }
+    Vector2 *pedestals = g.selectPedestals;
 
     // Find nearest pedestal within interact radius
     g.selectIndex = -1;
@@ -261,19 +287,7 @@ static void UpdateSelect(void)
             case 0: { // SWORD — same as M1 sweep
                 g.selectSwordTimer = SWORD_DURATION;
                 g.selectSwordAngle = demoAngle;
-                float arc = SWORD_ARC;
-                float radius = SWORD_RADIUS;
-                for (int j = 0; j < SWORD_SPARK_COUNT; j++) {
-                    float a = demoAngle - arc / 2.0f
-                        + arc * (float)j / (SWORD_SPARK_COUNT - 1);
-                    Vector2 particlePos = Vector2Add(base,
-                        (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
-                                   sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC });
-                    Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
-                                            sinf(a) * SWORD_SPARK_SPEED };
-                    SpawnParticle(particlePos, particleVel, ORANGE,
-                        SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
-                }
+                SpawnSwordSparks(base, demoAngle, SWORD_ARC, SWORD_RADIUS);
             } break;
             case 1: { // REVOLVER — same as M1 precise shot
                 float spread = ((float)GetRandomValue(
@@ -788,21 +802,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             memset(p->sword.hitBits, 0, sizeof(p->sword.hitBits));
             p->sword.lastResetAngle = p->sword.angle - p->sword.arc / 2.0f;
 
-            float arc = p->sword.arc;
-            float radius = p->sword.radius;
-            for (int i = 0; i < SWORD_SPARK_COUNT; i++) {
-                float a = p->sword.angle - arc / 2.0f
-                    + arc * (float)i / (SWORD_SPARK_COUNT - 1);
-                Vector2 particlePos = Vector2Add(
-                    p->pos,
-                    (Vector2){ cosf(a) * radius * SWORD_SPARK_RADIUS_FRAC,
-                               sinf(a) * radius * SWORD_SPARK_RADIUS_FRAC }
-                );
-                Vector2 particleVel = { cosf(a) * SWORD_SPARK_SPEED,
-                                        sinf(a) * SWORD_SPARK_SPEED };
-                SpawnParticle(particlePos, particleVel, ORANGE,
-                    SWORD_SPARK_SIZE, SWORD_SPARK_LIFETIME);
-            }
+            SpawnSwordSparks(p->pos, p->sword.angle, p->sword.arc, p->sword.radius);
         }
         // M2: Lunge
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)
@@ -1220,7 +1220,8 @@ static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
         }
     }
 
-    // --- Turret deploy ---
+    // --- Deployable spawns ---
+    // Turret — placed at mouse, up to placement distance
     if (p->turretCooldown > 0) p->turretCooldown -= dt;
     if (IsAbilityPressed(p, ABL_TURRET) && p->turretCooldown <= 0) {
         if (CountActiveDeployables(DEPLOY_TURRET) < TURRET_MAX_ACTIVE) {
@@ -1233,24 +1234,12 @@ static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
             p->turretCooldown = TURRET_COOLDOWN;
         }
     }
-
-    // --- Mine deploy ---
-    if (p->mineCooldown > 0) p->mineCooldown -= dt;
-    if (IsAbilityPressed(p, ABL_MINE) && p->mineCooldown <= 0) {
-        if (CountActiveDeployables(DEPLOY_MINE) < MINE_MAX_ACTIVE) {
-            SpawnDeployable(DEPLOY_MINE, p->pos);
-            p->mineCooldown = MINE_COOLDOWN;
-        }
-    }
-
-    // --- Healing Field deploy ---
-    if (p->healCooldown > 0) p->healCooldown -= dt;
-    if (IsAbilityPressed(p, ABL_HEAL) && p->healCooldown <= 0) {
-        if (CountActiveDeployables(DEPLOY_HEAL) < HEAL_MAX_ACTIVE) {
-            SpawnDeployable(DEPLOY_HEAL, p->pos);
-            p->healCooldown = HEAL_COOLDOWN;
-        }
-    }
+    // Mine
+    TrySpawnDeployable(p, ABL_MINE, DEPLOY_MINE,
+        &p->mineCooldown, MINE_COOLDOWN, MINE_MAX_ACTIVE, p->pos, dt);
+    // Heal
+    TrySpawnDeployable(p, ABL_HEAL, DEPLOY_HEAL,
+        &p->healCooldown, HEAL_COOLDOWN, HEAL_MAX_ACTIVE, p->pos, dt);
 
     // --- Flamethrower ---
     bool wantFlame = IsAbilityDown(p, ABL_FIRE) && p->flame.fuel > 0;
@@ -1320,10 +1309,9 @@ static void UpdatePlayer(float dt)
     UpdateAbilities(p, toMouse, dt);
 
     // Boundary clamp
-    if (p->pos.x < p->size) p->pos.x = p->size;
-    if (p->pos.y < p->size) p->pos.y = p->size;
-    if (p->pos.x > MAP_SIZE - p->size) p->pos.x = MAP_SIZE - p->size;
-    if (p->pos.y > MAP_SIZE - p->size) p->pos.y = MAP_SIZE - p->size;
+    p->pos = Vector2Clamp(p->pos,
+        (Vector2){p->size, p->size},
+        (Vector2){MAP_SIZE - p->size, MAP_SIZE - p->size});
 
     // Shadow lag
     if (p->dash.decoyActive) {
@@ -1434,10 +1422,8 @@ static void UpdateEnemies(float dt) {
         e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
 
         // Clamp to map
-        if (e->pos.x < 0) e->pos.x = 0;
-        if (e->pos.x > MAP_SIZE) e->pos.x = MAP_SIZE;
-        if (e->pos.y < 0) e->pos.y = 0;
-        if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
+        e->pos = Vector2Clamp(e->pos,
+            (Vector2){0, 0}, (Vector2){MAP_SIZE, MAP_SIZE});
 
         bool stunned = e->stunTimer > 0;
 
@@ -1499,6 +1485,11 @@ static void UpdateEnemies(float dt) {
     }
 }
 
+static void BfgFizzle(Vector2 pos) {
+    SpawnParticles(pos, (Color)BFG_COLOR, 4);
+    g.player.bfg.active = false;
+}
+
 static void SpawnExplosionVfx(Vector2 pos, Color c1, Color c2, Color c3, Color fireColor) {
     // explosion ring — fast outward burst
     for (int i = 0; i < EXPLOSION_RING_COUNT; i++) {
@@ -1532,22 +1523,28 @@ static void SpawnExplosionVfx(Vector2 pos, Color c1, Color c2, Color c3, Color f
     SpawnVfxTimer(pos, EXPLOSION_VFX_DURATION, VFX_EXPLOSION);
 }
 
-static void RocketExplode(Vector2 pos) {
-    Player *p = &g.player;
-    p->rocket.inFlight = false;
-
+static void AoeDamage(Vector2 pos, float radius, int damage,
+    float knockback, DamageType dmgType)
+{
     for (int j = 0; j < MAX_ENEMIES; j++) {
         if (!g.enemies[j].active) continue;
         Enemy *ej = &g.enemies[j];
         float dist = Vector2Distance(pos, ej->pos);
-        if (dist < ROCKET_EXPLOSION_RADIUS + ej->size) {
-            DamageEnemy(j, ROCKET_EXPLOSION_DAMAGE, DMG_EXPLOSIVE, HIT_AOE);
+        if (dist < radius + ej->size) {
+            DamageEnemy(j, damage, dmgType, HIT_AOE);
             Vector2 away = Vector2Subtract(ej->pos, pos);
             if (Vector2Length(away) > 1.0f)
-                ej->vel = Vector2Scale(
-                    Vector2Normalize(away), ROCKET_KNOCKBACK);
+                ej->vel = Vector2Scale(Vector2Normalize(away), knockback);
         }
     }
+}
+
+static void RocketExplode(Vector2 pos) {
+    Player *p = &g.player;
+    p->rocket.inFlight = false;
+
+    AoeDamage(pos, ROCKET_EXPLOSION_RADIUS, ROCKET_EXPLOSION_DAMAGE,
+        ROCKET_KNOCKBACK, DMG_EXPLOSIVE);
 
     // rocket jump — push player away from explosion
     float playerDist = Vector2Distance(pos, p->pos);
@@ -1566,18 +1563,8 @@ static void RocketExplode(Vector2 pos) {
 }
 
 static void GrenadeExplode(Vector2 pos) {
-    for (int j = 0; j < MAX_ENEMIES; j++) {
-        if (!g.enemies[j].active) continue;
-        Enemy *ej = &g.enemies[j];
-        float dist = Vector2Distance(pos, ej->pos);
-        if (dist < GRENADE_EXPLOSION_RADIUS + ej->size) {
-            DamageEnemy(j, GRENADE_EXPLOSION_DAMAGE, DMG_EXPLOSIVE, HIT_AOE);
-            Vector2 away = Vector2Subtract(ej->pos, pos);
-            if (Vector2Length(away) > 1.0f)
-                ej->vel = Vector2Scale(
-                    Vector2Normalize(away), GRENADE_KNOCKBACK);
-        }
-    }
+    AoeDamage(pos, GRENADE_EXPLOSION_RADIUS, GRENADE_EXPLOSION_DAMAGE,
+        GRENADE_KNOCKBACK, DMG_EXPLOSIVE);
     SpawnExplosionVfx(pos, GREEN, YELLOW, ORANGE, YELLOW);
 }
 
@@ -1870,11 +1857,7 @@ static void UpdateProjectiles(float dt) {
         if (b->lifetime <= 0) {
             if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
             if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
-            if (b->type == PROJ_BFG) {
-                // fizzle — sad sparks, no chain
-                SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
-                g.player.bfg.active = false;
-            }
+            if (b->type == PROJ_BFG) BfgFizzle(b->pos);
             b->active = false;
             continue;
         }
@@ -1893,10 +1876,7 @@ static void UpdateProjectiles(float dt) {
             } else {
                 if (b->type == PROJ_ROCKET) RocketExplode(b->pos);
                 if (b->type == PROJ_GRENADE) GrenadeExplode(b->pos);
-                if (b->type == PROJ_BFG) {
-                    SpawnParticles(b->pos, (Color)BFG_COLOR, 4);
-                    g.player.bfg.active = false;
-                }
+                if (b->type == PROJ_BFG) BfgFizzle(b->pos);
                 b->active = false;
                 continue;
             }

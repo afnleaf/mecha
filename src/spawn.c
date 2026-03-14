@@ -111,8 +111,8 @@ static void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt) {
                     e->size + MUZZLE_OFFSET));
             SpawnParticle(muzzle,
                 Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
-                TRAP_COLOR, PENTA_MUZZLE_SIZE,
-                PENTA_MUZZLE_LIFETIME);
+                TRAP_COLOR, TRAP_MUZZLE_SIZE,
+                TRAP_MUZZLE_LIFETIME);
         } break;
         case 1: { // Ring shot — bullets in all directions
             float step = 2.0f * PI / TRAP_RING_COUNT;
@@ -295,10 +295,18 @@ static void SpawnAtEdge(Enemy *e) {
         case 3: e->pos.x = g.player.pos.x + SPAWN_MARGIN;
                 e->pos.y = (float)GetRandomValue(0, MAP_SIZE); break;
     }
-    if (e->pos.x < 0) e->pos.x = 0;
-    if (e->pos.x > MAP_SIZE) e->pos.x = MAP_SIZE;
-    if (e->pos.y < 0) e->pos.y = 0;
-    if (e->pos.y > MAP_SIZE) e->pos.y = MAP_SIZE;
+    e->pos = Vector2Clamp(e->pos,
+        (Vector2){0, 0}, (Vector2){MAP_SIZE, MAP_SIZE});
+}
+
+static void FillFromDef(Enemy *e, EnemyType type) {
+    const EnemyDef *d = &ENEMY_DEFS[type];
+    e->type          = type;
+    e->size          = d->size;
+    e->hp            = d->hp;
+    e->maxHp         = d->hp;
+    e->contactDamage = d->contactDamage;
+    e->score         = d->score;
 }
 
 void SpawnEnemy(void)
@@ -318,15 +326,9 @@ void SpawnEnemy(void)
                     break;
                 }
             }
-            const EnemyDef *d = &ENEMY_DEFS[type];
-            e->type          = type;
-            e->size          = d->size;
-            e->speed         = d->speedMin
-                + (float)GetRandomValue(0, d->speedVar);
-            e->hp            = d->hp;
-            e->maxHp         = d->hp;
-            e->contactDamage = d->contactDamage;
-            e->score         = d->score;
+            FillFromDef(e, type);
+            e->speed = ENEMY_DEFS[type].speedMin
+                + (float)GetRandomValue(0, ENEMY_DEFS[type].speedVar);
             SpawnAtEdge(e);
             return;
         }
@@ -339,14 +341,8 @@ void SpawnBoss(EnemyType type)
         if (!g.enemies[i].active) {
             Enemy *e = &g.enemies[i];
             InitEnemy(e);
-            const EnemyDef *d = &ENEMY_DEFS[type];
-            e->type          = type;
-            e->size          = d->size;
-            e->speed         = d->speedMin;
-            e->hp            = d->hp;
-            e->maxHp         = d->hp;
-            e->contactDamage = d->contactDamage;
-            e->score         = d->score;
+            FillFromDef(e, type);
+            e->speed = ENEMY_DEFS[type].speedMin;
             SpawnAtEdge(e);
             return;
         }

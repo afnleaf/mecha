@@ -126,15 +126,84 @@ Extracted 8 inline `(Color){...}` literals from draw.c into named constants in d
 
 ---
 
-## TIER 6: v(-1) Architecture
+## TIER 6: Deduplication & Cleanup
 
-### 6A. Game Phase State Machine (= old 4D)
+### 6A. AoE Explosion Damage Helper — DONE
+**Files**: `update.c`
+
+Extracted `static void AoeDamage(pos, radius, damage, knockback, dmgType)` from identical loops in `RocketExplode` and `GrenadeExplode`. Both iterate enemies, distance check, DamageEnemy, knockback vector. `RocketExplode` keeps its unique rocket-jump logic after the helper call.
+
+### 6B. SpawnEnemy/SpawnBoss Field Dedup — DONE
+**Files**: `spawn.c`
+
+Extracted `static void FillFromDef(Enemy *e, EnemyType type)` from identical field assignments in `SpawnEnemy` and `SpawnBoss`. Sets type, size, hp, maxHp, contactDamage, score from `ENEMY_DEFS` table. Speed set by caller (SpawnEnemy adds variance, SpawnBoss uses speedMin).
+
+### 6C. Pedestal Position Dedup — DONE
+**Files**: `mecha.h`, `update.c`, `draw.c`
+
+Added `Vector2 selectPedestals[NUM_PRIMARY_WEAPONS]` to `GameState`. Computed once in `UpdateSelect`, read in `DrawSelect`. Removed duplicate computation from draw.c.
+
+### 6D. Spin Trail Arc Dedup — DONE
+**Files**: `draw.c`
+
+Combined outer (YELLOW) and inner (ORANGE) spin trail arc loops into a single loop with two `DrawLineEx` calls per segment. Eliminated duplicate angle and position calculations.
+
+### 6E. DrawParticles Helper — DONE
+**Files**: `draw.c`
+
+Extracted `static void DrawParticles(void)` from identical loops in `DrawWorld` and `DrawSelect`. Matches naming convention of `DrawDeployables`, `DrawVfxTimers`, etc.
+
+### 6F. Sword Spark Helper — DONE
+**Files**: `update.c`
+
+Extracted `static void SpawnSwordSparks(Vector2 origin, float angle, float arc, float radius)` from identical particle loops in weapon select demo and M1 sword sweep. Both call sites reduced to one-liners.
+
+### 6G. Shield Arc Combine — DONE
+**Files**: `draw.c`
+
+Combined outer shield arc and inner glow arc into a single segment loop with two `DrawLineEx` calls per iteration, eliminating the duplicate angle computation.
+
+### 6H. QTE Cursor Helper — DONE
+**Files**: `draw.c`
+
+Extracted `static void DrawArcCursor(center, angleDeg, innerR, outerR, pad, ui)` from identical cursor-line drawing in revolver reload and gun overheat QTE overlays.
+
+### 6I. Dead Code Cleanup — DONE
+**Files**: `draw.c`, `default.h`, `mecha.h`
+
+Removed: commented-out crosshair code (draw.c), unused `MAX_ENTITIES` define (default.h), unused `DMG_PURE` enum value (mecha.h).
+
+### 6J. Deployable Spawn Dedup — DONE
+**Files**: `update.c`
+
+Extracted `static void TrySpawnDeployable(p, ability, type, cooldown, cooldownTime, maxActive, pos)` from identical turret/mine/heal deploy patterns. Each had the same cooldown tick, ability check, count check, spawn, and cooldown reset.
+
+### 6K. TRAP Muzzle Constants — DONE
+**Files**: `default.h`, `spawn.c`
+
+Added `TRAP_MUZZLE_SIZE` and `TRAP_MUZZLE_LIFETIME` to default.h. Replaced incorrect use of `PENTA_MUZZLE_SIZE`/`PENTA_MUZZLE_LIFETIME` in `ShootTrap`.
+
+### 6L. BFG Fizzle Dedup — DONE
+**Files**: `update.c`
+
+Extracted `static void BfgFizzle(Vector2 pos)` from two identical blocks in `UpdateProjectiles` (lifetime expire and map boundary). Both were `SpawnParticles(BFG_COLOR, 4); bfg.active = false;`.
+
+### 6M. Pip Bar Helper — DONE
+**Files**: `draw.c`
+
+Extracted `static void DrawPipBar(x, y, pipW, pipH, pipGap, maxPips, filledPips, recharging, rechargeRatio, color, label, labelX, fontSize)` from near-identical dash and shotgun pip display loops.
+
+---
+
+## TIER 7: v(-1) Architecture
+
+### 7A. Game Phase State Machine (= old 4D)
 **Files**: `mecha.h`, `update.c`, `draw.c`
 **Scope**: Design first | **Risk**: Medium
 
 Currently `g.screen` (`SELECT`/`PLAYING`) + `g.phase` (`0`/`1`/`2`) + `g.level` overlap in meaning. For v(-1) room system, unify into single state enum: `PHASE_SELECT → PHASE_ROUND → PHASE_CLEARING → PHASE_ITEM_PICK → PHASE_BOSS → PHASE_END`. Each phase has its own update function and draw function. `g.screen` and `g.phase` collapse into `g.phase`. Design the data shape (what state does each phase need?) before implementing.
 
-### 6B. Damage System Skeleton
+### 7B. Damage System Skeleton
 **Files**: `mecha.h`, `spawn.c`
 **Scope**: Design first | **Risk**: Medium
 
@@ -165,5 +234,6 @@ Tier 2 (DONE):                         2A ✓, 2B ✓, 2C ✓, 2D ✓, 2E ✓
 Tier 3 (DONE):                         3C ✓, 3A ✓, 3B ✓, 3D ✓, 3E ✓
 Tier 4 (polish + v(-1) prep):          4B ✓, 4A ✓ (absorbed by 4B)
 Tier 5 (DONE):                         5A ✓, 5B ✓, 5C ✓, 5D ✓
-Tier 6 (v(-1) architecture):           6A, 6B
+Tier 6 (DONE):                         6A ✓ .. 6M ✓
+Tier 7 (v(-1) architecture):           7A, 7B
 ```

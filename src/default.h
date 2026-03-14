@@ -17,8 +17,6 @@
 #define MAX_BEAMS               8
 #define MAX_DEPLOYABLES         1024
 #define MAX_VFX_TIMERS          72      // this could be more?
-#define MAX_ENTITIES // of a type, just seeing that this is all the same
-// looks good for now
 
 // Map
 #define MAP_SIZE                2000.0f
@@ -636,6 +634,8 @@
 #define PENTA_SIDE_SPEED        40.0f
 #define HEXA_MUZZLE_SIZE        4.0f
 #define HEXA_MUZZLE_LIFETIME    0.15f
+#define TRAP_MUZZLE_SIZE        4.0f
+#define TRAP_MUZZLE_LIFETIME    0.15f
 
 // Drawing ------------------------------------------------------------------ /
 // Player solid rendering

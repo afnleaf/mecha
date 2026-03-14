@@ -273,7 +273,6 @@ typedef enum DamageType {
     DMG_PIERCE,
     DMG_BLUNT,
     DMG_ABILITY,    // spirit/special
-    DMG_PURE,       //
 } DamageType;
 
 // Damage struct — preserved for future event system redesign
@@ -452,6 +451,7 @@ typedef struct GameState {
     float selectDemoTimer;
     float selectSwordTimer;  // sword arc demo in select screen
     float selectSwordAngle;
+    Vector2 selectPedestals[NUM_PRIMARY_WEAPONS];
     float transitionTimer;   // >0 = fade transition active
 } GameState;
 
