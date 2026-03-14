@@ -30,7 +30,7 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
         for (int i = 0; i < MAX_ENEMIES; i++) {
             Enemy *e = &g.enemies[i];
             if (!e->active) continue;
-            if (EnemyHitSweep(e, origin, rayEnd)) {
+            if (EnemyHitSweep(e, origin, rayEnd, 0)) {
                 float d = Vector2Distance(origin, e->pos);
                 if (d < firstDist) {
                     firstIdx  = i;
@@ -59,7 +59,7 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
         for (int i = 0; i < MAX_ENEMIES; i++) {
             Enemy *e = &g.enemies[i];
             if (!e->active) continue;
-            if (EnemyHitSweep(e, origin, rayEnd)) {
+            if (EnemyHitSweep(e, origin, rayEnd, RAILGUN_BEAM_RADIUS)) {
                 if (damage > 0) {
                     Vector2 hitPos = e->pos;
                     DamageEnemy(i, damage, dmgType, HIT_SCAN);
@@ -210,24 +210,31 @@ static void UpdateSelect(void)
         }
     }
 
-    // M1 selects weapon
-    if (g.selectIndex >= 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // M1 or Enter selects weapon
+    if (g.selectIndex >= 0 && g.transitionTimer <= 0 &&
+        (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_ENTER))) {
         if (g.selectPhase == 0) {
             p->primary = SELECT_WEAPONS[g.selectIndex];
             g.selectPhase = 1;
         } else {
             p->secondary = SELECT_WEAPONS[g.selectIndex];
-            // Transition to gameplay
+            g.transitionTimer = TRANSITION_DURATION;
+        }
+    }
+
+    // Fade transition: switch scene at midpoint
+    if (g.transitionTimer > 0) {
+        g.transitionTimer -= dt;
+        float half = TRANSITION_DURATION * 0.5f;
+        if (g.transitionTimer <= half && g.screen == SCREEN_SELECT) {
             p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
             p->shadowPos = p->pos;
-            // Clear particles and projectiles
-            for (int i = 0; i < MAX_PARTICLES; i++)
-                g.vfx.particles[i].active = false;
-            for (int i = 0; i < MAX_PROJECTILES; i++)
-                g.projectiles[i].active = false;
+            g.camera.target = p->pos;
+            ClearPools();
             g.screen = SCREEN_PLAYING;
             g.level = 1;
         }
+        if (g.transitionTimer <= 0) g.transitionTimer = 0;
     }
 
     // Weapon demo: fire same M1 attacks from highlighted pedestal
@@ -300,7 +307,7 @@ static void UpdateSelect(void)
                     -SNIPER_HIP_SPREAD, SNIPER_HIP_SPREAD)) / 1000.0f;
                 Vector2 dir = Vector2Rotate(aimDir, spread);
                 Projectile *sn = SpawnProjectile(muzzle, dir,
-                    SNIPER_HIP_BULLET_SPEED, SNIPER_HIP_DAMAGE,
+                    SNIPER_HIP_BULLET_SPEED, SNIPER_DAMAGE,
                     SNIPER_BULLET_LIFETIME, SNIPER_PROJECTILE_SIZE,
                     false, false, PROJ_BULLET, DMG_PIERCE);
                 if (sn) sn->appliesSlow = true;
@@ -352,7 +359,7 @@ static int SweepDamage(
         Enemy *ei = &g.enemies[i];
         if (!ei->active) continue;
         if (hitBits[i >> 3] & (1 << (i & 7))) continue;
-        if (!EnemyHitSweep(ei, origin, sweepEnd)) continue;
+        if (!EnemyHitSweep(ei, origin, sweepEnd, 0)) continue;
         DamageEnemy(i, damage, dmgType, HIT_MELEE);
         hitBits[i >> 3] |= (1 << (i & 7));
         hitIndices[hits++] = i;
@@ -726,12 +733,12 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
             int damage;
 
             if (p->sniper.aiming) {
-                damage  = p->sniper.superShotReady ? SNIPER_SUPER_DAMAGE : SNIPER_AIM_DAMAGE;
+                damage  = p->sniper.superShotReady ? SNIPER_SUPER_DAMAGE : SNIPER_DAMAGE;
                 spreadVal = SNIPER_AIM_SPREAD;
                 speed   = SNIPER_AIM_BULLET_SPEED;
                 cooldown = SNIPER_AIM_COOLDOWN;
             } else {
-                damage  = SNIPER_HIP_DAMAGE;
+                damage  = SNIPER_DAMAGE;
                 spreadVal = SNIPER_HIP_SPREAD;
                 speed   = SNIPER_HIP_BULLET_SPEED;
                 cooldown = SNIPER_HIP_COOLDOWN;
@@ -1258,12 +1265,13 @@ static void UpdateAbilities(Player *p, Vector2 toMouse, float dt)
         if (p->flame.sprayTimer <= 0) {
             p->flame.sprayTimer = FLAME_SPRAY_INTERVAL;
             float baseAngle = p->angle;
-            float spread = ((float)GetRandomValue(-1000, 1000) / 1000.0f) * FLAME_SPREAD;
-            float dist = FLAME_RANGE_MIN + (float)GetRandomValue(0, 1000) / 1000.0f
-                         * (FLAME_RANGE - FLAME_RANGE_MIN);
-            float a = baseAngle + spread;
-            Vector2 patchPos = Vector2Add(p->pos,
-                (Vector2){ cosf(a) * dist, sinf(a) * dist });
+            float mouseDist = Vector2Length(toMouse);
+            float dist = mouseDist < FLAME_RANGE ? mouseDist : FLAME_RANGE;
+            Vector2 target = Vector2Add(p->pos,
+                (Vector2){ cosf(baseAngle) * dist, sinf(baseAngle) * dist });
+            Vector2 jitter = { (float)GetRandomValue(-FLAME_JITTER, FLAME_JITTER),
+                               (float)GetRandomValue(-FLAME_JITTER, FLAME_JITTER) };
+            Vector2 patchPos = Vector2Add(target, jitter);
             SpawnDeployable(DEPLOY_FIRE, patchPos);
 
             // spray particles along the path
@@ -2125,6 +2133,12 @@ void UpdateGame(void)
     }
 
     if (g.paused) return;
+
+    // Tick transition fade-in (second half, after screen switch)
+    if (g.transitionTimer > 0) {
+        g.transitionTimer -= dt;
+        if (g.transitionTimer <= 0) g.transitionTimer = 0;
+    }
 
     UpdatePlayer(dt);
     UpdateEnemies(dt);

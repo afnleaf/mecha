@@ -99,13 +99,14 @@ static bool CircleOBBOverlap(
 // Collision Dispatchers — switch on enemy type, one case per shaPe
 // Sweep line (sword, spin): does segment AB intersect enemy hitbox?
 // this does all the hitscan damage detection too because it makes contact
-bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b) {
+bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b, float pad) {
     switch (e->type) {
     case RECT:
         return LineSegOBB(a, b, e->pos,
-            e->size, e->size * RECT_ASPECT_RATIO, EnemyAngle(e));
+            e->size + pad, e->size * RECT_ASPECT_RATIO + pad,
+            EnemyAngle(e));
     default:
-        return LineSegCircle(a, b, e->pos, e->size);
+        return LineSegCircle(a, b, e->pos, e->size + pad);
     }
 }
 

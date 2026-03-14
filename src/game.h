@@ -11,6 +11,7 @@ extern GameState g;
 // init.c
 void InitGame(void);
 void InitPlayer(void);
+void ClearPools(void);
 
 // spawn.c
 extern const EnemyDef ENEMY_DEFS[];
@@ -35,7 +36,7 @@ void DamagePlayer(int damage, DamageType dmgType, DamageMethod method);
 
 // collision.c
 float EnemyAngle(Enemy *e);
-bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b);
+bool EnemyHitSweep(Enemy *e, Vector2 a, Vector2 b, float pad);
 bool EnemyHitPoint(Enemy *e, Vector2 point, float pad);
 bool EnemyHitCircle(Enemy *e, Vector2 center, float radius);
 

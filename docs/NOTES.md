@@ -116,10 +116,11 @@ asset loader
 - [x] (claude) big refactor of all hardcoded numbers
 - [x] figure out how to do hitscan, what are the other weapon types?
 - [x] time to make src/ folder and split up the project?
-- [] enemy damage calculation being done in a bunch of for loops going over each enemy? is that the right way?
-- [] make weapon select menu accept enter and m1 for picking a chassis
-- [] game camera does a wonky teleport to the proper game map from the weapon select zone, also there are artifacts from the weapon seleection still on the screen like exploding rockets
+- [x] enemy damage calculation being done in a bunch of for loops going over each enemy? fixed
+- [x] make weapon select menu accept enter and m1 for picking a chassis
+- [x] game camera does a wonky teleport to the proper game map from the weapon select zone, also there are artifacts from the weapon seleection still on the screen like exploding rockets
 - [x] enemy debuff whack
+-- gap --
 - [] understand particles better (this is an art thing...)
 - [] (user) figure out how to separate particle/weapon animation from game logic update?
 - [] (user) refactor anything badly named and organized (LLMisms)
@@ -159,6 +160,9 @@ asset loader
 - [x] decide what the actual 5? primary weapons should be? (sword, revolver, machine gun, sniper, ??? (mingun?, explosives?))
 - [x] figure out where to put keybindings because GRENADE_KEY = KEY_C is not it, the keys need to be flexible and reslotable.
 - [x] unbind all other keys except for the primary.
+- [x] wider railgun
+- [x] sniper hipfire way less accurate
+- [x] flamethrower range longer
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -191,6 +195,7 @@ explosives as primary? is that possible? (yes)
 - [x] fire (more like a flamethrower that you can spread infront on the ground)
 - [x] heal field? (current is fine)
 - [] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
+- [] dva matrix
 
 ### players
 each chassis is a platonic solid and has an associated element (sacred geometry)

@@ -296,16 +296,16 @@
 #define PARRY_COLOR             (Color){ 255, 255, 200, 220 }
 
 // Turret ------------------------------------------------------------------- /
-#define TURRET_LIFETIME         1024.0f
-#define TURRET_FIRE_RATE        0.5f    // seconds between shots
-#define TURRET_RANGE            500.0f
+#define TURRET_LIFETIME         64.0f
+#define TURRET_FIRE_RATE        0.5f
+#define TURRET_RANGE            600.0f
 #define TURRET_DAMAGE           12
 #define TURRET_HP               80
 #define TURRET_BULLET_SPEED     800.0f
-#define TURRET_BULLET_LIFETIME  2.0f
+#define TURRET_BULLET_LIFETIME  3.0f
 #define TURRET_BULLET_SIZE      3.0f
-#define TURRET_COOLDOWN         1.0f
-#define TURRET_MAX_ACTIVE       1024
+#define TURRET_COOLDOWN         8.0f
+#define TURRET_MAX_ACTIVE       64
 #define TURRET_PLACEMENT_DIST   100.0f
 #define TURRET_MUZZLE_OFFSET    10.0f
 #define TURRET_MUZZLE_SPEED     80.0f
@@ -337,16 +337,16 @@
 
 // Flamethrower ------------------------------------------------------------- /
 #define FLAME_FUEL_MAX          100.0f
-#define FLAME_DRAIN_RATE        25.0f    // fuel/sec while firing
-#define FLAME_REGEN_RATE        15.0f    // fuel/sec regen
-#define FLAME_REGEN_DELAY       0.5f     // seconds after release before regen starts
+#define FLAME_DRAIN_RATE        40.0f    // fuel/sec while firing
+#define FLAME_REGEN_RATE        12.0f    // fuel/sec regen
+#define FLAME_REGEN_DELAY       1.0f     // seconds after release before regen starts
 #define FLAME_SPRAY_INTERVAL    0.12f    // seconds between patch spawns
-#define FLAME_RANGE             150.0f   // max distance patches land from player
-#define FLAME_RANGE_MIN         40.0f    // min distance (near player)
-#define FLAME_SPREAD            0.35f    // radians of cone spread
+#define FLAME_RANGE             400.0f   // max distance patches land from player
+#define FLAME_SPREAD            0.35f    // radians of cone spread (particles only)
+#define FLAME_JITTER            20       // patch placement jitter in pixels
 #define FLAME_SLOW_FACTOR       0.7f     // move speed while spraying
 #define FLAME_PATCH_LIFETIME    5.0f     // seconds each ground patch lasts
-#define FLAME_PATCH_RADIUS      20.0f    // damage radius per patch
+#define FLAME_PATCH_RADIUS      30.0f    // damage radius per patch
 #define FLAME_PATCH_DPS         30.0f    // damage per second per patch
 #define FLAME_PATCH_TICK        0.2f     // damage tick interval
 #define FLAME_COLOR             (Color){ 255, 120, 30, 150 }
@@ -373,11 +373,12 @@
 
 // Railgun (press Z, pierce all, long cooldown)
 #define RAILGUN_DAMAGE              200
-#define RAILGUN_RANGE               3000.0f
-#define RAILGUN_COOLDOWN            4.0f
+#define RAILGUN_RANGE               10000.0f
+#define RAILGUN_COOLDOWN            2.0f
 #define RAILGUN_BEAM_DURATION       0.2f
-#define RAILGUN_BEAM_WIDTH          5.0f
-#define RAILGUN_GLOW_WIDTH          14.0f
+#define RAILGUN_BEAM_RADIUS         10.0f   // hurtbox
+#define RAILGUN_BEAM_WIDTH          20.0f   // cosmetic
+#define RAILGUN_GLOW_WIDTH          25.0f    // cosmetic
 #define RAILGUN_COLOR               (Color){ 0, 255, 0, 255 }
 #define RAILGUN_GLOW_COLOR          (Color){ 0, 255, 0, 80 }
 #define RAILGUN_HIT_PARTICLES       6
@@ -397,14 +398,12 @@
 #define SNIPER_MUZZLE_SIZE      4.0f
 #define SNIPER_MUZZLE_LIFETIME  0.1f
 // Sniper — M1 hip fire
-#define SNIPER_HIP_DAMAGE        70
-#define SNIPER_HIP_SPREAD        80       // wide spread (80/1000 rad)
+#define SNIPER_HIP_SPREAD        160       // wide spread (80/1000 rad)
 #define SNIPER_HIP_COOLDOWN      0.915f    // fast semi-auto
 #define SNIPER_HIP_BULLET_SPEED  2000.0f  // slightly slower than aimed
 
 // Sniper — M2 aimed shot (hold M2 + click M1)
-#define SNIPER_AIM_DAMAGE        160
-#define SNIPER_AIM_SPREAD        2        // near-zero
+#define SNIPER_AIM_SPREAD        0        // zero
 #define SNIPER_AIM_COOLDOWN      1.2f     // punishing on miss
 #define SNIPER_AIM_BULLET_SPEED  2800.0f  // faster travel
 #define SNIPER_AIM_SLOW          0.35f    // movement multiplier while ADS
@@ -413,7 +412,6 @@
 #define SNIPER_SUPER_DAMAGE      300      // massive payoff
 #define SNIPER_SUPER_SLOW_DUR    4.0f     // longer debuff on target
 #define SNIPER_SUPER_SLOW_FACTOR 0.2f     // stronger slow (vs normal 0.4)
-
 #define SNIPER_COLOR            (Color){ 180, 220, 255, 255 }
 #define SNIPER_BULLET_LENGTH    5.0f
 #define SNIPER_BULLET_WIDTH     1.1f
@@ -787,5 +785,6 @@
 #define SELECT_PROMPT_FONT      14
 #define SELECT_GRID_STEP_SEL    80.0f
 #define SELECT_GRID_COLOR_SEL   (Color){ 30, 30, 45, 255 }
+#define TRANSITION_DURATION     0.5f
 #define SELECT_FLOOR_COLOR      (Color){ 12, 12, 20, 255 }
 

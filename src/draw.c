@@ -1280,6 +1280,21 @@ static void DrawWorld(void)
     }
 }
 
+// Draw - transition overlay
+static void DrawTransition(void)
+{
+    if (g.transitionTimer <= 0) return;
+    float half = TRANSITION_DURATION * 0.5f;
+    float alpha;
+    if (g.transitionTimer > half) {
+        alpha = (TRANSITION_DURATION - g.transitionTimer) / half;
+    } else {
+        alpha = g.transitionTimer / half;
+    }
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+        Fade(BLACK, alpha));
+}
+
 static void DrawSelect(void)
 {
     int sw = GetScreenWidth();
@@ -1443,6 +1458,7 @@ static void DrawSelect(void)
         }
     }
 
+    DrawTransition();
     EndDrawing();
 }
 
@@ -2090,6 +2106,7 @@ static void DrawGame(void)
     EndMode2D();
 
     DrawHUD();
+    DrawTransition();
 
     EndDrawing();
 }

@@ -77,3 +77,24 @@ void InitPlayer(void)
 
     p->shadowPos            = p->pos;
 }
+
+// helpers ------------------------------------------------------------------ /
+
+// resets all the entity pools, useful for scene transitions
+// setting .active = false is fine because the arrays are already allocated
+void ClearPools(void)
+{
+    for (int i = 0; i < MAX_PARTICLES; i++)
+        g.vfx.particles[i].active = false;
+    for (int i = 0; i < MAX_PROJECTILES; i++)
+        g.projectiles[i].active = false;
+    for (int i = 0; i < MAX_BEAMS; i++)
+        g.vfx.beams[i].active = false;
+    for (int i = 0; i < MAX_VFX_TIMERS; i++)
+        g.vfx.timers[i].active = false;
+    for (int i = 0; i < MAX_DEPLOYABLES; i++)
+        g.deployables[i].active = false;
+    for (int i = 0; i < MAX_ENEMIES; i++)
+        g.enemies[i].active = false;
+    g.lightning.active = false;
+}

@@ -452,6 +452,7 @@ typedef struct GameState {
     float selectDemoTimer;
     float selectSwordTimer;  // sword arc demo in select screen
     float selectSwordAngle;
+    float transitionTimer;   // >0 = fade transition active
 } GameState;
 
 #endif // MECHA_H
