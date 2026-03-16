@@ -423,7 +423,7 @@ void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method)
         // Boss kill — advance level
         if (e->type == TRAP) {
             g.level++;
-            g.phase = 0;
+            g.phase = PHASE_COMBAT;
         }
         // fire/explosion
         SpawnParticles(e->pos, RED, DEATH_PARTICLES);

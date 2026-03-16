@@ -21,7 +21,7 @@ void InitGame(void)
     g.spawnInterval   = SPAWN_INTERVAL;
     g.spawnTimer      = SPAWN_INITIAL_DELAY;
 
-    g.screen          = SCREEN_SELECT;
+    g.phase           = PHASE_SELECT;
     g.selectIndex     = -1;
     g.selectPhase     = 0;
 

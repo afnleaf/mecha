@@ -2174,7 +2174,7 @@ static void DrawHUD(void)
 // Draw - orchestrator
 static void DrawGame(void)
 {
-    if (g.screen == SCREEN_SELECT) {
+    if (g.phase == PHASE_SELECT) {
         DrawSelect();
         return;
     }
@@ -2195,7 +2195,7 @@ static void DrawGame(void)
 // Main loop callback
 void NextFrame(void)
 {
-    bool shouldHide = g.screen == SCREEN_PLAYING || g.gamepadActive;
+    bool shouldHide = g.phase != PHASE_SELECT || g.gamepadActive;
     if (shouldHide && !IsCursorHidden()) HideCursor();
     if (!shouldHide && IsCursorHidden()) ShowCursor();
     UpdateGame();

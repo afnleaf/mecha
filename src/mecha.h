@@ -29,10 +29,12 @@ static const WeaponType SELECT_WEAPONS[] = {
     WPN_SWORD, WPN_REVOLVER, WPN_GUN, WPN_SNIPER, WPN_ROCKET
 };
 
-typedef enum GameScreen {
-    SCREEN_SELECT,
-    SCREEN_PLAYING,
-} GameScreen;
+typedef enum GamePhase {
+    PHASE_SELECT,    // weapon pick arena
+    PHASE_COMBAT,    // enemies spawning, player fighting
+    PHASE_CLEARING,  // kill threshold met, no spawns, field emptying
+    PHASE_BOSS,      // boss spawned, spawning resumes alongside
+} GamePhase;
 
 // ability slots ------------------------------------------------------------- /
 typedef enum AbilityID {
@@ -480,11 +482,10 @@ typedef struct GameState {
     float spawnTimer;
     float spawnInterval;
     int enemiesKilled;
-    int phase;      // 0=normal, 1=clearing, 2=boss fight
+    GamePhase phase;
     int level;
     bool gameOver;
     bool paused;
-    GameScreen screen;
     bool gamepadActive;     // true = last input from gamepad
     int selectIndex;
     int selectPhase;    // 0 = picking primary, 1 = picking secondary

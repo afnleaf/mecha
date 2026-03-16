@@ -374,12 +374,12 @@ static void UpdateSelect(void)
     if (g.transitionTimer > 0) {
         g.transitionTimer -= dt;
         float half = TRANSITION_DURATION * 0.5f;
-        if (g.transitionTimer <= half && g.screen == SCREEN_SELECT) {
+        if (g.transitionTimer <= half && g.phase == PHASE_SELECT) {
             p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
             p->shadowPos = p->pos;
             g.camera.target = p->pos;
             ClearPools();
-            g.screen = SCREEN_PLAYING;
+            g.phase = PHASE_COMBAT;
             g.level = 1;
         }
         if (g.transitionTimer <= 0) g.transitionTimer = 0;
@@ -1528,23 +1528,23 @@ static void UpdateEnemies(float dt) {
     Player *p = &g.player;
     
     // --- Boss phase state machine ---
-    if (g.phase == 0
+    if (g.phase == PHASE_COMBAT
         && g.enemiesKilled >= TRAP_SPAWN_KILLS * g.level) {
-        g.phase = 1;
+        g.phase = PHASE_CLEARING;
     }
-    if (g.phase == 1) {
+    if (g.phase == PHASE_CLEARING) {
         bool anyAlive = false;
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (g.enemies[i].active) { anyAlive = true; break; }
         }
         if (!anyAlive) {
             SpawnBoss(TRAP);
-            g.phase = 2;
+            g.phase = PHASE_BOSS;
         }
     }
 
-    // --- Normal enemy spawning (phase 0 and 2) ---
-    if (g.phase != 1) {
+    // --- Normal enemy spawning (combat and boss phases) ---
+    if (g.phase != PHASE_CLEARING) {
         g.spawnTimer -= dt;
         if (g.spawnTimer <= 0) {
             SpawnEnemy();
@@ -2275,7 +2275,7 @@ void UpdateGame(void)
     WindowResize();
     DetectInputMode();
 
-    if (g.screen == SCREEN_SELECT) {
+    if (g.phase == PHASE_SELECT) {
         UpdateSelect();
         return;
     }

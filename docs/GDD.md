@@ -148,15 +148,22 @@ The 3 proposed classes have me thinking about roles in moba like tank, damage an
 
 When you play a souls-like, you can choose spell caster or big sword or other, etc, but the fundamental mechanics of dodge hit dodge hit are the same. 
 
+### in brief
+
+so the idea im currently trying to implement is like levels/zones/rooms w.e, where you fight some x number of enemies and then you get to pick an ability to fill one of your slots. So you would start with just one weapon class, clear room 1, pick an ability, clear room 2, ability, boss, second weapon/ult pickup, room, ability, and so on. So a roguelike in a sense, but I want there to be less randomness in how you build your character., no random boon. Rather there are several classes of abilities, like healing, explosives, movement, protection, mines, stuns, evasion/invis, deployables like the turret, etc. And when you get to the room to upgrade it would be like a mechanic shop where the randomness is that some abilties of a class aren't in the shop, but you always have access to an ability from all the classes. 
+rn ive just got shapes and shit, but the main concept is a roguelike pve moba style mecha bullet hell. you upgrade the mecha
 
 
+## mecha builder roguelike moba bullet hell
 
+what does any of this even mean?
 
+the concept of a mecha builder roguelike borrows from the deck builder archetype. mecha games have the strength of mecha customization, a mecha builder will give you that. 
 
+moba, lanes, pve farming to take down enemies so that you can take objectives. remove multi player enemies and what do you have? A massive map, with lots of objectives on it. You farm the map to upgrade your hero and "build" them up. 
 
+MOBA + Builder goes hand in hand. Rather than random chance decision making optimization, you give the player nearly full choice for what they build. Better performance clearing/farming the map? Better time building your mecha.
 
-
-
-
+Rogue is the randomly generated dungeon crawling game. We can merge a MOBA map + randomly generated together. 
 
 
