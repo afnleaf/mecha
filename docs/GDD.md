@@ -166,4 +166,6 @@ MOBA + Builder goes hand in hand. Rather than random chance decision making opti
 
 Rogue is the randomly generated dungeon crawling game. We can merge a MOBA map + randomly generated together. 
 
+So how does this end up in the game?
 
+Waves to farm? Drops? 

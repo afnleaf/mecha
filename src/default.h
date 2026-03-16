@@ -76,7 +76,7 @@
 #define GUN_BARREL_THICKNESS    3.0f
 
 // Overheat (shared M1/M2 heat resource)
-#define GUN_HEAT_PER_SHOT        0.03f    // M1
+#define GUN_HEAT_PER_SHOT        0.02f    // M1
 #define MINIGUN_HEAT_PER_SHOT    0.004f   // M2
 #define GUN_HEAT_DECAY           0.3f     // passive heat loss per second
 #define GUN_HEAT_DECAY_DELAY     0.4f     // seconds after last shot before heat decays
@@ -117,7 +117,7 @@
 #define MINIGUN_PROJECTILE_SIZE  2.5f
 #define MINIGUN_SPREAD_MIN       20
 #define MINIGUN_SPREAD_MAX       80
-#define MINIGUN_SLOW_FACTOR      0.4f
+#define MINIGUN_SLOW_FACTOR      0.25f
 #define MINIGUN_SLOW_LINGER      0.25f
 #define MINIGUN_TIP_OFFSET       14.0f
 #define MINIGUN_BARREL_THICKNESS 4.0f
