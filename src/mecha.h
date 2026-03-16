@@ -58,6 +58,32 @@ typedef struct AbilitySlot {
     int key;            // raylib KeyboardKey
 } AbilitySlot;
 
+// gamepad ability bindings ------------------------------------------------- /
+typedef struct PadAbilityBind {
+    AbilityID ability;
+    int button;         // GAMEPAD_BUTTON_*
+    bool needsLB;       // true = LB must be held
+} PadAbilityBind;
+
+static const PadAbilityBind PAD_ABILITY_MAP[] = {
+    // direct (no modifier)
+    { ABL_SHOTGUN,  GAMEPAD_BUTTON_RIGHT_FACE_LEFT,   false }, // X
+    { ABL_RAILGUN,  GAMEPAD_BUTTON_RIGHT_FACE_UP,     false }, // Y
+    { ABL_GRENADE,  GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,  false }, // B
+    { ABL_BLINK,    GAMEPAD_BUTTON_RIGHT_FACE_DOWN,   false }, // A
+    { ABL_SLAM,     GAMEPAD_BUTTON_RIGHT_THUMB,        false }, // RS click
+    // LB + button
+    { ABL_SPIN,     GAMEPAD_BUTTON_RIGHT_FACE_LEFT,   true },  // LB+X
+    { ABL_PARRY,    GAMEPAD_BUTTON_RIGHT_FACE_DOWN,   true },  // LB+A
+    { ABL_SHIELD,   GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,  true },  // LB+B
+    { ABL_BFG,      GAMEPAD_BUTTON_RIGHT_FACE_UP,     true },  // LB+Y
+    { ABL_HEAL,     GAMEPAD_BUTTON_LEFT_FACE_UP,      false }, // DUp
+    { ABL_FIRE,     GAMEPAD_BUTTON_LEFT_FACE_DOWN,    false }, // DDown
+    { ABL_TURRET,   GAMEPAD_BUTTON_LEFT_FACE_LEFT,    false }, // DLeft
+    { ABL_MINE,     GAMEPAD_BUTTON_LEFT_FACE_RIGHT,   false }, // DRight
+};
+#define PAD_ABILITY_COUNT (sizeof(PAD_ABILITY_MAP) / sizeof(PAD_ABILITY_MAP[0]))
+
 // player ------------------------------------------------------------------- /
 // declare abilities above player
 typedef struct Gun {
@@ -458,6 +484,7 @@ typedef struct GameState {
     bool gameOver;
     bool paused;
     GameScreen screen;
+    bool gamepadActive;     // true = last input from gamepad
     int selectIndex;
     int selectPhase;    // 0 = picking primary, 1 = picking secondary
     float selectDemoTimer;

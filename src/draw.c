@@ -49,6 +49,49 @@ static const char* SlotLabel(Player *p, AbilityID abl) {
     return "?";
 }
 
+// gamepad button label
+static const char* PadButtonName(int button) {
+    switch (button) {
+        case GAMEPAD_BUTTON_RIGHT_FACE_DOWN:  return "A";
+        case GAMEPAD_BUTTON_RIGHT_FACE_RIGHT: return "B";
+        case GAMEPAD_BUTTON_RIGHT_FACE_LEFT:  return "X";
+        case GAMEPAD_BUTTON_RIGHT_FACE_UP:    return "Y";
+        case GAMEPAD_BUTTON_LEFT_TRIGGER_1:   return "LB";
+        case GAMEPAD_BUTTON_RIGHT_TRIGGER_1:  return "RB";
+        case GAMEPAD_BUTTON_LEFT_FACE_UP:     return "u";
+        case GAMEPAD_BUTTON_LEFT_FACE_DOWN:   return "d";
+        case GAMEPAD_BUTTON_LEFT_FACE_LEFT:   return "l";
+        case GAMEPAD_BUTTON_LEFT_FACE_RIGHT:  return "r";
+        case GAMEPAD_BUTTON_LEFT_THUMB:       return "LS";
+        case GAMEPAD_BUTTON_RIGHT_THUMB:      return "RS";
+        case GAMEPAD_BUTTON_MIDDLE_LEFT:      return "Sel";
+        case GAMEPAD_BUTTON_MIDDLE_RIGHT:     return "St";
+        default: return "?";
+    }
+}
+
+// cooldown bar label info for keyboard/gamepad modes
+typedef struct CdBarInfo {
+    const char *label;
+    bool isModified;    // needs LB held (gamepad only)
+} CdBarInfo;
+
+static CdBarInfo GetCdLabel(Player *p, AbilityID abl) {
+    CdBarInfo info = { "?", false };
+    if (g.gamepadActive) {
+        for (int i = 0; i < (int)PAD_ABILITY_COUNT; i++) {
+            if (PAD_ABILITY_MAP[i].ability == abl) {
+                info.label = PadButtonName(PAD_ABILITY_MAP[i].button);
+                info.isModified = PAD_ABILITY_MAP[i].needsLB;
+                return info;
+            }
+        }
+    } else {
+        info.label = SlotLabel(p, abl);
+    }
+    return info;
+}
+
 static const char* WeaponName(WeaponType w) {
     switch (w) {
         case WPN_GUN:           return "GUN";
@@ -1437,7 +1480,9 @@ static void DrawSelect(void)
     int titleY = (int)(sh * SELECT_TITLE_Y);
     DrawText(title, sw / 2 - titleW / 2, titleY, titleFont, WHITE);
 
-    const char *hint = "walk to a weapon and click to select";
+    const char *hint = g.gamepadActive
+        ? "walk to a weapon and press A to select"
+        : "walk to a weapon and press Enter/M1 to select";
     int hintW = MeasureText(hint, hintFont);
     DrawText(hint, sw / 2 - hintW / 2,
         titleY + titleFont + gap, hintFont, Fade(WHITE, 0.5f));
@@ -1474,8 +1519,11 @@ static void DrawSelect(void)
 }
 
 static void DrawCooldownBar(int x, int barY, int w, int h,
-    float ratio, Color color, const char *label, int labelY, int fontSize)
+    float ratio, Color color, const char *label, int labelY, int fontSize,
+    bool isModified)
 {
+    bool lbHeld = g.gamepadActive
+        && IsGamepadButtonDown(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_TRIGGER_1);
     int lblW = MeasureText(label, fontSize);
     int lblX = x + w / 2 - lblW / 2;
     int lblY = barY + h / 2 - fontSize / 2;
@@ -1487,16 +1535,34 @@ static void DrawCooldownBar(int x, int barY, int w, int h,
         DrawRectangle(x, barY, w, h, Fade(color, HUD_CD_ALPHA));
         DrawRectangleLines(x, barY, w, h, WHITE);
     }
+    // LB-held highlight for modified abilities
+    if (lbHeld && isModified)
+        DrawRectangleLines(x - 1, barY - 1, w + 2, h + 2, WHITE);
     DrawText(label, lblX, lblY, fontSize, WHITE);
+    // LB modifier indicator above bar
+    if (isModified && g.gamepadActive) {
+        int modFont = fontSize - 2;
+        if (modFont < 8) modFont = 8;
+        int modW = MeasureText("LB", modFont);
+        DrawText("LB", x + w / 2 - modW / 2, labelY, modFont, Fade(WHITE, 0.5f));
+    }
 }
 
 static void DrawPipBar(int x, int barY, int pipW, int pipH, int pipGap,
     int maxPips, int filledPips, bool recharging, float rechargeRatio,
-    Color color, const char *label, int labelY, int fontSize)
+    Color color, const char *label, int labelY, int fontSize,
+    bool isModified)
 {
     int totalW = maxPips * pipW + (maxPips - 1) * pipGap;
     int lblW = MeasureText(label, fontSize);
     int lblY = barY + pipH / 2 - fontSize / 2;
+    // LB modifier indicator above pip bar
+    if (isModified && g.gamepadActive) {
+        int modFont = fontSize - 2;
+        if (modFont < 8) modFont = 8;
+        int modW = MeasureText("LB", modFont);
+        DrawText("LB", x + totalW / 2 - modW / 2, labelY, modFont, Fade(WHITE, 0.5f));
+    }
     if (recharging) {
         for (int i = 0; i < maxPips; i++) {
             int pipX = x + i * (pipW + pipGap);
@@ -1568,14 +1634,18 @@ static void DrawCooldownColumn(Player *p, float ui)
     }
 #endif
 
+    // helper macro — get label + modifier flag for each ability
+    #define CD(abl) GetCdLabel(p, abl)
+
     // R — BFG (charge bar)
+    { CdBarInfo ci = CD(ABL_BFG);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         p->bfg.active ? 0 : p->bfg.charge / BFG_CHARGE_COST,
-        BFG_COLOR, SlotLabel(p, ABL_BFG), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        BFG_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // Q — Shotgun (pip bar)
-    {
+    { CdBarInfo ci = CD(ABL_SHOTGUN);
         bool recharging = p->shotgun.blastsLeft == 0
             && p->shotgun.cooldownTimer > 0;
         float rechargeRatio = recharging
@@ -1584,24 +1654,26 @@ static void DrawCooldownColumn(Player *p, float ui)
         DrawPipBar(cdX, barY, pipW, cdBarH, pipGap,
             SHOTGUN_BLASTS, p->shotgun.blastsLeft,
             recharging, rechargeRatio,
-            ORANGE, SlotLabel(p, ABL_SHOTGUN), labelY, cdFont);
+            ORANGE, ci.label, labelY, cdFont, ci.isModified);
         cdX += shtgnW + colGap;
     }
 
     // E — Railgun
+    { CdBarInfo ci = CD(ABL_RAILGUN);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->railgun.cooldownTimer / RAILGUN_COOLDOWN,
-        RAILGUN_COLOR, SlotLabel(p, ABL_RAILGUN), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        RAILGUN_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // Shift — Spin
+    { CdBarInfo ci = CD(ABL_SPIN);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->spin.cooldownTimer / SPIN_COOLDOWN,
-        YELLOW, SlotLabel(p, ABL_SPIN), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        YELLOW, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // F — Parry
-    {
+    { CdBarInfo ci = CD(ABL_PARRY);
         float ratio; Color color;
         if (p->parry.active) {
             ratio = 1.0f; color = WHITE;
@@ -1614,18 +1686,19 @@ static void DrawCooldownColumn(Player *p, float ui)
             ratio = 1.0f; color = PARRY_COLOR;
         }
         DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-            ratio, color, SlotLabel(p, ABL_PARRY), labelY, cdFont);
+            ratio, color, ci.label, labelY, cdFont, ci.isModified);
         cdX += cdBarW + colGap;
     }
 
     // Z — Heal
+    { CdBarInfo ci = CD(ABL_HEAL);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->healCooldown / HEAL_COOLDOWN,
-        HEAL_COLOR, SlotLabel(p, ABL_HEAL), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        HEAL_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // X — Shield
-    {
+    { CdBarInfo ci = CD(ABL_SHIELD);
         float ratio; Color color;
         if (p->shield.regenTimer < 0) {
             ratio = 1.0f + p->shield.regenTimer / SHIELD_BROKEN_COOLDOWN;
@@ -1635,46 +1708,54 @@ static void DrawCooldownColumn(Player *p, float ui)
             color = (Color)SHIELD_COLOR;
         }
         DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-            ratio, color, SlotLabel(p, ABL_SHIELD), labelY, cdFont);
+            ratio, color, ci.label, labelY, cdFont, ci.isModified);
         cdX += cdBarW + colGap;
     }
 
     // C — Grenade
+    { CdBarInfo ci = CD(ABL_GRENADE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
-        GRENADE_COLOR, SlotLabel(p, ABL_GRENADE), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        GRENADE_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // V — Fuel
+    { CdBarInfo ci = CD(ABL_FIRE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         p->flame.fuel / FLAME_FUEL_MAX,
-        FLAME_COLOR, SlotLabel(p, ABL_FIRE), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        FLAME_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // 1 — Slam
+    { CdBarInfo ci = CD(ABL_SLAM);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
-        SLAM_COLOR, SlotLabel(p, ABL_SLAM), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        SLAM_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // 2 — Blink
+    { CdBarInfo ci = CD(ABL_BLINK);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         p->blink.cooldown > 0
             ? 1.0f - p->blink.cooldown / BLINK_COOLDOWN : 1.0f,
-        BLINK_COLOR, SlotLabel(p, ABL_BLINK), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        BLINK_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // 3 — Turret
+    { CdBarInfo ci = CD(ABL_TURRET);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->turretCooldown / TURRET_COOLDOWN,
-        TURRET_COLOR, SlotLabel(p, ABL_TURRET), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        TURRET_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
 
     // 4 — Mine
+    { CdBarInfo ci = CD(ABL_MINE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
         1.0f - p->mineCooldown / MINE_COOLDOWN,
-        MINE_COLOR, SlotLabel(p, ABL_MINE), labelY, cdFont);
-    cdX += cdBarW + colGap;
+        MINE_COLOR, ci.label, labelY, cdFont, ci.isModified);
+    cdX += cdBarW + colGap; }
+
+    #undef CD
 }
 
 static void DrawArcCursor(Vector2 center, float angleDeg, float innerR,
@@ -1872,7 +1953,7 @@ static void DrawPauseMenu(int sw, int sh, float ui)
         pauseFont,
         WHITE);
     int resumeFont = (int)(HUD_RESUME_FONT * ui);
-    const char *resumeText = "P or Esc to resume";
+    const char *resumeText = g.gamepadActive ? "Start to resume" : "P or Esc to resume";
     int rW = MeasureText(resumeText, resumeFont);
     DrawText(
         resumeText,
@@ -1889,14 +1970,27 @@ static void DrawPauseMenu(int sw, int sh, float ui)
 
     // Left column: core controls
     const char *fsDesc = IsWindowFullscreen() ? "FS: ON" : "FS: OFF";
-    const char *lKeys[] = {
-        "WASD", "Space", "M1", "M2", "Ctrl", "P/Esc", "F", "0"
-    };
-    const char *lDescs[] = {
-        "Move", "Dash", "Primary", "Alt Fire",
-        "Swap", "Pause", fsDesc, "Exit"
-    };
-    int lCount = 8;
+    const char *lKeys[8]; const char *lDescs[8]; int lCount;
+    if (g.gamepadActive) {
+        lKeys[0] = "LS";    lDescs[0] = "Move";
+        lKeys[1] = "RS";    lDescs[1] = "Aim";
+        lKeys[2] = "RT";    lDescs[2] = "Primary";
+        lKeys[3] = "LT";    lDescs[3] = "Alt Fire";
+        lKeys[4] = "A";     lDescs[4] = "Dash";
+        lKeys[5] = "Sel";   lDescs[5] = "Swap";
+        lKeys[6] = "Start"; lDescs[6] = "Pause";
+        lCount = 7;
+    } else {
+        lKeys[0] = "WASD";  lDescs[0] = "Move";
+        lKeys[1] = "Space"; lDescs[1] = "Dash";
+        lKeys[2] = "M1";    lDescs[2] = "Primary";
+        lKeys[3] = "M2";    lDescs[3] = "Alt Fire";
+        lKeys[4] = "Ctrl";  lDescs[4] = "Swap";
+        lKeys[5] = "P/Esc"; lDescs[5] = "Pause";
+        lKeys[6] = "F";     lDescs[6] = fsDesc;
+        lKeys[7] = "0";     lDescs[7] = "Exit";
+        lCount = 8;
+    }
 
     int totalW = (int)(420 * ui);
     int colW = totalW / 3;
@@ -1924,7 +2018,19 @@ static void DrawPauseMenu(int sw, int sh, float ui)
         int colX = (a < half) ? mColX : rColX;
         int row = (a < half) ? a : a - half;
         int ky = pkY + row * pkSpacing;
-        DrawText(KeyName(p->slots[si].key), colX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
+        const char *keyText;
+        if (g.gamepadActive) {
+            CdBarInfo ci = GetCdLabel(p, p->slots[si].ability);
+            // build "LB+X" style label for modified abilities
+            if (ci.isModified) {
+                keyText = TextFormat("LB+%s", ci.label);
+            } else {
+                keyText = ci.label;
+            }
+        } else {
+            keyText = KeyName(p->slots[si].key);
+        }
+        DrawText(keyText, colX, ky, pkFont, SELECT_HIGHLIGHT_COLOR);
         DrawText(AbilityName(p->slots[si].ability),
             colX + pkTabW, ky, pkFont, Fade(WHITE, 0.6f));
     }
@@ -2013,7 +2119,8 @@ static void DrawHUD(void)
             Fade(WHITE, 0.35f));
         int ctrlX = secX + MeasureText(TextFormat("/ %s", sec), wFont)
             + (int)(6 * ui);
-        DrawText("[Ctrl]", ctrlX, wY, wFont, Fade(WHITE, 0.2f));
+        const char *swapHint = g.gamepadActive ? "[LS]" : "[Ctrl]";
+        DrawText(swapHint, ctrlX, wY, wFont, Fade(WHITE, 0.2f));
     }
 
     DrawCooldownColumn(p, ui);
@@ -2026,7 +2133,16 @@ static void DrawHUD(void)
         GetFPS()), sw - (int)(HUD_FPS_X * ui), (int)(HUD_MARGIN * ui), fpsFont, GREEN);
 
     // Crosshair cursor
-    Vector2 mouse = GetMousePosition();
+    Vector2 mouse;
+    if (g.gamepadActive) {
+        Player *cp = &g.player;
+        Vector2 aimWorld = Vector2Add(cp->pos,
+            (Vector2){ cosf(cp->angle) * GAMEPAD_AIM_DIST,
+                        sinf(cp->angle) * GAMEPAD_AIM_DIST });
+        mouse = GetWorldToScreen2D(aimWorld, g.camera);
+    } else {
+        mouse = GetMousePosition();
+    }
     float ch = HUD_CROSSHAIR_SIZE * ui;
     float chThick = HUD_CROSSHAIR_THICKNESS * ui;
     float chGap = HUD_CROSSHAIR_GAP * ui;
@@ -2078,8 +2194,9 @@ static void DrawGame(void)
 // Main loop callback
 void NextFrame(void)
 {
-    if (g.screen == SCREEN_PLAYING && !IsCursorHidden()) HideCursor();
-    if (g.screen != SCREEN_PLAYING &&  IsCursorHidden()) ShowCursor();
+    bool shouldHide = g.screen == SCREEN_PLAYING || g.gamepadActive;
+    if (shouldHide && !IsCursorHidden()) HideCursor();
+    if (!shouldHide && IsCursorHidden()) ShowCursor();
     UpdateGame();
     DrawGame();
 }

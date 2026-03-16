@@ -3,11 +3,56 @@
 // handle input
 #include "game.h"
 
-// M1/M2 wrappers — mouse buttons OR keyboard equivalents
-static inline bool M1Down(void)    { return IsMouseButtonDown(MOUSE_BUTTON_LEFT)    || IsKeyDown(KB_M1_KEY); }
-static inline bool M1Pressed(void) { return IsMouseButtonPressed(MOUSE_BUTTON_LEFT)  || IsKeyPressed(KB_M1_KEY); }
-static inline bool M2Down(void)    { return IsMouseButtonDown(MOUSE_BUTTON_RIGHT)    || IsKeyDown(KB_M2_KEY); }
-static inline bool M2Pressed(void) { return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KB_M2_KEY); }
+// M1/M2 wrappers — mouse buttons OR keyboard OR gamepad triggers
+static inline bool M1Down(void) {
+    return IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KB_M1_KEY)
+        || IsGamepadButtonDown(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_TRIGGER_2);
+}
+static inline bool M1Pressed(void) {
+    return IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KB_M1_KEY)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_TRIGGER_2);
+}
+static inline bool M2Down(void) {
+    return IsMouseButtonDown(MOUSE_BUTTON_RIGHT) || IsKeyDown(KB_M2_KEY)
+        || IsGamepadButtonDown(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_TRIGGER_2);
+}
+static inline bool M2Pressed(void) {
+    return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) || IsKeyPressed(KB_M2_KEY)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_TRIGGER_2);
+}
+
+// Dash input — shared by gameplay dash, QTE timing, select screen
+static inline bool DashPressed(void) {
+    return IsKeyPressed(KEY_SPACE)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
+}
+
+// Input mode detection — sets g.gamepadActive for HUD display
+static void DetectInputMode(void) {
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        for (int b = 1; b <= GAMEPAD_BUTTON_RIGHT_THUMB; b++) {
+            if (IsGamepadButtonPressed(GAMEPAD_INDEX, b)) {
+                g.gamepadActive = true;
+                return;
+            }
+        }
+        float lx = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_X);
+        float ly = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_Y);
+        float rx = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_RIGHT_X);
+        float ry = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_RIGHT_Y);
+        if (fabsf(lx) > GAMEPAD_STICK_DEADZONE || fabsf(ly) > GAMEPAD_STICK_DEADZONE ||
+            fabsf(rx) > GAMEPAD_STICK_DEADZONE || fabsf(ry) > GAMEPAD_STICK_DEADZONE) {
+            g.gamepadActive = true;
+            return;
+        }
+    }
+    Vector2 md = GetMouseDelta();
+    if (md.x != 0 || md.y != 0) { g.gamepadActive = false; return; }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        g.gamepadActive = false; return;
+    }
+    if (GetKeyPressed() != 0) { g.gamepadActive = false; }
+}
 
 // forward declarations for functions used before defined
 static void RocketExplode(Vector2 pos);
@@ -83,6 +128,15 @@ static bool IsAbilityPressed(Player *p, AbilityID ability) {
             && IsKeyPressed(p->slots[i].key))
             return true;
     }
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        bool lbHeld = IsGamepadButtonDown(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_TRIGGER_1);
+        for (int i = 0; i < (int)PAD_ABILITY_COUNT; i++) {
+            if (PAD_ABILITY_MAP[i].ability == ability
+                && PAD_ABILITY_MAP[i].needsLB == lbHeld
+                && IsGamepadButtonPressed(GAMEPAD_INDEX, PAD_ABILITY_MAP[i].button))
+                return true;
+        }
+    }
     return false;
 }
 
@@ -91,6 +145,15 @@ static bool IsAbilityDown(Player *p, AbilityID ability) {
         if (p->slots[i].ability == ability
             && IsKeyDown(p->slots[i].key))
             return true;
+    }
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        bool lbHeld = IsGamepadButtonDown(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_TRIGGER_1);
+        for (int i = 0; i < (int)PAD_ABILITY_COUNT; i++) {
+            if (PAD_ABILITY_MAP[i].ability == ability
+                && PAD_ABILITY_MAP[i].needsLB == lbHeld
+                && IsGamepadButtonDown(GAMEPAD_INDEX, PAD_ABILITY_MAP[i].button))
+                return true;
+        }
     }
     return false;
 }
@@ -122,6 +185,17 @@ static float aimGrace[4] = { 0 }; // right, left, down, up
 static Vector2 UpdateMouseAim() {
     Player *p = &g.player;
     float dt = GetFrameTime();
+
+    // Right stick aim (gamepad)
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        float rx = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_RIGHT_X) * GAMEPAD_AIM_SENS;
+        float ry = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_RIGHT_Y) * GAMEPAD_AIM_SENS;
+        if (fabsf(rx) > GAMEPAD_STICK_DEADZONE || fabsf(ry) > GAMEPAD_STICK_DEADZONE) {
+            lastKbAim = Vector2Normalize((Vector2){ rx, ry });
+            kbAimActive = true;
+        }
+    }
+
     // Keyboard aim with grace period for diagonals
     bool held[4] = {
         IsKeyDown(KEY_RIGHT) || IsKeyDown(AIM_RIGHT_KEY),
@@ -147,11 +221,11 @@ static Vector2 UpdateMouseAim() {
         lastKbAim = arrowDir;
         kbAimActive = true;
     }
-    // Mouse movement disengages keyboard aim
+    // Mouse movement disengages keyboard/stick aim
     Vector2 mouseDelta = GetMouseDelta();
     if (mouseDelta.x != 0 || mouseDelta.y != 0) kbAimActive = false;
     if (kbAimActive) {
-        Vector2 toAim = Vector2Scale(lastKbAim, ARROW_AIM_DIST);
+        Vector2 toAim = Vector2Scale(lastKbAim, GAMEPAD_AIM_DIST);
         p->angle = atan2f(toAim.y, toAim.x);
         return toAim;
     }
@@ -203,14 +277,20 @@ static void UpdateSelect(void)
     if (dt > DT_MAX) dt = DT_MAX;
     Player *p = &g.player;
 
-    // WASD movement
+    // WASD + left stick movement
     Vector2 moveDir = { 0, 0 };
     if (IsKeyDown(KEY_W)) moveDir.y -= 1;
     if (IsKeyDown(KEY_S)) moveDir.y += 1;
     if (IsKeyDown(KEY_A)) moveDir.x -= 1;
     if (IsKeyDown(KEY_D)) moveDir.x += 1;
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        float lx = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_X);
+        float ly = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_Y);
+        if (fabsf(lx) > GAMEPAD_STICK_DEADZONE) moveDir.x += lx;
+        if (fabsf(ly) > GAMEPAD_STICK_DEADZONE) moveDir.y += ly;
+    }
     float moveLen = Vector2Length(moveDir);
-    if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
+    if (moveLen > 1.0f) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
 
     if (!p->dash.active)
         p->pos = Vector2Add(p->pos, Vector2Scale(moveDir, SELECT_PLAYER_SPEED * dt));
@@ -224,7 +304,7 @@ static void UpdateSelect(void)
                 p->dash.rechargeTimer = p->dash.rechargeTime;
         }
     }
-    if (IsKeyPressed(KEY_SPACE) && !p->dash.active && p->dash.charges > 0) {
+    if (DashPressed() && !p->dash.active && p->dash.charges > 0) {
         p->dash.active = true;
         p->dash.timer = p->dash.duration;
         bool wasFull = (p->dash.charges == p->dash.maxCharges);
@@ -250,11 +330,8 @@ static void UpdateSelect(void)
         (Vector2){margin, margin},
         (Vector2){SELECT_ARENA_SIZE - margin, SELECT_ARENA_SIZE - margin});
 
-    // Mouse aim
-    Vector2 screenMouse = GetMousePosition();
-    Vector2 worldMouse = GetScreenToWorld2D(screenMouse, g.camera);
-    Vector2 toMouse = Vector2Subtract(worldMouse, p->pos);
-    p->angle = atan2f(toMouse.y, toMouse.x);
+    // Aim (mouse / right stick)
+    UpdateMouseAim();
 
     // Pedestal positions (U curve, left to right by face count)
     float spacing = SELECT_ARENA_SIZE / 6.0f;
@@ -280,9 +357,10 @@ static void UpdateSelect(void)
         }
     }
 
-    // M1 or Enter selects weapon
+    // M1 or Enter or A selects weapon
     if (g.selectIndex >= 0 && g.transitionTimer <= 0 &&
-        (M1Pressed() || IsKeyPressed(KEY_ENTER))) {
+        (M1Pressed() || IsKeyPressed(KEY_ENTER)
+         || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))) {
         if (g.selectPhase == 0) {
             p->primary = SELECT_WEAPONS[g.selectIndex];
             g.selectPhase = 1;
@@ -478,7 +556,7 @@ static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt)
         }
     }
 
-    bool spacePressed = IsKeyPressed(KEY_SPACE);
+    bool spacePressed = DashPressed();
 
     // Pressed space during active dash = mistimed, no super dash
     if (spacePressed && p->dash.active) {
@@ -573,7 +651,8 @@ static void UpdateDash(Player *p, Vector2 moveDir, float moveLen, float dt)
 static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
 {
     // --- Weapon swap (Ctrl) ---
-    if (IsKeyPressed(WEAPON_SWAP_KEY)) {
+    if (IsKeyPressed(WEAPON_SWAP_KEY)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_LEFT_THUMB)) {
         WeaponType tmp = p->primary;
         p->primary = p->secondary;
         p->secondary = tmp;
@@ -623,7 +702,7 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
                     p->gun.ventResult = -1; // missed — no press
                 }
                 bool m1Pressed = M1Pressed();
-                bool dashPressed = IsKeyPressed(KEY_SPACE);
+                bool dashPressed = DashPressed();
                 if (m1Pressed || dashPressed) {
                     float c = p->gun.ventCursor;
                     float zs = p->gun.ventZoneStart;
@@ -881,14 +960,14 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
         if (p->revolver.reloadTimer > 0) {
             float progress = 1.0f - (p->revolver.reloadTimer / REVOLVER_RELOAD_TIME);
             // Active reload: M1 or Space during reload
-            bool reloadInput = M1Pressed() || IsKeyPressed(KEY_SPACE);
+            bool reloadInput = M1Pressed() || DashPressed();
             if (reloadInput && !p->revolver.reloadLocked) {
                 bool inSweet = progress >= REVOLVER_RELOAD_SWEET_START
                     && progress <= REVOLVER_RELOAD_SWEET_END;
                 if (inSweet) {
                     p->revolver.reloadTimer = REVOLVER_RELOAD_FAST_TIME;
                     // Dash reload — next cylinder does double damage
-                    if (IsKeyPressed(KEY_SPACE))
+                    if (DashPressed())
                         p->revolver.bonusRounds = REVOLVER_ROUNDS;
                 } else {
                     p->revolver.reloadTimer += REVOLVER_RELOAD_FAIL_PENALTY;
@@ -1417,8 +1496,14 @@ static void UpdatePlayer(float dt)
     if (IsKeyDown(KEY_S)) moveDir.y += 1;
     if (IsKeyDown(KEY_A)) moveDir.x -= 1;
     if (IsKeyDown(KEY_D)) moveDir.x += 1;
+    if (IsGamepadAvailable(GAMEPAD_INDEX)) {
+        float lx = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_X);
+        float ly = GetGamepadAxisMovement(GAMEPAD_INDEX, GAMEPAD_AXIS_LEFT_Y);
+        if (fabsf(lx) > GAMEPAD_STICK_DEADZONE) moveDir.x += lx;
+        if (fabsf(ly) > GAMEPAD_STICK_DEADZONE) moveDir.y += ly;
+    }
     float moveLen = Vector2Length(moveDir);
-    if (moveLen > 0) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
+    if (moveLen > 1.0f) moveDir = Vector2Scale(moveDir, 1.0f / moveLen);
 
     UpdateMovement(p, moveDir, moveLen, dt);
     UpdateDash(p, moveDir, moveLen, dt);
@@ -2199,6 +2284,7 @@ static void MoveCamera(float dt)
 void UpdateGame(void)
 {
     WindowResize();
+    DetectInputMode();
 
     if (g.screen == SCREEN_SELECT) {
         UpdateSelect();
@@ -2210,7 +2296,9 @@ void UpdateGame(void)
     if (dt > DT_MAX) dt = DT_MAX;
 
     // need to make sure that esc also pauses in native build
-    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) g.paused = !g.paused;
+    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_MIDDLE_RIGHT))
+        g.paused = !g.paused;
 
     if (g.paused && IsKeyPressed(KEY_F)) {
         int mon = GetCurrentMonitor();
@@ -2226,7 +2314,9 @@ void UpdateGame(void)
     }
 
     if (g.gameOver) {
-        if (IsKeyPressed(KEY_ENTER)) InitGame();
+        if (IsKeyPressed(KEY_ENTER)
+            || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))
+            InitGame();
         return;
     }
 

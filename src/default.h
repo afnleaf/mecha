@@ -16,6 +16,13 @@
 #define ARROW_AIM_DIST          150.0f
 #define AIM_KEY_GRACE           0.08f
 
+// Gamepad
+#define GAMEPAD_INDEX           0
+#define GAMEPAD_STICK_DEADZONE  0.25f
+#define GAMEPAD_AIM_DIST        150.0f
+#define GAMEPAD_AIM_SENS        0.4f    // stick input scalar 0 low 1 high
+#define GAMEPAD_TRIGGER_THRESH  0.5f
+
 // Kit
 #define ABILITY_SLOTS           13
 #define NUM_PRIMARY_WEAPONS     5
