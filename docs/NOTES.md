@@ -108,6 +108,10 @@ asset loader
 - [x] move reload and overheat bars somehwere more visible than the left side
 - [x] cleanup controls hud menu to be properly visible and programmatic
 - [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
+- [] controller support
+- [] able to remap abilities (tab/alt modifier)
+- [] waves/phases after screen/phase refactor
+
 
 ### refactorin time
 - [x] ok let's do a header file and remake the build
@@ -162,6 +166,7 @@ asset loader
 - [x] wider railgun
 - [x] sniper hipfire way less accurate
 - [x] flamethrower range longer
+- [] rocket goes max distance, m2 explodes it, just remove rocket explodes where m1 was pressed (better for controller/kb only)
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -209,13 +214,11 @@ each chassis is a platonic solid and has an associated element (sacred geometry)
 - [x] consistent player size depending on shape
 - [] fix player shadow not rotating properly or being the direct shadow shape
 
-
 idea: two characters? the cube and the tetrahedron? rest of platonic solids: octahedron, dodecahedron, icosahedron. Make the animation it rolling on each side? (I like this). 2d shapes vs 3d shape, you leave your shadow in this 2d world.
 
 the different games idea, each chassis has one really powerful identity that enables you to play a game a certain way. While most of the game remains the same, this one unique spin is creates quite a change. 
 
 what can you customize? all your buttons, its a mecha game... some remain for basics. Obviously we can reslot any of these buttons. 
-
 
 non changing controls
 - WASD - move
@@ -247,15 +250,26 @@ non changing controls
 - 0 - quit
 - tab - free (score board?/map??/diagetic menu)
 - alt - free (modifier? level up?)
+- alt keyboard mode OKL; movement right shift m1, enter m2
+- controller?
 
-customizeable controls, 11 normal abilities and 1 ult
+customizeable controls, 12 normal abilities and 1 ult
 - shift - spin (lifesteal)
 - Q - shotgun (2 blasts)
-- C - Grenade launcher
 - E - railgun (pierce all)
-- F - ult BGG10k 
+- F - parry (melee)
+- R - ult BGG10k 
+- Z - heal field
 - X - projectile shield
-- Z, R, V, 1-4 - free
+- C - Grenade launcher
+- V - flamethrower
+- 1 - ground slam stun
+- 2 - blink dagger
+- 3 - turret
+- 4 - root mine
+
+figure out the classes of abilities
+
 
 ## Levels
 we have one level. level 0 is where you can pick your weapon diagetically. every menu in the game should be a level.
