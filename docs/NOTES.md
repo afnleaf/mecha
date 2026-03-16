@@ -108,7 +108,7 @@ asset loader
 - [x] move reload and overheat bars somehwere more visible than the left side
 - [x] cleanup controls hud menu to be properly visible and programmatic
 - [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
-- [] controller support
+- [x] controller support
 - [] able to remap abilities (tab/alt modifier)
 - [] waves/phases after screen/phase refactor
 
@@ -147,6 +147,7 @@ asset loader
 - [x] (user) add octagon enemy (stopper)
 - [] add mini boss (shape?) multiple attacks
 - [] add big boss circle
+- [] enemies receive a tell for their attacks
 
 ### weapons
 - [x] laser (hitscan)
@@ -166,7 +167,7 @@ asset loader
 - [x] wider railgun
 - [x] sniper hipfire way less accurate
 - [x] flamethrower range longer
-- [] rocket goes max distance, m2 explodes it, just remove rocket explodes where m1 was pressed (better for controller/kb only)
+- [x] rocket goes max distance, m2 explodes it, just remove rocket explodes where m1 was pressed (better for controller/kb only)
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 

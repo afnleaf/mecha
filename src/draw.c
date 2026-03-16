@@ -1916,7 +1916,7 @@ static void DrawWeaponStatus(Player *p, float ui)
             // QTE label
             const char *ovLabel =
                 (p->gun.ventResult == 1) ? "VENT"
-                : (p->gun.ventResult == -1) ? "OVHT" : "[R]";
+                : (p->gun.ventResult == -1) ? "OVHT" : "VENT";
             Color ovColor = (p->gun.ventResult == 1) ? GREEN
                 : (p->gun.ventResult == -1) ? RED : YELLOW;
             int ovW = MeasureText(ovLabel, arcFont);
@@ -2063,7 +2063,8 @@ static void DrawGameOver(int sw, int sh, float ui)
         WHITE);
 
     int rsFont = (int)(HUD_GO_RESTART_FONT * ui);
-    const char *restartText = "Press ENTER to restart";
+    const char *restartText = g.gamepadActive
+        ? "Press A to restart" : "Press ENTER to restart";
     int rW = MeasureText(restartText, rsFont);
     DrawText(
         restartText,

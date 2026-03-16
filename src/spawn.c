@@ -228,15 +228,11 @@ void SpawnRocket(Player *p, Vector2 toMouse) {
     Vector2 aimDir = Vector2Normalize(toMouse);
     Vector2 muzzle = Vector2Add(p->pos,
         Vector2Scale(aimDir, p->size + MUZZLE_OFFSET));
-    Vector2 worldTarget = Vector2Add(p->pos, toMouse);
     Projectile *r = SpawnProjectile(muzzle, aimDir,
         ROCKET_SPEED, ROCKET_DIRECT_DAMAGE,
         ROCKET_LIFETIME, ROCKET_PROJECTILE_SIZE, false, true,
         PROJ_ROCKET, DMG_EXPLOSIVE);
-    if (r) {
-        r->target = worldTarget;
-        p->rocket.inFlight = true;
-    }
+    if (r) p->rocket.inFlight = true;
     // muzzle flash
     SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
     SpawnParticle(muzzle,

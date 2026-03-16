@@ -458,8 +458,7 @@ static void UpdateSelect(void)
                     ROCKET_SPEED, ROCKET_DIRECT_DAMAGE,
                     ROCKET_LIFETIME, ROCKET_PROJECTILE_SIZE,
                     false, true, PROJ_ROCKET, DMG_EXPLOSIVE);
-                if (r) r->target = Vector2Add(base,
-                    Vector2Scale(aimDir, 300.0f));
+                (void)r;
                 SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
                 SpawnParticle(muzzle,
                     Vector2Scale(aimDir, ROCKET_MUZZLE_SPEED), ORANGE,
@@ -1137,13 +1136,10 @@ static void UpdateBlinkDagger(Player *p, Vector2 toMouse, float dt)
             p->blink.damageActive = false;
             for (int i = 0; i < MAX_ENEMIES; i++) {
                 Enemy *e = &g.enemies[i];
-                if (!e->active) continue;
-                if (EnemyHitSweep(e, p->blink.slashOrigin,
-                    p->blink.slashTip, BLINK_BEAM_WIDTH))
-                {
-                    DamageEnemy(i, BLINK_DAMAGE,
-                        DMG_SLASH, HIT_MELEE);
-                }
+                if (!e->active || !e->blinkMarked) continue;
+                DamageEnemy(i, BLINK_DAMAGE,
+                    DMG_SLASH, HIT_MELEE);
+                e->blinkMarked = false;
             }
         }
     }
@@ -1175,8 +1171,10 @@ static void UpdateBlinkDagger(Player *p, Vector2 toMouse, float dt)
     for (int i = 0; i < MAX_ENEMIES; i++) {
         Enemy *e = &g.enemies[i];
         if (!e->active) continue;
-        if (EnemyHitSweep(e, origin, dest, BLINK_BEAM_WIDTH))
+        if (EnemyHitSweep(e, origin, dest, BLINK_BEAM_WIDTH)) {
             e->blinkMark = BLINK_DAMAGE_DELAY;
+            e->blinkMarked = true;
+        }
     }
 
     // Spawn 3 beam trails (center + 2 offset)
@@ -2085,15 +2083,6 @@ static void UpdateProjectiles(float dt) {
             }
         }
 
-        // rocket reached target — explode
-        if (b->type == PROJ_ROCKET) {
-            float toTarget = Vector2Distance(b->pos, b->target);
-            if (toTarget < ROCKET_SPEED * dt) {
-                RocketExplode(b->target);
-                b->active = false;
-                continue;
-            }
-        }
 
         if (b->isEnemy) {
             // Shield absorbs enemy projectiles

@@ -18,7 +18,7 @@
 
 // Gamepad
 #define GAMEPAD_INDEX           0
-#define GAMEPAD_STICK_DEADZONE  0.25f
+#define GAMEPAD_STICK_DEADZONE  0.20f
 #define GAMEPAD_AIM_DIST        150.0f
 #define GAMEPAD_AIM_SENS        0.4f    // stick input scalar 0 low 1 high
 #define GAMEPAD_TRIGGER_THRESH  0.5f
@@ -257,7 +257,7 @@
 #define BFG_COLOR                   (Color){ 120, 220, 255, 255 }
 #define BFG_GLOW_COLOR              (Color){ 80, 160, 255, 100 }
 #define BFG_CHAIN_DAMAGE            100
-#define BFG_CHAIN_RADIUS            200.0f
+#define BFG_CHAIN_RADIUS            400.0f
 #define BFG_HOP_DELAY               0.1f
 #define BFG_ARC_DURATION            0.4f
 #define BFG_MAX_HOPS                256
@@ -383,7 +383,7 @@
 #define BLINK_DAMAGE            40
 #define BLINK_DAMAGE_DELAY      1.6f        // seconds before slash damage
 #define BLINK_BEAM_DURATION     0.25f       // trail linger time
-#define BLINK_BEAM_WIDTH        16.0f
+#define BLINK_BEAM_WIDTH        32.0f
 #define BLINK_BEAM_OFFSET       12.0f       // perpendicular spread between lines
 #define BLINK_COLOR             (Color){ 80, 140, 255, 40 }
 #define BLINK_GLOW_COLOR        (Color){ 80, 140, 255, 40 }

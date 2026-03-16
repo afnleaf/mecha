@@ -421,7 +421,8 @@ typedef struct Enemy {
     u8 attackPhase;     // boss attack cycle counter
     float chargeTimer;  // boss charge duration remaining
     Vector2 chargeDir;  // committed charge direction
-    float blinkMark;    // blink dagger slash mark timer
+    float blinkMark;    // blink dagger slash mark timer (visual)
+    bool  blinkMarked;  // queued for blink damage
 } Enemy;
 
 // shoot function pointer — NULL means no shooting AI
