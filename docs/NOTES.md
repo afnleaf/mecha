@@ -145,9 +145,33 @@ asset loader
 - [x] (claude) add rhombus enemy (chase)
 - [x] (claude) add hexagon enemy (fan shooter)
 - [x] (user) add octagon enemy (stopper)
-- [] add mini boss (shape?) multiple attacks
+- [x] add mini boss, trapezoid, multiple attacks
+- [x] design enemy value table (number of sides they have lol?)
+- [] endless waves of pods
 - [] add big boss circle
 - [] enemies receive a tell for their attacks
+- [] enemies have a range for their aggro
+- [] enemies don't attack immediately after spawning
+- [] trap becomes elite unit
+- [] pod value increase function
+- [] cutting out weaker enemies at high values
+
+waves of pods of enemies, different pods. assign enemy value, each pod has a set value. Pod with value x is made up of enemies whose value sum is equal to pod value.
+
+We make endless mode, start at some pod value, x. Clear wave, next pod value is x + 1.
+
+high value encouter = pod(s) with high value enemies
+
+mirror of this is economic system (gold/parts/scrap/bolts/screws/etc)
+
+factory buildings, making robots, i guess we doing shapes now
+
+weak point
+
+enemies spawn around the building, they keep respawning around the factory while its active
+
+factory level sets pod value
+
 
 ### weapons
 - [x] laser (hitscan)
@@ -176,6 +200,8 @@ minigun could be the m2 for machine gun
 
 explosives as primary? is that possible? (yes)
 
+variations of each weapon?
+
 ### abilities
 - [x] dash
 - [x] super dash, like deadlock dash timing on the second dash gives you something
@@ -201,6 +227,7 @@ explosives as primary? is that possible? (yes)
 - [x] fire (more like a flamethrower that you can spread infront on the ground)
 - [x] heal field? (current is fine)
 - [x] blink dagger (but its a tiny cutting dagger teleport and do damge effect, only usable when not damaged)
+- [x] shotgun further range
 - [] dva matrix
 
 ### players

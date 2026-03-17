@@ -1527,31 +1527,29 @@ static void UpdatePlayer(float dt)
 static void UpdateEnemies(float dt) {
     Player *p = &g.player;
     
-    // --- Boss phase state machine ---
-    if (g.phase == PHASE_COMBAT
-        && g.enemiesKilled >= TRAP_SPAWN_KILLS * g.level) {
-        g.phase = PHASE_CLEARING;
-    }
-    if (g.phase == PHASE_CLEARING) {
+    // --- Pod spawning via phases ---
+    if (g.phase == PHASE_COMBAT) {
         bool anyAlive = false;
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (g.enemies[i].active) { anyAlive = true; break; }
         }
         if (!anyAlive) {
-            SpawnBoss(TRAP);
-            g.phase = PHASE_BOSS;
+            // Boss check
+            if (g.enemiesKilled >= TRAP_SPAWN_KILLS * g.level) {
+                g.phase = PHASE_BOSS;
+                SpawnBoss(TRAP);
+            } else {
+                SpawnPod(g.podValue);
+                g.podValue++;
+            }
         }
     }
-
-    // --- Normal enemy spawning (combat and boss phases) ---
-    if (g.phase != PHASE_CLEARING) {
-        g.spawnTimer -= dt;
-        if (g.spawnTimer <= 0) {
-            SpawnEnemy();
-            g.spawnTimer = g.spawnInterval;
-            if (g.spawnInterval > SPAWN_MIN_INTERVAL)
-                g.spawnInterval *= SPAWN_RAMP;
+    if (g.phase == PHASE_BOSS) {
+        bool bossAlive = false;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (g.enemies[i].active) { bossAlive = true; break; }
         }
+        if (!bossAlive) g.phase = PHASE_COMBAT;
     }
 
     for (int i = 0; i < MAX_ENEMIES; i++) {

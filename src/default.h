@@ -460,6 +460,16 @@
 #define SPAWN_MARGIN            400.0f
 #define SPAWN_CHANCE_MAX        100
 
+// Enemy pod values
+#define TRI_VALUE               1
+#define RECT_VALUE              2
+#define RHOM_VALUE              2
+#define OCTA_VALUE              3
+#define PENTA_VALUE             4
+#define HEXA_VALUE              5
+#define TRAP_VALUE              10
+#define POD_VALUE_INITIAL       3
+
 // Enemy — Triangle (chaser)
 #define TRI_SIZE                14.0f
 #define TRI_HP                  20
@@ -557,7 +567,7 @@
 #define TRAP_SPEED_MIN          70.0f
 #define TRAP_SPEED_VAR          0
 #define TRAP_CONTACT_DAMAGE     30
-#define TRAP_SPAWN_KILLS        200
+#define TRAP_SPAWN_KILLS        50
 #define TRAP_SPAWN_CHANCE       0       // not random-spawned
 #define TRAP_SCORE              5000
 #define TRAP_COLOR              (Color){ 255, 200, 50, 255 }
@@ -610,7 +620,7 @@
 // Shotgun muzzle
 #define SHOTGUN_MUZZLE_SPEED    150.0f
 #define SHOTGUN_MUZZLE_SIZE     5.0f
-#define SHOTGUN_MUZZLE_LIFETIME 0.12f
+#define SHOTGUN_MUZZLE_LIFETIME 0.2f
 
 // Rocket muzzle
 #define ROCKET_MUZZLE_PARTICLES 10

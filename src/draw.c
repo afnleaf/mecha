@@ -2104,7 +2104,7 @@ static void DrawHUD(void)
         TextFormat("Kills: %d", g.enemiesKilled),
         (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
     DrawText(
-        TextFormat("Level: %d", g.level),
+        TextFormat("Pod: %d", g.podValue),
         (int)(HUD_MARGIN * ui), (int)(HUD_LEVEL_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);
 
     // Weapon swap indicator

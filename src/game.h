@@ -23,7 +23,7 @@ Projectile* SpawnProjectile(
 void FireShotgunBlast(Player *p, Vector2 toMouse);
 void SpawnRocket(Player *p, Vector2 toMouse);
 void SpawnGrenade(Player *p, Vector2 toMouse);
-void SpawnEnemy(void);
+void SpawnPod(int podValue);
 void SpawnBoss(EnemyType type);
 void SpawnParticle(
     Vector2 pos, Vector2 vel,

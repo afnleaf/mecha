@@ -143,28 +143,29 @@ static void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt) {
 // enemy definitions — one row per type
 const EnemyDef ENEMY_DEFS[] = {
 //              size         hp        spdMin            spdVar
-//              contactDmg   spnKills  spnChance         score       shoot
+//              contactDmg   spnKills  spnChance         score
+//              value        shoot
     [TRI]   = { TRI_SIZE,    TRI_HP,   TRI_SPEED_MIN,   TRI_SPEED_VAR,
                 TRI_CONTACT_DAMAGE,    0,               0,
-                TRI_SCORE,   NULL },
+                TRI_SCORE,   TRI_VALUE,   NULL },
     [RECT]  = { RECT_SIZE,   RECT_HP,  RECT_SPEED_MIN,  RECT_SPEED_VAR,
                 RECT_CONTACT_DAMAGE,   RECT_SPAWN_KILLS, RECT_SPAWN_CHANCE,
-                RECT_SCORE,  ShootRect },
+                RECT_SCORE,  RECT_VALUE,  ShootRect },
     [PENTA] = { PENTA_SIZE,  PENTA_HP, PENTA_SPEED_MIN, PENTA_SPEED_VAR,
                 PENTA_CONTACT_DAMAGE,  PENTA_SPAWN_KILLS,PENTA_SPAWN_CHANCE,
-                PENTA_SCORE, ShootPenta },
+                PENTA_SCORE, PENTA_VALUE, ShootPenta },
     [RHOM]  = { RHOM_SIZE,   RHOM_HP,  RHOM_SPEED_MIN,  RHOM_SPEED_VAR,
                 RHOM_CONTACT_DAMAGE,   RHOM_SPAWN_KILLS, RHOM_SPAWN_CHANCE,
-                RHOM_SCORE,  NULL },
+                RHOM_SCORE,  RHOM_VALUE,  NULL },
     [HEXA]  = { HEXA_SIZE,   HEXA_HP,  HEXA_SPEED_MIN,  HEXA_SPEED_VAR,
                 HEXA_CONTACT_DAMAGE,   HEXA_SPAWN_KILLS, HEXA_SPAWN_CHANCE,
-                HEXA_SCORE,  ShootHexa },
+                HEXA_SCORE,  HEXA_VALUE,  ShootHexa },
     [OCTA]  = { OCTA_SIZE,   OCTA_HP,  OCTA_SPEED_MIN,  OCTA_SPEED_VAR,
                 OCTA_CONTACT_DAMAGE,   OCTA_SPAWN_KILLS, OCTA_SPAWN_CHANCE,
-                OCTA_SCORE,  NULL },
+                OCTA_SCORE,  OCTA_VALUE,  NULL },
     [TRAP]  = { TRAP_SIZE,   TRAP_HP,  TRAP_SPEED_MIN,  TRAP_SPEED_VAR,
                 TRAP_CONTACT_DAMAGE,   TRAP_SPAWN_KILLS, TRAP_SPAWN_CHANCE,
-                TRAP_SCORE,  ShootTrap },
+                TRAP_SCORE,  TRAP_VALUE,  ShootTrap },
 };
 
 // checked in order, first to pass wins. TRI is fallback.
@@ -303,31 +304,39 @@ static void FillFromDef(Enemy *e, EnemyType type) {
     e->maxHp         = d->hp;
     e->contactDamage = d->contactDamage;
     e->score         = d->score;
+    e->value         = d->value;
 }
 
-void SpawnEnemy(void)
-{
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (!g.enemies[i].active) {
-            Enemy *e = &g.enemies[i];
-            InitEnemy(e);
-
-            // Roll for enemy type — priority table, TRI fallback
-            EnemyType type = TRI;
-            for (int t = 0; t < SPAWN_PRIORITY_COUNT; t++) {
-                const EnemyDef *d = &ENEMY_DEFS[SPAWN_PRIORITY[t]];
-                if (g.enemiesKilled >= d->spawnKills
-                    && GetRandomValue(1, SPAWN_CHANCE_MAX) <= d->spawnChance) {
-                    type = SPAWN_PRIORITY[t];
-                    break;
-                }
-            }
-            FillFromDef(e, type);
-            e->speed = ENEMY_DEFS[type].speedMin
-                + (float)GetRandomValue(0, ENEMY_DEFS[type].speedVar);
-            SpawnAtEdge(e);
-            return;
+static EnemyType PickEnemyType(void) {
+    for (int t = 0; t < SPAWN_PRIORITY_COUNT; t++) {
+        const EnemyDef *d = &ENEMY_DEFS[SPAWN_PRIORITY[t]];
+        if (g.enemiesKilled >= d->spawnKills
+            && GetRandomValue(1, SPAWN_CHANCE_MAX) <= d->spawnChance) {
+            return SPAWN_PRIORITY[t];
         }
+    }
+    return TRI;
+}
+
+void SpawnPod(int podValue)
+{
+    int remaining = podValue;
+    while (remaining > 0) {
+        // find a free slot
+        int slot = -1;
+        for (int i = 0; i < MAX_ENEMIES; i++) {
+            if (!g.enemies[i].active) { slot = i; break; }
+        }
+        if (slot < 0) return; // pool full
+
+        EnemyType type = PickEnemyType();
+        Enemy *e = &g.enemies[slot];
+        InitEnemy(e);
+        FillFromDef(e, type);
+        e->speed = ENEMY_DEFS[type].speedMin
+            + (float)GetRandomValue(0, ENEMY_DEFS[type].speedVar);
+        SpawnAtEdge(e);
+        remaining -= e->value;
     }
 }
 

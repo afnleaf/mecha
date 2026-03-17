@@ -20,6 +20,7 @@ void InitGame(void)
 
     g.spawnInterval   = SPAWN_INTERVAL;
     g.spawnTimer      = SPAWN_INITIAL_DELAY;
+    g.podValue        = POD_VALUE_INITIAL;
 
     g.phase           = PHASE_SELECT;
     g.selectIndex     = -1;

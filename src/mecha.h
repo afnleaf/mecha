@@ -414,6 +414,7 @@ typedef struct Enemy {
     float shootTimer;
     int contactDamage;
     int score;
+    int value;
     EnemyType type;
     float slowTimer;
     float slowFactor;
@@ -441,6 +442,7 @@ typedef struct EnemyDef {
     int   spawnKills;
     int   spawnChance;
     int   score;
+    int   value;
     EnemyShootFn shoot;
 } EnemyDef;
 
@@ -481,6 +483,7 @@ typedef struct GameState {
     int score;
     float spawnTimer;
     float spawnInterval;
+    int podValue;
     int enemiesKilled;
     GamePhase phase;
     int level;
