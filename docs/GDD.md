@@ -168,4 +168,14 @@ Rogue is the randomly generated dungeon crawling game. We can merge a MOBA map +
 
 So how does this end up in the game?
 
-Waves to farm? Drops? 
+Waves to farm? Drops? I like the idea of farming then using gold to buy upgrades. With elite enemies counting towards extra drops. 
+
+So a core of gold for upgrades and a bonus roguelikeness. But rather than the shop only being something that is there on occasion its the absolute core of the game. Swap the roguelikeness around.
+
+Waves of enemies. Each wave gets progressively harder. Each wave has a certain difficulty points level it has to hit, but the game will randomly decide how to pool together enemies to fit that points level. A zone has 3+ waves. 
+
+Call the zones like camps in a moba. They are a simple PVE objective that respawns after some time. So you can keep looping them to upgrade yourself more. Maybe they would have diminishing returns after a while, there needs to be some kind of punish to farming up to max, wether thats inefficinecy or a race againt the clock. 
+
+Camps could have various difficulties. Rewards scale. Minibosses in camps. 
+
+First step design one camp. Then scale. 
