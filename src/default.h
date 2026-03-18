@@ -356,7 +356,7 @@
 #define MINE_ROOT_RADIUS        100.0f
 #define MINE_ROOT_DURATION      3.0f
 #define MINE_COOLDOWN           5.0f
-#define MINE_MAX_ACTIVE         3
+#define MINE_MAX_ACTIVE         64
 #define MINE_COLOR              (Color){ 255, 100, 100, 255 }
 #define MINE_PULSE_SPEED        4.0f
 #define MINE_WEB_DURATION       MINE_ROOT_DURATION
