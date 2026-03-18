@@ -15,7 +15,7 @@ void InitGame(void)
     InitPlayer();
 
     g.camera.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
-    g.camera.target   = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER };
+    g.camera.target   = (Vector2){ BASE_CENTER_X, BASE_CENTER_Y };  // base room center
     g.camera.zoom     = 1.0f;
 
     g.spawnInterval   = SPAWN_INTERVAL;
@@ -26,8 +26,8 @@ void InitGame(void)
     g.selectIndex     = -1;
     g.selectPhase     = 0;
 
-    // start player above the pedestal U curve
-    g.player.pos      = (Vector2){ SELECT_ARENA_CENTER, SELECT_ARENA_CENTER - 80.0f };
+    // start player in base room, above the pedestal U curve
+    g.player.pos      = (Vector2){ BASE_CENTER_X, BASE_CENTER_Y - 80.0f };
     g.player.shadowPos = g.player.pos;
 }
 
@@ -35,7 +35,7 @@ void InitGame(void)
 void InitPlayer(void) 
 {
     Player *p  = &g.player;
-    p->pos     = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
+    p->pos     = (Vector2){ MAP_LEFT + MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
     p->speed   = PLAYER_SPEED;
     p->size    = PLAYER_SIZE;
     p->hp      = PLAYER_HP;

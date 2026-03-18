@@ -109,6 +109,7 @@ asset loader
 - [x] cleanup controls hud menu to be properly visible and programmatic
 - [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
 - [x] controller support
+- [x] map change, one big map with base and combat zone
 - [] able to remap abilities (tab/alt modifier)
 - [] waves/phases after screen/phase refactor
 
@@ -306,8 +307,15 @@ regarding the current weapon select menu. The player character should be a spher
 
 levels
 - [x] weapon select
-- [] rounds/rooms
-- [] pick new item between rounds]
+- [] pick new item between rounds
+
+scratch this, one map. Combine weapon select and the arena. 
+
+Take the endless waves of pods, that becomes our sandbox for perfecting game mechanics, weapons, abilities, enemies and all of their interactions.
+
+Two modes, sandbox, gives you all the abilities to choose from and shop mode.
+
+We start to add gold to the game. You can buy between every x number of waves. 
 
 ## HUD
 - [x] hud fix level placement

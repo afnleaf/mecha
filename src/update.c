@@ -270,11 +270,60 @@ static void SpawnSwordSparks(Vector2 origin, float angle, float arc, float radiu
     }
 }
 
-// Weapon Select Screen ----------------------------------------------------- /
-static void UpdateSelect(void)
+// Play area boundary clamp ------------------------------------------------- /
+// Play area boundary:
+//   Combat zone: (MAP_LEFT, 0) to (MAP_RIGHT, MAP_SIZE)
+//   Corridor:    (0, STEP_Y) to (MAP_LEFT, MAP_SIZE)  — left of combat zone
+//   Base room:   (0, MAP_SIZE) to (BASE_W, BASE_BOTTOM) — below corridor
+static void ClampToPlayArea(Player *p)
 {
-    float dt = GetFrameTime();
-    if (dt > DT_MAX) dt = DT_MAX;
+    float r = p->size;
+
+    // Top wall
+    if (p->pos.y < r) p->pos.y = r;
+
+    if (p->pos.y <= STEP_Y) {
+        // Upper combat zone — full left wall at MAP_LEFT
+        if (p->pos.x < MAP_LEFT + r) p->pos.x = MAP_LEFT + r;
+        if (p->pos.x > MAP_RIGHT - r) p->pos.x = MAP_RIGHT - r;
+    } else if (p->pos.y <= MAP_SIZE) {
+        // Lower combat zone + corridor zone
+        // Left wall: x=0 (corridor extends left of MAP_LEFT)
+        if (p->pos.x < r) p->pos.x = r;
+        // Right wall: MAP_RIGHT
+        if (p->pos.x > MAP_RIGHT - r) p->pos.x = MAP_RIGHT - r;
+        // Step wall: blocks going above STEP_Y when in corridor (x < MAP_LEFT)
+        if (p->pos.x < MAP_LEFT && p->pos.y < STEP_Y + r)
+            p->pos.y = STEP_Y + r;
+        // Inner corner at (MAP_LEFT, STEP_Y) — round collision
+        {
+            float dx = p->pos.x - MAP_LEFT;
+            float dy = p->pos.y - STEP_Y;
+            if (dx > 0 && dx < r && dy > 0 && dy < r) {
+                float dist = sqrtf(dx * dx + dy * dy);
+                if (dist < r && dist > 0) {
+                    float s = r / dist;
+                    p->pos.x = MAP_LEFT + dx * s;
+                    p->pos.y = STEP_Y + dy * s;
+                }
+            }
+        }
+        // Bottom wall — gap for base entrance (x < BASE_W)
+        if (p->pos.y > MAP_SIZE - r && p->pos.x >= BASE_W)
+            p->pos.y = MAP_SIZE - r;
+    } else {
+        // Base room (below MAP_SIZE)
+        if (p->pos.x < r) p->pos.x = r;
+        if (p->pos.x > BASE_W - r) p->pos.x = BASE_W - r;
+        if (p->pos.y > BASE_BOTTOM - r) p->pos.y = BASE_BOTTOM - r;
+    }
+
+
+}
+
+// Weapon Select Screen ----------------------------------------------------- /
+static void UpdateSelect(float dt)
+{
     Player *p = &g.player;
 
     // WASD + left stick movement
@@ -324,21 +373,18 @@ static void UpdateSelect(void)
         if (p->dash.timer <= 0) p->dash.active = false;
     }
 
-    // Clamp to arena bounds
-    float margin = p->size;
-    p->pos = Vector2Clamp(p->pos,
-        (Vector2){margin, margin},
-        (Vector2){SELECT_ARENA_SIZE - margin, SELECT_ARENA_SIZE - margin});
+    // Clamp to play area (base + corridor + combat zone)
+    ClampToPlayArea(p);
 
     // Aim (mouse / right stick)
     UpdateMouseAim();
 
-    // Pedestal positions (U curve, left to right by face count)
-    float spacing = SELECT_ARENA_SIZE / 6.0f;
+    // Pedestal positions (U curve inside base room)
+    float spacing = BASE_W / SELECT_PEDESTAL_SPACING;
     for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
         float norm = (float)(i - 2) / 2.0f;
         g.selectPedestals[i] = (Vector2){
-            spacing * (float)(i + 1),
+            SELECT_PEDESTAL_X + spacing * (float)(i + 1),
             SELECT_PEDESTAL_Y + SELECT_PEDESTAL_CURVE * (1.0f - norm * norm)
         };
     }
@@ -358,7 +404,7 @@ static void UpdateSelect(void)
     }
 
     // M1 or Enter or A selects weapon
-    if (g.selectIndex >= 0 && g.transitionTimer <= 0 &&
+    if (g.selectIndex >= 0 &&
         (M1Pressed() || IsKeyPressed(KEY_ENTER)
          || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))) {
         if (g.selectPhase == 0) {
@@ -366,23 +412,10 @@ static void UpdateSelect(void)
             g.selectPhase = 1;
         } else {
             p->secondary = SELECT_WEAPONS[g.selectIndex];
-            g.transitionTimer = TRANSITION_DURATION;
-        }
-    }
-
-    // Fade transition: switch scene at midpoint
-    if (g.transitionTimer > 0) {
-        g.transitionTimer -= dt;
-        float half = TRANSITION_DURATION * 0.5f;
-        if (g.transitionTimer <= half && g.phase == PHASE_SELECT) {
-            p->pos = (Vector2){ MAP_SIZE / 2.0f, MAP_SIZE / 2.0f };
-            p->shadowPos = p->pos;
-            g.camera.target = p->pos;
             ClearPools();
             g.phase = PHASE_COMBAT;
             g.level = 1;
         }
-        if (g.transitionTimer <= 0) g.transitionTimer = 0;
     }
 
     // Weapon demo: fire same M1 attacks from highlighted pedestal
@@ -470,12 +503,8 @@ static void UpdateSelect(void)
     // Tick sword demo arc
     if (g.selectSwordTimer > 0) g.selectSwordTimer -= dt;
 
-    // Update projectiles, particles, shadow lag, camera
-    UpdateProjectiles(dt);
-    UpdateParticles(dt);
+    // Shadow lag (player model exists in select too)
     p->shadowPos = Vector2Lerp(p->shadowPos, p->pos, SHADOW_LAG * dt);
-    g.camera.target = Vector2Lerp(g.camera.target, p->pos, CAMERA_LERP_RATE * dt);
-    g.camera.offset = (Vector2){ GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f };
 }
 
 // SweepDamage — shared by sword and spin
@@ -1155,7 +1184,7 @@ static void UpdateBlinkDagger(Player *p, Vector2 toMouse, float dt)
     // Clamp to map bounds
     dest = Vector2Clamp(dest,
         (Vector2){ p->size, p->size },
-        (Vector2){ MAP_SIZE - p->size, MAP_SIZE - p->size });
+        (Vector2){ MAP_RIGHT - p->size, BASE_BOTTOM - p->size });
 
     // Teleport
     p->pos = dest;
@@ -1508,10 +1537,8 @@ static void UpdatePlayer(float dt)
     UpdateWeapon(p, toMouse, dt);
     UpdateAbilities(p, toMouse, dt);
 
-    // Boundary clamp
-    p->pos = Vector2Clamp(p->pos,
-        (Vector2){p->size, p->size},
-        (Vector2){MAP_SIZE - p->size, MAP_SIZE - p->size});
+    // Boundary clamp (base + corridor + combat zone)
+    ClampToPlayArea(p);
 
     // Shadow lag
     if (p->dash.decoyActive) {
@@ -1528,7 +1555,8 @@ static void UpdateEnemies(float dt) {
     Player *p = &g.player;
     
     // --- Pod spawning via phases ---
-    if (g.phase == PHASE_COMBAT) {
+    bool inBase = (p->pos.x < MAP_LEFT && p->pos.y > STEP_Y) || (p->pos.y > MAP_SIZE);
+    if (g.phase == PHASE_COMBAT && !inBase) {
         bool anyAlive = false;
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (g.enemies[i].active) { anyAlive = true; break; }
@@ -1619,9 +1647,9 @@ static void UpdateEnemies(float dt) {
         }
         e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
 
-        // Clamp to map
+        // Clamp to combat zone
         e->pos = Vector2Clamp(e->pos,
-            (Vector2){0, 0}, (Vector2){MAP_SIZE, MAP_SIZE});
+            (Vector2){MAP_LEFT, 0}, (Vector2){MAP_RIGHT, MAP_SIZE});
 
         bool stunned = e->stunTimer > 0;
 
@@ -2062,14 +2090,14 @@ static void UpdateProjectiles(float dt) {
         }
 
         // map boundary
-        if (b->pos.x < 0 || b->pos.x > MAP_SIZE ||
-            b->pos.y < 0 || b->pos.y > MAP_SIZE) {
+        if (b->pos.x < 0 || b->pos.x > MAP_RIGHT ||
+            b->pos.y < 0 || b->pos.y > BASE_BOTTOM) {
             if (b->type == PROJ_GRENADE && b->bounces > 0) {
                 // bounce off map edges
-                if (b->pos.x < 0)        { b->pos.x = 0;        b->vel.x = -b->vel.x; }
-                if (b->pos.x > MAP_SIZE)  { b->pos.x = MAP_SIZE; b->vel.x = -b->vel.x; }
-                if (b->pos.y < 0)        { b->pos.y = 0;        b->vel.y = -b->vel.y; }
-                if (b->pos.y > MAP_SIZE)  { b->pos.y = MAP_SIZE; b->vel.y = -b->vel.y; }
+                if (b->pos.x < 0)          { b->pos.x = 0;          b->vel.x = -b->vel.x; }
+                if (b->pos.x > MAP_RIGHT)  { b->pos.x = MAP_RIGHT;  b->vel.x = -b->vel.x; }
+                if (b->pos.y < 0)          { b->pos.y = 0;          b->vel.y = -b->vel.y; }
+                if (b->pos.y > BASE_BOTTOM){ b->pos.y = BASE_BOTTOM; b->vel.y = -b->vel.y; }
                 b->vel = Vector2Scale(b->vel, GRENADE_BOUNCE_DAMPING);
                 b->bounces--;
             } else {
@@ -2273,14 +2301,24 @@ void UpdateGame(void)
     WindowResize();
     DetectInputMode();
 
-    if (g.phase == PHASE_SELECT) {
-        UpdateSelect();
-        return;
-    }
-
     // frametime clamp
     float dt = GetFrameTime();
     if (dt > DT_MAX) dt = DT_MAX;
+
+    if (g.phase == PHASE_SELECT) {
+        UpdateSelect(dt);
+        // Shared systems still run during select (projectiles from weapon demos, etc.)
+        UpdateProjectiles(dt);
+        UpdateParticles(dt);
+        for (int i = 0; i < MAX_VFX_TIMERS; i++) {
+            if (!g.vfx.timers[i].active) continue;
+            g.vfx.timers[i].timer -= dt;
+            if (g.vfx.timers[i].timer <= 0)
+                g.vfx.timers[i].active = false;
+        }
+        MoveCamera(dt);
+        return;
+    }
 
     // need to make sure that esc also pauses in native build
     if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)

@@ -43,6 +43,24 @@
 #define GRID_STEP               100.0f
 #define MAP_BORDER_THICKNESS    3.0f
 
+// Combat zone offset (indented left wall to make room for base)
+#define MAP_LEFT                300.0f
+#define MAP_RIGHT               (MAP_LEFT + MAP_SIZE)
+// Base (separate room hanging off bottom-left of combat zone)
+#define STEP_Y                  (MAP_SIZE - 300.0f)
+#define BASE_W                  600.0f
+#define BASE_H                  325.0f
+#define BASE_TOP                MAP_SIZE
+#define BASE_BOTTOM             (BASE_TOP + BASE_H)
+#define BASE_CENTER_X           (BASE_W / 2.0f)
+#define BASE_CENTER_Y           (BASE_TOP + BASE_H / 2.0f)
+#define BASE_WALL_THICKNESS     4.0f
+#define BASE_WALL_COLOR         (Color){ 80, 80, 120, 255 }
+#define BASE_LABEL_FONT         60
+#define BASE_LABEL_COLOR        (Color){ 50, 50, 70, 255 }
+#define COMBAT_LABEL_FONT       80
+#define COMBAT_LABEL_COLOR      (Color){ 50, 50, 70, 255 }
+
 // Physics ------------------------------------------------------------------ /
 #define DT_MAX                  0.05f
 #define CAMERA_LERP_RATE        8.0f
@@ -815,23 +833,18 @@
 #define SELECT_DESC_GAP         6
 #define SELECT_HINT_FONT        14
 #define SELECT_HINT_GAP         10
-#define SELECT_BG_COLOR         (Color){ 12, 12, 20, 255 }
 #define SELECT_HIGHLIGHT_COLOR  (Color){ 100, 200, 255, 255 }
-// Diegetic arena
-#define SELECT_ARENA_SIZE       800.0f
-#define SELECT_ARENA_CENTER     400.0f
-#define SELECT_PEDESTAL_RADIUS  250.0f
-#define SELECT_PEDESTAL_Y       540.0f
-#define SELECT_PEDESTAL_CURVE   100.0f
-#define SELECT_SOLID_SIZE       40.0f
-#define SELECT_INTERACT_RADIUS  80.0f
+// Pedestals sit inside the base room (below combat zone)
+#define SELECT_PEDESTAL_Y       (BASE_TOP + BASE_H * 0.65f)
+#define SELECT_PEDESTAL_X       75.0f
+#define SELECT_PEDESTAL_SPACING 8.0f
+#define SELECT_PEDESTAL_CURVE   50.0f
+#define SELECT_SOLID_SIZE       25.0f
+#define SELECT_INTERACT_RADIUS  50.0f
 #define SELECT_PLAYER_SPEED     250.0f
 #define SELECT_RING_PULSE_SPEED 4.0f
-#define SELECT_RING_RADIUS      60.0f
+#define SELECT_RING_RADIUS      35.0f
 #define SELECT_LABEL_FONT       20
 #define SELECT_PROMPT_FONT      14
-#define SELECT_GRID_STEP_SEL    80.0f
-#define SELECT_GRID_COLOR_SEL   (Color){ 30, 30, 45, 255 }
 #define TRANSITION_DURATION     0.5f
-#define SELECT_FLOOR_COLOR      (Color){ 12, 12, 20, 255 }
 

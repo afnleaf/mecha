@@ -1305,101 +1305,19 @@ static void DrawParticles(void)
     }
 }
 
-static void DrawWorld(void)
+// Draw pedestals in world space (called from DrawWorld)
+static void DrawPedestals(void)
 {
-    // Map grid
-    for (float x = 0; x <= MAP_SIZE; x += GRID_STEP)
-        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, GRID_COLOR);
-    for (float y = 0; y <= MAP_SIZE; y += GRID_STEP)
-        DrawLineV((Vector2){ 0, y }, (Vector2){ MAP_SIZE, y }, GRID_COLOR);
-    DrawRectangleLinesEx((Rectangle){ 0, 0, MAP_SIZE, MAP_SIZE },
-        MAP_BORDER_THICKNESS, RED);
-
-    // Particles (behind entities)
-    DrawParticles();
-
-    DrawDeployables();
-    DrawVfxTimers();
-    DrawProjectiles();
-    DrawLightning();
-    DrawEnemies();
-    DrawPlayer();
-
-    // Beams (railgun linger)
-    for (int i = 0; i < MAX_BEAMS; i++) {
-        Beam *b = &g.vfx.beams[i];
-        if (!b->active) continue;
-        float t = b->timer / b->duration;
-        float a = (float)b->color.a * t;
-        Color glow = { b->color.r, b->color.g, b->color.b, (u8)(a * 0.4f) };
-        Color core = { b->color.r, b->color.g, b->color.b, (u8)a };
-        DrawLineEx(b->origin, b->tip, (b->width + 5.0f) * t, glow);
-        DrawLineEx(b->origin, b->tip, b->width, core);
-    }
-}
-
-// Draw - transition overlay
-static void DrawTransition(void)
-{
-    if (g.transitionTimer <= 0) return;
-    float half = TRANSITION_DURATION * 0.5f;
-    float alpha;
-    if (g.transitionTimer > half) {
-        alpha = (TRANSITION_DURATION - g.transitionTimer) / half;
-    } else {
-        alpha = g.transitionTimer / half;
-    }
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-        Fade(BLACK, alpha));
-}
-
-static void DrawSelect(void)
-{
-    int sw = GetScreenWidth();
-    int sh = GetScreenHeight();
-    float ui = (float)sh / HUD_SCALE_REF;
+    if (g.phase != PHASE_SELECT) return;
     Player *p = &g.player;
     float t = (float)GetTime();
-
-    const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
-    const char *descs[] = {
-        "M1 sweep, M2 lunge, dash slash",
-        "M1 single, M2 fan hammer, dash reload",
-        "M1 burst, M2 minigun, overheat QTE",
-        "M1 hip fire, M2 ADS, dash super shot",
-        "M1 rocket, M2 detonate, rocket jump",
-    };
 
     typedef void (*DrawSolidFn)(Vector2, float, float, float, float, Vector2, float);
     DrawSolidFn solidFns[] = {
         DrawTetra2D, DrawCube2D, DrawOcta2D, DrawDodeca2D, DrawIcosa2D,
     };
 
-    // Pedestal positions (computed in UpdateSelect)
     Vector2 *pedestals = g.selectPedestals;
-
-    BeginDrawing();
-    ClearBackground(SELECT_BG_COLOR);
-
-    // --- World space ---
-    BeginMode2D(g.camera);
-
-    // Arena grid
-    for (float x = 0; x <= SELECT_ARENA_SIZE; x += SELECT_GRID_STEP_SEL) {
-        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, SELECT_ARENA_SIZE }, SELECT_GRID_COLOR_SEL);
-    }
-    for (float y = 0; y <= SELECT_ARENA_SIZE; y += SELECT_GRID_STEP_SEL) {
-        DrawLineV((Vector2){ 0, y }, (Vector2){ SELECT_ARENA_SIZE, y }, SELECT_GRID_COLOR_SEL);
-    }
-    // Arena border
-    DrawRectangleLinesEx((Rectangle){ 0, 0, SELECT_ARENA_SIZE, SELECT_ARENA_SIZE },
-        MAP_BORDER_THICKNESS, Fade(SELECT_HIGHLIGHT_COLOR, 0.3f));
-
-    // Particles (behind everything)
-    DrawParticles();
-
-    // Projectiles
-    DrawProjectiles();
 
     // Sword demo arc
     if (g.selectSwordTimer > 0 && g.selectIndex == 0) {
@@ -1440,7 +1358,7 @@ static void DrawSelect(void)
             solidAlpha, shadowP, shadowAlpha);
     }
 
-    // Player
+    // Player (sphere before pick, solid after)
     {
         float rotY = t * PLAYER_ROT_SPEED;
         float rotX = PLAYER_ROT_TILT;
@@ -1454,10 +1372,114 @@ static void DrawSelect(void)
                 shadowPos, SHADOW_ALPHA);
         }
     }
+}
 
-    EndMode2D();
+static void DrawWorld(void)
+{
+    // Map grid (combat zone: MAP_LEFT to MAP_RIGHT)
+    for (float x = MAP_LEFT; x <= MAP_RIGHT; x += GRID_STEP)
+        DrawLineV((Vector2){ x, 0 }, (Vector2){ x, MAP_SIZE }, GRID_COLOR);
+    for (float y = 0; y <= MAP_SIZE; y += GRID_STEP)
+        DrawLineV((Vector2){ MAP_LEFT, y }, (Vector2){ MAP_RIGHT, y }, GRID_COLOR);
+    // Grid extension: corridor (left of combat zone) + base (below)
+    for (float x = 0; x <= BASE_W; x += GRID_STEP)
+        DrawLineV((Vector2){ x, STEP_Y }, (Vector2){ x, BASE_BOTTOM }, GRID_COLOR);
+    for (float y = STEP_Y; y <= BASE_BOTTOM; y += GRID_STEP)
+        DrawLineV((Vector2){ 0, y }, (Vector2){ BASE_W, y }, GRID_COLOR);
 
-    // --- Screen space overlay ---
+    // Combat zone border (left wall indented at MAP_LEFT)
+    // Top
+    DrawLineEx((Vector2){MAP_LEFT, 0}, (Vector2){MAP_RIGHT, 0},
+        MAP_BORDER_THICKNESS, RED);
+    // Right
+    DrawLineEx((Vector2){MAP_RIGHT, 0}, (Vector2){MAP_RIGHT, MAP_SIZE},
+        MAP_BORDER_THICKNESS, RED);
+    // Bottom (from BASE_W to MAP_RIGHT)
+    DrawLineEx((Vector2){BASE_W, MAP_SIZE}, (Vector2){MAP_RIGHT, MAP_SIZE},
+        MAP_BORDER_THICKNESS, RED);
+    // Left upper (MAP_LEFT, from 0 to STEP_Y)
+    DrawLineEx((Vector2){MAP_LEFT, 0}, (Vector2){MAP_LEFT, STEP_Y},
+        MAP_BORDER_THICKNESS, RED);
+    // Step (horizontal, from 0 to MAP_LEFT at STEP_Y)
+    DrawLineEx((Vector2){0, STEP_Y}, (Vector2){MAP_LEFT, STEP_Y},
+        MAP_BORDER_THICKNESS, RED);
+
+    // Corridor + base walls
+    {
+        float t = BASE_WALL_THICKNESS;
+        // Left wall (x=0, from STEP_Y to BASE_BOTTOM)
+        DrawRectangleRec((Rectangle){ 0, STEP_Y, t, BASE_BOTTOM - STEP_Y },
+            BASE_WALL_COLOR);
+        // Base right wall (x=BASE_W, from MAP_SIZE to BASE_BOTTOM)
+        DrawRectangleRec((Rectangle){ BASE_W - t/2, MAP_SIZE,
+            t, BASE_H }, BASE_WALL_COLOR);
+        // Base bottom (y=BASE_BOTTOM, from 0 to BASE_W)
+        DrawRectangleRec((Rectangle){ 0, BASE_BOTTOM - t/2,
+            BASE_W, t }, BASE_WALL_COLOR);
+    }
+
+    // Zone labels on the ground
+    {
+        const char *baseLabel = "BASE";
+        int baseW = MeasureText(baseLabel, BASE_LABEL_FONT);
+        DrawText(baseLabel,
+            (int)(BASE_CENTER_X - baseW / 2),
+            (int)(BASE_TOP + BASE_H * 0.3f),
+            BASE_LABEL_FONT, BASE_LABEL_COLOR);
+
+        const char *combatLabel = "COMBAT ZONE";
+        int combatW = MeasureText(combatLabel, COMBAT_LABEL_FONT);
+        float combatCenterX = MAP_LEFT + MAP_SIZE / 2.0f;
+        DrawText(combatLabel,
+            (int)(combatCenterX - combatW / 2),
+            (int)(MAP_SIZE / 2.0f - COMBAT_LABEL_FONT / 2),
+            COMBAT_LABEL_FONT, COMBAT_LABEL_COLOR);
+    }
+
+    // Pedestals (select phase only)
+    DrawPedestals();
+
+    // Particles (behind entities)
+    DrawParticles();
+
+    DrawDeployables();
+    DrawVfxTimers();
+    DrawProjectiles();
+    DrawLightning();
+    DrawEnemies();
+    if (g.phase != PHASE_SELECT) DrawPlayer();
+
+    // Beams (railgun linger)
+    for (int i = 0; i < MAX_BEAMS; i++) {
+        Beam *b = &g.vfx.beams[i];
+        if (!b->active) continue;
+        float t = b->timer / b->duration;
+        float a = (float)b->color.a * t;
+        Color glow = { b->color.r, b->color.g, b->color.b, (u8)(a * 0.4f) };
+        Color core = { b->color.r, b->color.g, b->color.b, (u8)a };
+        DrawLineEx(b->origin, b->tip, (b->width + 5.0f) * t, glow);
+        DrawLineEx(b->origin, b->tip, b->width, core);
+    }
+}
+
+// Draw - transition overlay
+static void DrawTransition(void)
+{
+    if (g.transitionTimer <= 0) return;
+    float half = TRANSITION_DURATION * 0.5f;
+    float alpha;
+    if (g.transitionTimer > half) {
+        alpha = (TRANSITION_DURATION - g.transitionTimer) / half;
+    } else {
+        alpha = g.transitionTimer / half;
+    }
+    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+        Fade(BLACK, alpha));
+}
+
+// Draw select screen HUD overlay (called from DrawHUD)
+static void DrawSelectHUD(int sw, int sh, float ui)
+{
     int titleFont = (int)(SELECT_TITLE_FONT * ui);
     int hintFont = (int)(SELECT_HINT_FONT * ui);
     int labelFont = (int)(SELECT_LABEL_FONT * ui);
@@ -1473,7 +1495,7 @@ static void DrawSelect(void)
             gtFont, Fade(WHITE, 0.8f));
     }
 
-    // Title + hint at top
+    // Title + hint
     const char *title = g.selectPhase == 0
         ? "CHOOSE PRIMARY" : "CHOOSE SECONDARY";
     int titleW = MeasureText(title, titleFont);
@@ -1490,6 +1512,14 @@ static void DrawSelect(void)
     // Weapon name/desc at bottom
     if (g.selectIndex >= 0) {
         int idx = g.selectIndex;
+        const char *names[] = { "SWORD", "REVOLVER", "MACHINE GUN", "SNIPER", "ROCKET" };
+        const char *descs[] = {
+            "M1 sweep, M2 lunge, dash slash",
+            "M1 single, M2 fan hammer, dash reload",
+            "M1 burst, M2 minigun, overheat QTE",
+            "M1 hip fire, M2 ADS, dash super shot",
+            "M1 rocket, M2 detonate, rocket jump",
+        };
         const char *desc = descs[idx];
         int descW = MeasureText(desc, descFont);
         int descY = sh - descFont - gap;
@@ -1503,6 +1533,8 @@ static void DrawSelect(void)
 
     // Locked primary label
     if (g.selectPhase == 1) {
+        Vector2 *pedestals = g.selectPedestals;
+        Player *p = &g.player;
         for (int i = 0; i < NUM_PRIMARY_WEAPONS; i++) {
             if (SELECT_WEAPONS[i] != p->primary) continue;
             Vector2 screenPos = GetWorldToScreen2D(pedestals[i], g.camera);
@@ -1513,9 +1545,6 @@ static void DrawSelect(void)
                 (int)screenPos.y + (int)(SELECT_RING_RADIUS * 0.8f), lblFont, Fade(GREEN, 0.6f));
         }
     }
-
-    DrawTransition();
-    EndDrawing();
 }
 
 static void DrawCooldownBar(int x, int barY, int w, int h,
@@ -2082,6 +2111,23 @@ static void DrawHUD(void)
     int sh = GetScreenHeight();
     float ui = (float)sh / HUD_SCALE_REF;
 
+    // Select phase: show select overlay instead of combat HUD
+    if (g.phase == PHASE_SELECT) {
+        DrawSelectHUD(sw, sh, ui);
+        // FPS (top-right)
+        int fpsFont = (int)(HUD_FPS_FONT * ui);
+        DrawText(TextFormat("%d FPS",
+            GetFPS()), sw - (int)(HUD_FPS_X * ui), (int)(HUD_MARGIN * ui), fpsFont, GREEN);
+        // Phase debug (below FPS)
+        {
+            const char *phaseNames[] = { "SELECT", "COMBAT", "CLEARING", "BOSS" };
+            const char *phaseStr = TextFormat("PHASE: %s", phaseNames[g.phase]);
+            DrawText(phaseStr, sw - (int)(HUD_FPS_X * ui),
+                (int)(HUD_MARGIN * ui) + fpsFont + (int)(4 * ui), fpsFont, YELLOW);
+        }
+        return;
+    }
+
     // HP bar
     int hpBarW = (int)(HUD_HP_W * ui);
     int hpBarH = (int)(HUD_HP_H * ui);
@@ -2133,6 +2179,16 @@ static void DrawHUD(void)
     DrawText(TextFormat("%d FPS",
         GetFPS()), sw - (int)(HUD_FPS_X * ui), (int)(HUD_MARGIN * ui), fpsFont, GREEN);
 
+    // Phase debug (below FPS)
+    {
+        const char *phaseNames[] = { "SELECT", "COMBAT", "CLEARING", "BOSS" };
+        int phaseFont = (int)(fpsFont * 0.7f);
+        const char *phaseStr = TextFormat("PHASE: %s", phaseNames[g.phase]);
+        int phaseW = MeasureText(phaseStr, phaseFont);
+        DrawText(phaseStr, sw - (int)(HUD_MARGIN * ui) - phaseW,
+            (int)(HUD_MARGIN * ui) + fpsFont + (int)(4 * ui), phaseFont, YELLOW);
+    }
+
     // Crosshair cursor
     Vector2 mouse;
     if (g.gamepadActive) {
@@ -2174,11 +2230,6 @@ static void DrawHUD(void)
 // Draw - orchestrator
 static void DrawGame(void)
 {
-    if (g.phase == PHASE_SELECT) {
-        DrawSelect();
-        return;
-    }
-
     BeginDrawing();
     ClearBackground(BG_COLOR);
 

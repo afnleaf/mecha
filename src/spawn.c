@@ -283,17 +283,17 @@ static void InitEnemy(Enemy *e) {
 static void SpawnAtEdge(Enemy *e) {
     int edge = GetRandomValue(0, 3);
     switch (edge) {
-        case 0: e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
+        case 0: e->pos.x = (float)GetRandomValue((int)MAP_LEFT, (int)MAP_RIGHT);
                 e->pos.y = g.player.pos.y - SPAWN_MARGIN; break;
-        case 1: e->pos.x = (float)GetRandomValue(0, MAP_SIZE);
+        case 1: e->pos.x = (float)GetRandomValue((int)MAP_LEFT, (int)MAP_RIGHT);
                 e->pos.y = g.player.pos.y + SPAWN_MARGIN; break;
         case 2: e->pos.x = g.player.pos.x - SPAWN_MARGIN;
-                e->pos.y = (float)GetRandomValue(0, MAP_SIZE); break;
+                e->pos.y = (float)GetRandomValue(0, (int)MAP_SIZE); break;
         case 3: e->pos.x = g.player.pos.x + SPAWN_MARGIN;
-                e->pos.y = (float)GetRandomValue(0, MAP_SIZE); break;
+                e->pos.y = (float)GetRandomValue(0, (int)MAP_SIZE); break;
     }
     e->pos = Vector2Clamp(e->pos,
-        (Vector2){0, 0}, (Vector2){MAP_SIZE, MAP_SIZE});
+        (Vector2){MAP_LEFT, 0}, (Vector2){MAP_RIGHT, MAP_SIZE});
 }
 
 static void FillFromDef(Enemy *e, EnemyType type) {
