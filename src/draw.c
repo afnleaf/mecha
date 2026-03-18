@@ -49,6 +49,14 @@ static const char* SlotLabel(Player *p, AbilityID abl) {
     return "?";
 }
 
+static bool IsOwned(Player *p, AbilityID abl) {
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        if (p->slots[i].ability == abl)
+            return p->slots[i].owned;
+    }
+    return false;
+}
+
 // gamepad button label
 static const char* PadButtonName(int button) {
     switch (button) {
@@ -1374,6 +1382,86 @@ static void DrawPedestals(void)
     }
 }
 
+// Draw cheat toggle on the ground (all phases except game over)
+static void DrawCheatToggle(void)
+{
+    Vector2 pos = { CHEAT_INF_X, CHEAT_INF_Y };
+    float d = Vector2Distance(g.player.pos, pos);
+    bool near = d < CHEAT_INTERACT_RADIUS;
+    float alpha = near ? 0.8f : 0.35f;
+
+    const char *label = "INF $:";
+    int lw = MeasureText(label, CHEAT_FONT);
+    DrawText(label, (int)(pos.x - lw / 2 - 10),
+        (int)(pos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, alpha));
+
+    const char *val = g.infiniteMoney ? "ON" : "OFF";
+    Color valCol = g.infiniteMoney ? GREEN : RED;
+    DrawText(val, (int)(pos.x - lw / 2 + lw),
+        (int)(pos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(valCol, alpha));
+
+    // BUY/SELL ALL button
+    Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
+    float bd = Vector2Distance(g.player.pos, buyPos);
+    bool bNear = bd < CHEAT_INTERACT_RADIUS;
+    float bAlpha = bNear ? 0.8f : 0.35f;
+    bool allOwned = true;
+    for (int i = 0; i < ABILITY_SLOTS; i++)
+        if (!g.player.slots[i].owned) { allOwned = false; break; }
+    const char *buyLabel = allOwned ? "SELL ALL" : "BUY ALL";
+    Color buyCol = allOwned ? RED : YELLOW;
+    int bw = MeasureText(buyLabel, CHEAT_FONT);
+    DrawText(buyLabel, (int)(buyPos.x - bw / 2),
+        (int)(buyPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(buyCol, bAlpha));
+}
+
+// Draw shop pedestals in world space (after weapon select)
+static void DrawShop(void)
+{
+    if (g.phase == PHASE_SELECT) return;
+    Player *p = &g.player;
+    float t = (float)GetTime();
+
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        AbilitySlot *slot = &p->slots[i];
+        Vector2 pos = g.shopPedestals[i];
+        bool highlighted = (i == g.shopIndex);
+        bool affordable = (g.score >= ABILITY_COST[slot->ability]);
+
+        // Ground ring
+        float ringR = SHOP_RING_RADIUS;
+        if (slot->owned) {
+            DrawCircleLines(pos.x, pos.y, ringR, Fade(GREEN, 0.4f));
+        } else if (highlighted) {
+            float pulse = 1.0f + 0.15f * sinf(t * SHOP_RING_PULSE_SPEED);
+            ringR *= pulse;
+            Color col = affordable ? SELECT_HIGHLIGHT_COLOR : RED;
+            DrawCircleLines(pos.x, pos.y, ringR, col);
+            DrawCircleLines(pos.x, pos.y, ringR - 2.0f, Fade(col, 0.4f));
+        } else {
+            DrawCircleLines(pos.x, pos.y, ringR, Fade(WHITE, 0.2f));
+        }
+
+        // Ability name above pedestal
+        const char *name = AbilityName(slot->ability);
+        if (!name) continue;
+        int nameW = MeasureText(name, SHOP_LABEL_FONT);
+        DrawText(name, (int)(pos.x - nameW / 2),
+            (int)(pos.y - SHOP_RING_RADIUS - SHOP_LABEL_FONT - 2),
+            SHOP_LABEL_FONT, slot->owned ? Fade(GREEN, 0.6f) : Fade(WHITE, 0.5f));
+
+        // Price below pedestal
+        if (!slot->owned) {
+            const char *price = TextFormat("$%d", ABILITY_COST[slot->ability]);
+            int priceW = MeasureText(price, SHOP_PRICE_FONT);
+            Color priceCol = affordable ? Fade(WHITE, 0.7f) : Fade(RED, 0.5f);
+            DrawText(price, (int)(pos.x - priceW / 2),
+                (int)(pos.y + SHOP_RING_RADIUS + 2),
+                SHOP_PRICE_FONT, priceCol);
+        }
+    }
+}
+
 static void DrawWorld(void)
 {
     // Map grid (combat zone: MAP_LEFT to MAP_RIGHT)
@@ -1438,6 +1526,8 @@ static void DrawWorld(void)
 
     // Pedestals (select phase only)
     DrawPedestals();
+    DrawShop();
+    DrawCheatToggle();
 
     // Particles (behind entities)
     DrawParticles();
@@ -1544,6 +1634,39 @@ static void DrawSelectHUD(int sw, int sh, float ui)
             DrawText(lbl, (int)screenPos.x - lblW / 2,
                 (int)screenPos.y + (int)(SELECT_RING_RADIUS * 0.8f), lblFont, Fade(GREEN, 0.6f));
         }
+    }
+}
+
+// Draw shop HUD overlay (when hovering a shop pedestal)
+static void DrawShopHUD(int sw, int sh, float ui)
+{
+    if (g.phase == PHASE_SELECT || g.shopIndex < 0) return;
+    Player *p = &g.player;
+    AbilitySlot *slot = &p->slots[g.shopIndex];
+    const char *name = AbilityName(slot->ability);
+    if (!name) return;
+
+    int labelFont = (int)(SELECT_LABEL_FONT * ui);
+    int descFont = (int)(SELECT_DESC_FONT * ui);
+    int gap = (int)(SELECT_HINT_GAP * ui);
+
+    if (slot->owned) {
+        int ownW = MeasureText("OWNED", labelFont);
+        DrawText("OWNED", sw / 2 - ownW / 2,
+            sh - labelFont - gap, labelFont, Fade(GREEN, 0.6f));
+    } else {
+        const char *price = TextFormat("$%d", ABILITY_COST[slot->ability]);
+        int priceW = MeasureText(price, descFont);
+        int priceY = sh - descFont - gap;
+        bool affordable = (g.score >= ABILITY_COST[slot->ability]);
+        DrawText(price, sw / 2 - priceW / 2, priceY, descFont,
+            affordable ? WHITE : RED);
+
+        const char *key = KeyName(slot->key);
+        const char *info = TextFormat("%s  [%s]", name, key);
+        int nameW = MeasureText(info, labelFont);
+        DrawText(info, sw / 2 - nameW / 2,
+            priceY - labelFont - gap, labelFont, SELECT_HIGHLIGHT_COLOR);
     }
 }
 
@@ -1668,43 +1791,50 @@ static void DrawCooldownColumn(Player *p, float ui)
 
     // R — BFG (charge bar)
     { CdBarInfo ci = CD(ABL_BFG);
+    bool locked = !IsOwned(p, ABL_BFG);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        p->bfg.active ? 0 : p->bfg.charge / BFG_CHARGE_COST,
-        BFG_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : (p->bfg.active ? 0 : p->bfg.charge / BFG_CHARGE_COST),
+        locked ? DARKGRAY : BFG_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // Q — Shotgun (pip bar)
     { CdBarInfo ci = CD(ABL_SHOTGUN);
-        bool recharging = p->shotgun.blastsLeft == 0
+        bool locked = !IsOwned(p, ABL_SHOTGUN);
+        bool recharging = !locked && p->shotgun.blastsLeft == 0
             && p->shotgun.cooldownTimer > 0;
         float rechargeRatio = recharging
             ? 1.0f - (p->shotgun.cooldownTimer / SHOTGUN_COOLDOWN)
             : 0;
         DrawPipBar(cdX, barY, pipW, cdBarH, pipGap,
-            SHOTGUN_BLASTS, p->shotgun.blastsLeft,
+            SHOTGUN_BLASTS, locked ? 0 : p->shotgun.blastsLeft,
             recharging, rechargeRatio,
-            ORANGE, ci.label, labelY, cdFont, ci.isModified);
+            locked ? DARKGRAY : ORANGE, ci.label, labelY, cdFont, ci.isModified);
         cdX += shtgnW + colGap;
     }
 
     // E — Railgun
     { CdBarInfo ci = CD(ABL_RAILGUN);
+    bool locked = !IsOwned(p, ABL_RAILGUN);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->railgun.cooldownTimer / RAILGUN_COOLDOWN,
-        RAILGUN_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->railgun.cooldownTimer / RAILGUN_COOLDOWN,
+        locked ? DARKGRAY : RAILGUN_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // Shift — Spin
     { CdBarInfo ci = CD(ABL_SPIN);
+    bool locked = !IsOwned(p, ABL_SPIN);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->spin.cooldownTimer / SPIN_COOLDOWN,
-        YELLOW, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->spin.cooldownTimer / SPIN_COOLDOWN,
+        locked ? DARKGRAY : YELLOW, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // F — Parry
     { CdBarInfo ci = CD(ABL_PARRY);
+        bool locked = !IsOwned(p, ABL_PARRY);
         float ratio; Color color;
-        if (p->parry.active) {
+        if (locked) {
+            ratio = 0; color = DARKGRAY;
+        } else if (p->parry.active) {
             ratio = 1.0f; color = WHITE;
         } else if (p->parry.cooldownTimer > 0) {
             float maxCd = p->parry.succeeded
@@ -1721,15 +1851,19 @@ static void DrawCooldownColumn(Player *p, float ui)
 
     // Z — Heal
     { CdBarInfo ci = CD(ABL_HEAL);
+    bool locked = !IsOwned(p, ABL_HEAL);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->healCooldown / HEAL_COOLDOWN,
-        HEAL_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->healCooldown / HEAL_COOLDOWN,
+        locked ? DARKGRAY : HEAL_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // X — Shield
     { CdBarInfo ci = CD(ABL_SHIELD);
+        bool locked = !IsOwned(p, ABL_SHIELD);
         float ratio; Color color;
-        if (p->shield.regenTimer < 0) {
+        if (locked) {
+            ratio = 0; color = DARKGRAY;
+        } else if (p->shield.regenTimer < 0) {
             ratio = 1.0f + p->shield.regenTimer / SHIELD_BROKEN_COOLDOWN;
             color = RED;
         } else {
@@ -1743,45 +1877,51 @@ static void DrawCooldownColumn(Player *p, float ui)
 
     // C — Grenade
     { CdBarInfo ci = CD(ABL_GRENADE);
+    bool locked = !IsOwned(p, ABL_GRENADE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
-        GRENADE_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->grenade.cooldownTimer / GRENADE_COOLDOWN,
+        locked ? DARKGRAY : GRENADE_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // V — Fuel
     { CdBarInfo ci = CD(ABL_FIRE);
+    bool locked = !IsOwned(p, ABL_FIRE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        p->flame.fuel / FLAME_FUEL_MAX,
-        FLAME_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : p->flame.fuel / FLAME_FUEL_MAX,
+        locked ? DARKGRAY : FLAME_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // 1 — Slam
     { CdBarInfo ci = CD(ABL_SLAM);
+    bool locked = !IsOwned(p, ABL_SLAM);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
-        SLAM_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->slam.cooldownTimer / SLAM_COOLDOWN,
+        locked ? DARKGRAY : SLAM_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // 2 — Blink
     { CdBarInfo ci = CD(ABL_BLINK);
+    bool locked = !IsOwned(p, ABL_BLINK);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        p->blink.cooldown > 0
-            ? 1.0f - p->blink.cooldown / BLINK_COOLDOWN : 1.0f,
-        BLINK_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : (p->blink.cooldown > 0
+            ? 1.0f - p->blink.cooldown / BLINK_COOLDOWN : 1.0f),
+        locked ? DARKGRAY : BLINK_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // 3 — Turret
     { CdBarInfo ci = CD(ABL_TURRET);
+    bool locked = !IsOwned(p, ABL_TURRET);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->turretCooldown / TURRET_COOLDOWN,
-        TURRET_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->turretCooldown / TURRET_COOLDOWN,
+        locked ? DARKGRAY : TURRET_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     // 4 — Mine
     { CdBarInfo ci = CD(ABL_MINE);
+    bool locked = !IsOwned(p, ABL_MINE);
     DrawCooldownBar(cdX, barY, cdBarW, cdBarH,
-        1.0f - p->mineCooldown / MINE_COOLDOWN,
-        MINE_COLOR, ci.label, labelY, cdFont, ci.isModified);
+        locked ? 0 : 1.0f - p->mineCooldown / MINE_COOLDOWN,
+        locked ? DARKGRAY : MINE_COLOR, ci.label, labelY, cdFont, ci.isModified);
     cdX += cdBarW + colGap; }
 
     #undef CD
@@ -2170,6 +2310,7 @@ static void DrawHUD(void)
         DrawText(swapHint, ctrlX, wY, wFont, Fade(WHITE, 0.2f));
     }
 
+    DrawShopHUD(sw, sh, ui);
     DrawCooldownColumn(p, ui);
 
     DrawWeaponStatus(p, ui);

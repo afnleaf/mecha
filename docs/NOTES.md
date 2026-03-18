@@ -110,6 +110,9 @@ asset loader
 - [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
 - [x] controller support
 - [x] map change, one big map with base and combat zone
+- [x] add money it is the `int score`, already have it working.
+- [x] add shop pay with score
+- [x] add cheat toggles, infinite money, buy all/sell all abilities
 - [] able to remap abilities (tab/alt modifier)
 - [] waves/phases after screen/phase refactor
 
@@ -193,6 +196,7 @@ factory level sets pod value
 - [x] sniper hipfire way less accurate
 - [x] flamethrower range longer
 - [x] rocket goes max distance, m2 explodes it, just remove rocket explodes where m1 was pressed (better for controller/kb only)
+- [x] make multiple rockets possible at one time
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 
@@ -233,11 +237,11 @@ variations of each weapon?
 
 ### players
 each chassis is a platonic solid and has an associated element (sacred geometry)
-- [x] tetrahedron (fire)
-- [x] cube (earth)
-- [x] octahedron (air)
-- [x] dodecahedron (aether)
-- [x] icosahedron (water)
+- [x] tetrahedron (fire) (sword)
+- [x] cube (earth) (revolver)
+- [x] octahedron (air) (gun)
+- [x] dodecahedron (aether) (sniper)
+- [x] icosahedron (water) (rocket)
 - [x] decide who gets which primary weapon
 - [x] do you get to pick two shapes and morph between them? yes (primary/secondary press 1 to switch between forms, transformation of shape)
 - [x] consistent player size depending on shape

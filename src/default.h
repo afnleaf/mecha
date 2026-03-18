@@ -236,7 +236,7 @@
 #define ROCKET_EXPLOSION_DAMAGE 60
 #define ROCKET_EXPLOSION_RADIUS 160.0f
 #define ROCKET_KNOCKBACK        250.0f
-#define ROCKET_COOLDOWN         0.915f
+#define ROCKET_COOLDOWN         0.715f
 #define ROCKET_SIZE             6.0f
 #define ROCKET_PROJECTILE_SIZE  6.0f
 #define ROCKET_JUMP_DAMAGE      4
@@ -436,7 +436,7 @@
 
 // Sniper (press X, single fast projectile, slows target, long cooldown)
 #define SNIPER_DAMAGE           120
-#define SNIPER_BULLET_SPEED     2400.0f
+#define SNIPER_BULLET_SPEED     3200.0f
 #define SNIPER_BULLET_LIFETIME  1.5f
 #define SNIPER_PROJECTILE_SIZE  4.0f
 #define SNIPER_COOLDOWN         0.915f
@@ -847,4 +847,20 @@
 #define SELECT_LABEL_FONT       20
 #define SELECT_PROMPT_FONT      14
 #define TRANSITION_DURATION     0.5f
+
+// Shop (diegetic ability store in base room) --------------------------------- /
+#define SHOP_INTERACT_RADIUS    40.0f
+#define SHOP_RING_RADIUS        25.0f
+#define SHOP_RING_PULSE_SPEED   4.0f
+#define SHOP_LABEL_FONT         10
+#define SHOP_PRICE_FONT         12
+#define SHOP_WALL_INSET         40.0f
+#define SPAWN_EXIT_DELAY        2.0f
+// Cheat toggle (diegetic, on the ground in base)
+#define CHEAT_INTERACT_RADIUS   30.0f
+#define CHEAT_FONT              14
+#define CHEAT_INF_X             (BASE_W - 250.0f)
+#define CHEAT_INF_Y             (BASE_TOP + 30.0f)
+#define CHEAT_BUYALL_X          (BASE_W - 250.0f)
+#define CHEAT_BUYALL_Y          (BASE_TOP + 60.0f)
 

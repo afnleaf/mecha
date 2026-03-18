@@ -58,6 +58,7 @@ typedef enum AbilityID {
 typedef struct AbilitySlot {
     AbilityID ability;
     int key;            // raylib KeyboardKey
+    bool owned;
 } AbilitySlot;
 
 // gamepad ability bindings ------------------------------------------------- /
@@ -85,6 +86,24 @@ static const PadAbilityBind PAD_ABILITY_MAP[] = {
     { ABL_MINE,     GAMEPAD_BUTTON_LEFT_FACE_RIGHT,   false }, // DRight
 };
 #define PAD_ABILITY_COUNT (sizeof(PAD_ABILITY_MAP) / sizeof(PAD_ABILITY_MAP[0]))
+
+// ability costs (indexed by AbilityID) ---------------------------------------- /
+static const int ABILITY_COST[ABL_COUNT] = {
+    0,     // ABL_NONE
+    500,   // ABL_SHOTGUN
+    400,   // ABL_SPIN
+    600,   // ABL_GRENADE
+    800,   // ABL_RAILGUN
+    2000,  // ABL_BFG
+    500,   // ABL_SHIELD
+    700,   // ABL_TURRET
+    500,   // ABL_MINE
+    600,   // ABL_SLAM
+    600,   // ABL_PARRY
+    500,   // ABL_HEAL
+    500,   // ABL_FIRE
+    800,   // ABL_BLINK
+};
 
 // player ------------------------------------------------------------------- /
 // declare abilities above player
@@ -497,6 +516,12 @@ typedef struct GameState {
     float selectSwordAngle;
     Vector2 selectPedestals[NUM_PRIMARY_WEAPONS];
     float transitionTimer;   // >0 = fade transition active
+    // shop
+    int shopIndex;           // highlighted shop pedestal (-1 = none)
+    Vector2 shopPedestals[ABILITY_SLOTS];
+    float spawnDelay;        // countdown after leaving base
+    // cheats
+    bool infiniteMoney;
 } GameState;
 
 #endif // MECHA_H

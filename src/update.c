@@ -124,7 +124,7 @@ static Vector2 FireHitscan(Vector2 origin, Vector2 dir,
 
 static bool IsAbilityPressed(Player *p, AbilityID ability) {
     for (int i = 0; i < ABILITY_SLOTS; i++) {
-        if (p->slots[i].ability == ability
+        if (p->slots[i].ability == ability && p->slots[i].owned
             && IsKeyPressed(p->slots[i].key))
             return true;
     }
@@ -142,7 +142,7 @@ static bool IsAbilityPressed(Player *p, AbilityID ability) {
 
 static bool IsAbilityDown(Player *p, AbilityID ability) {
     for (int i = 0; i < ABILITY_SLOTS; i++) {
-        if (p->slots[i].ability == ability
+        if (p->slots[i].ability == ability && p->slots[i].owned
             && IsKeyDown(p->slots[i].key))
             return true;
     }
@@ -403,8 +403,30 @@ static void UpdateSelect(float dt)
         }
     }
 
+    // Cheat buttons (available during select too)
+    bool nearCheat = false;
+    {
+        bool m1 = M1Pressed() || IsKeyPressed(KEY_ENTER)
+            || IsGamepadButtonPressed(GAMEPAD_INDEX,
+                    GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+        Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
+        Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
+        bool nearInf = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS;
+        bool nearBuy = Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS;
+        nearCheat = nearInf || nearBuy;
+        if (m1 && nearInf)
+            g.infiniteMoney = !g.infiniteMoney;
+        if (m1 && nearBuy) {
+            bool allOwned = true;
+            for (int i = 0; i < ABILITY_SLOTS; i++)
+                if (!p->slots[i].owned) { allOwned = false; break; }
+            for (int i = 0; i < ABILITY_SLOTS; i++)
+                p->slots[i].owned = !allOwned;
+        }
+    }
+
     // M1 or Enter or A selects weapon
-    if (g.selectIndex >= 0 &&
+    if (g.selectIndex >= 0 && !nearCheat &&
         (M1Pressed() || IsKeyPressed(KEY_ENTER)
          || IsGamepadButtonPressed(GAMEPAD_INDEX, GAMEPAD_BUTTON_RIGHT_FACE_DOWN))) {
         if (g.selectPhase == 0) {
@@ -505,6 +527,49 @@ static void UpdateSelect(float dt)
 
     // Shadow lag (player model exists in select too)
     p->shadowPos = Vector2Lerp(p->shadowPos, p->pos, SHADOW_LAG * dt);
+}
+
+// Shop interaction — proximity + purchase
+static void UpdateShop(void)
+{
+    Player *p = &g.player;
+    bool m1 = M1Pressed() || IsKeyPressed(KEY_ENTER)
+        || IsGamepadButtonPressed(GAMEPAD_INDEX,
+                GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+
+    // Cheat buttons
+    Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
+    Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
+    bool nearCheat = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS;
+    if (m1 && Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS)
+        g.infiniteMoney = !g.infiniteMoney;
+    if (m1 && Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS) {
+        bool allOwned = true;
+        for (int i = 0; i < ABILITY_SLOTS; i++)
+            if (!p->slots[i].owned) { allOwned = false; break; }
+        for (int i = 0; i < ABILITY_SLOTS; i++)
+            p->slots[i].owned = !allOwned;
+    }
+
+    // Shop pedestals
+    g.shopIndex = -1;
+    float bestDist = SHOP_INTERACT_RADIUS;
+    for (int i = 0; i < ABILITY_SLOTS; i++) {
+        float d = Vector2Distance(p->pos, g.shopPedestals[i]);
+        if (d < bestDist) {
+            bestDist = d;
+            g.shopIndex = i;
+        }
+    }
+    if (g.shopIndex >= 0 && m1 && !nearCheat) {
+        AbilitySlot *slot = &p->slots[g.shopIndex];
+        int cost = ABILITY_COST[slot->ability];
+        if (!slot->owned && (g.infiniteMoney || g.score >= cost)) {
+            if (!g.infiniteMoney) g.score -= cost;
+            slot->owned = true;
+        }
+    }
 }
 
 // SweepDamage — shared by sword and spin
@@ -1075,16 +1140,13 @@ static void UpdateWeapon(Player *p, Vector2 toMouse, float dt)
         }
         break;
     case WPN_ROCKET:
-        // M1: Rocket (one at a time)
-        if (M1Pressed()
-            && p->rocket.cooldownTimer <= 0
-            && !p->rocket.inFlight) {
+        // M1: Rocket
+        if (M1Pressed() && p->rocket.cooldownTimer <= 0) {
             SpawnRocket(p, toMouse);
             p->rocket.cooldownTimer = ROCKET_COOLDOWN;
         }
-        // M2: Detonate in-flight rocket
-        if (M2Pressed()
-            && p->rocket.inFlight) {
+        // M2: Detonate oldest in-flight rocket
+        if (M2Pressed()) {
             for (int i = 0; i < MAX_PROJECTILES; i++) {
                 Projectile *b = &g.projectiles[i];
                 if (b->active && b->type == PROJ_ROCKET
@@ -1556,7 +1618,12 @@ static void UpdateEnemies(float dt) {
     
     // --- Pod spawning via phases ---
     bool inBase = (p->pos.x < MAP_LEFT && p->pos.y > STEP_Y) || (p->pos.y > MAP_SIZE);
-    if (g.phase == PHASE_COMBAT && !inBase) {
+    if (inBase) {
+        g.spawnDelay = SPAWN_EXIT_DELAY;
+    } else if (g.spawnDelay > 0) {
+        g.spawnDelay -= dt;
+    }
+    if (g.phase == PHASE_COMBAT && !inBase && g.spawnDelay <= 0) {
         bool anyAlive = false;
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (g.enemies[i].active) { anyAlive = true; break; }
@@ -1768,8 +1835,6 @@ static void AoeDamage(Vector2 pos, float radius, int damage,
 
 static void RocketExplode(Vector2 pos) {
     Player *p = &g.player;
-    p->rocket.inFlight = false;
-
     AoeDamage(pos, ROCKET_EXPLOSION_RADIUS, ROCKET_EXPLOSION_DAMAGE,
         ROCKET_KNOCKBACK, DMG_EXPLOSIVE);
 
@@ -2353,6 +2418,7 @@ void UpdateGame(void)
         if (g.transitionTimer <= 0) g.transitionTimer = 0;
     }
 
+    UpdateShop();
     UpdatePlayer(dt);
     UpdateEnemies(dt);
     UpdateProjectiles(dt);

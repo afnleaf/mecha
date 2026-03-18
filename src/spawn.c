@@ -233,7 +233,7 @@ void SpawnRocket(Player *p, Vector2 toMouse) {
         ROCKET_SPEED, ROCKET_DIRECT_DAMAGE,
         ROCKET_LIFETIME, ROCKET_PROJECTILE_SIZE, false, true,
         PROJ_ROCKET, DMG_EXPLOSIVE);
-    if (r) p->rocket.inFlight = true;
+    (void)r;
     // muzzle flash
     SpawnParticles(muzzle, RED, ROCKET_MUZZLE_PARTICLES);
     SpawnParticle(muzzle,
