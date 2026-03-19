@@ -1511,7 +1511,7 @@ static void DrawShop(void)
         AbilitySlot *slot = &p->slots[i];
         Vector2 pos = g.shopPedestals[i];
         bool highlighted = (i == g.shopIndex);
-        bool affordable = (g.score >= ABILITY_COST[slot->ability]);
+        bool affordable = (g.gold >= ABILITY_COST[slot->ability]);
 
         // Ground ring
         float ringR = SHOP_RING_RADIUS;
@@ -1743,7 +1743,7 @@ static void DrawShopHUD(int sw, int sh, float ui)
         const char *price = TextFormat("$%d", ABILITY_COST[slot->ability]);
         int priceW = MeasureText(price, descFont);
         int priceY = sh - descFont - gap;
-        bool affordable = (g.score >= ABILITY_COST[slot->ability]);
+        bool affordable = (g.gold >= ABILITY_COST[slot->ability]);
         DrawText(price, sw / 2 - priceW / 2, priceY, descFont,
             affordable ? WHITE : RED);
 
@@ -2305,14 +2305,14 @@ static void DrawGameOver(int sw, int sh, float ui)
         goFont,
         RED);
 
-    int scFont = (int)(HUD_GO_SCORE_FONT * ui);
+    int scFont = (int)(HUD_GO_GOLD_FONT * ui);
     const char *scoreText =
-        TextFormat("Score: %d  |  Kills: %d", g.score, g.enemiesKilled);
+        TextFormat("Gold: %d  |  Kills: %d", g.gold, g.enemiesKilled);
     int sW = MeasureText(scoreText, scFont);
     DrawText(
         scoreText,
         sw / 2 - sW / 2,
-        sh / 2 + (int)(HUD_GO_SCORE_Y * ui),
+        sh / 2 + (int)(HUD_GO_GOLD_Y * ui),
         scFont,
         WHITE);
 
@@ -2370,8 +2370,8 @@ static void DrawHUD(void)
 
     // Score
     DrawText(
-        TextFormat("Score: %d", g.score), 
-        (int)(HUD_MARGIN * ui), (int)(HUD_SCORE_Y * ui), (int)(HUD_SCORE_FONT * ui), WHITE);
+        TextFormat("Gold: %d", g.gold),
+        (int)(HUD_MARGIN * ui), (int)(HUD_GOLD_Y * ui), (int)(HUD_GOLD_FONT * ui), WHITE);
     DrawText(
         TextFormat("Kills: %d", g.enemiesKilled),
         (int)(HUD_MARGIN * ui), (int)(HUD_KILLS_Y * ui), (int)(HUD_KILLS_FONT * ui), LIGHTGRAY);

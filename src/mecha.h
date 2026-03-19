@@ -89,20 +89,20 @@ static const PadAbilityBind PAD_ABILITY_MAP[] = {
 
 // ability costs (indexed by AbilityID) ---------------------------------------- /
 static const int ABILITY_COST[ABL_COUNT] = {
-    0,     // ABL_NONE
-    500,   // ABL_SHOTGUN
-    400,   // ABL_SPIN
-    600,   // ABL_GRENADE
-    800,   // ABL_RAILGUN
-    2000,  // ABL_BFG
-    500,   // ABL_SHIELD
-    700,   // ABL_TURRET
-    500,   // ABL_MINE
-    600,   // ABL_SLAM
-    600,   // ABL_PARRY
-    500,   // ABL_HEAL
-    500,   // ABL_FIRE
-    800,   // ABL_BLINK
+    0,      // ABL_NONE
+    2500,   // ABL_SHOTGUN
+    2000,   // ABL_SPIN
+    3000,   // ABL_GRENADE
+    4000,   // ABL_RAILGUN
+    10000,  // ABL_BFG
+    2500,   // ABL_SHIELD
+    3500,   // ABL_TURRET
+    2500,   // ABL_MINE
+    3000,   // ABL_SLAM
+    3000,   // ABL_PARRY
+    2500,   // ABL_HEAL
+    2500,   // ABL_FIRE
+    4000,   // ABL_BLINK
 };
 
 // player ------------------------------------------------------------------- /
@@ -432,7 +432,7 @@ typedef struct Enemy {
     float hitFlash;
     float shootTimer;
     int contactDamage;
-    int score;
+    int gold;
     int value;
     EnemyType type;
     float slowTimer;
@@ -469,7 +469,7 @@ typedef struct EnemyDef {
     int   speedVar;
     int   contactDamage;
     int   spawnKills;
-    int   score;
+    int   gold;
     int   value;
     EnemyShootFn shoot;
 } EnemyDef;
@@ -508,7 +508,7 @@ typedef struct GameState {
     VfxState vfx;
     //
     Camera2D camera;
-    int score;
+    int gold;
     float spawnTimer;
     float spawnInterval;
     int podValue;

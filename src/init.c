@@ -34,23 +34,23 @@ void InitGame(void)
     // left wall (4), bottom wall (5), right wall (4)
     g.shopIndex = -1;
     {
-        float inset = SHOP_WALL_INSET;
-        float top = BASE_TOP + inset;
-        float bot = BASE_BOTTOM - inset;
+        float ix = SHOP_WALL_INSET_X;
+        float top = BASE_TOP + SHOP_WALL_INSET_TOP;
+        float bot = BASE_BOTTOM - SHOP_WALL_INSET_BOT;
         float h = bot - top;
         int idx = 0;
         // left wall — bottom to top
         for (int i = 0; i < 4; i++)
             g.shopPedestals[idx++] = (Vector2){
-                inset, bot - h * (float)i / 3.0f };
+                ix, bot - h * (float)i / 3.0f };
         // bottom wall — left to right
         for (int i = 0; i < 5; i++)
             g.shopPedestals[idx++] = (Vector2){
-                inset + (BASE_W - 2*inset) * (float)(i + 1) / 6.0f, bot };
+                ix + (BASE_W - 2*ix) * (float)(i + 1) / 6.0f, bot };
         // right wall — bottom to top
         for (int i = 0; i < 4; i++)
             g.shopPedestals[idx++] = (Vector2){
-                BASE_W - inset, bot - h * (float)i / 3.0f };
+                BASE_W - ix, bot - h * (float)i / 3.0f };
     }
 }
 

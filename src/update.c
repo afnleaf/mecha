@@ -593,8 +593,8 @@ static void UpdateShop(void)
     if (g.shopIndex >= 0 && m1 && !nearCheat) {
         AbilitySlot *slot = &p->slots[g.shopIndex];
         int cost = ABILITY_COST[slot->ability];
-        if (!slot->owned && (g.infiniteMoney || g.score >= cost)) {
-            if (!g.infiniteMoney) g.score -= cost;
+        if (!slot->owned && (g.infiniteMoney || g.gold >= cost)) {
+            if (!g.infiniteMoney) g.gold -= cost;
             slot->owned = true;
         }
     }

@@ -385,32 +385,32 @@ static void ShootCirc(
 // enemy definitions — one row per type
 const EnemyDef ENEMY_DEFS[] = {
 //              size         hp        spdMin            spdVar
-//              contactDmg   spnKills  score
+//              contactDmg   spnKills  gold
 //              value        shoot
     [TRI]   = { TRI_SIZE,    TRI_HP,   TRI_SPEED_MIN,   TRI_SPEED_VAR,
                 TRI_CONTACT_DAMAGE,    0,
-                TRI_SCORE,   TRI_VALUE,   NULL },
+                TRI_GOLD,   TRI_VALUE,   NULL },
     [RECT]  = { RECT_SIZE,   RECT_HP,  RECT_SPEED_MIN,  RECT_SPEED_VAR,
                 RECT_CONTACT_DAMAGE,   RECT_SPAWN_KILLS,
-                RECT_SCORE,  RECT_VALUE,  ShootRect },
+                RECT_GOLD,  RECT_VALUE,  ShootRect },
     [PENTA] = { PENTA_SIZE,  PENTA_HP, PENTA_SPEED_MIN, PENTA_SPEED_VAR,
                 PENTA_CONTACT_DAMAGE,  PENTA_SPAWN_KILLS,
-                PENTA_SCORE, PENTA_VALUE, ShootPenta },
+                PENTA_GOLD, PENTA_VALUE, ShootPenta },
     [RHOM]  = { RHOM_SIZE,   RHOM_HP,  RHOM_SPEED_MIN,  RHOM_SPEED_VAR,
                 RHOM_CONTACT_DAMAGE,   RHOM_SPAWN_KILLS,
-                RHOM_SCORE,  RHOM_VALUE,  NULL },
+                RHOM_GOLD,  RHOM_VALUE,  NULL },
     [HEXA]  = { HEXA_SIZE,   HEXA_HP,  HEXA_SPEED_MIN,  HEXA_SPEED_VAR,
                 HEXA_CONTACT_DAMAGE,   HEXA_SPAWN_KILLS,
-                HEXA_SCORE,  HEXA_VALUE,  ShootHexa },
+                HEXA_GOLD,  HEXA_VALUE,  ShootHexa },
     [OCTA]  = { OCTA_SIZE,   OCTA_HP,  OCTA_SPEED_MIN,  OCTA_SPEED_VAR,
                 OCTA_CONTACT_DAMAGE,   OCTA_SPAWN_KILLS,
-                OCTA_SCORE,  OCTA_VALUE,  NULL },
+                OCTA_GOLD,  OCTA_VALUE,  NULL },
     [TRAP]  = { TRAP_SIZE,   TRAP_HP,  TRAP_SPEED_MIN,  TRAP_SPEED_VAR,
                 TRAP_CONTACT_DAMAGE,   TRAP_SPAWN_KILLS,
-                TRAP_SCORE,  TRAP_VALUE,  ShootTrap },
+                TRAP_GOLD,  TRAP_VALUE,  ShootTrap },
     [CIRC]  = { CIRC_SIZE,   CIRC_HP,  CIRC_SPEED_MIN,  CIRC_SPEED_VAR,
                 CIRC_CONTACT_DAMAGE,   0,
-                CIRC_SCORE,  CIRC_VALUE,  ShootCirc },
+                CIRC_GOLD,  CIRC_VALUE,  ShootCirc },
 };
 
 // Spawn Helpers ------------------------------------------------------------ /
@@ -544,7 +544,7 @@ static void FillFromDef(Enemy *e, EnemyType type) {
     e->hp            = d->hp;
     e->maxHp         = d->hp;
     e->contactDamage = d->contactDamage;
-    e->score         = d->score;
+    e->gold          = d->gold;
     e->value         = d->value;
 }
 
@@ -673,7 +673,7 @@ void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method)
 
     if (e->hp <= 0) {
         e->active = false;
-        g.score += e->score;
+        g.gold += e->gold;
         g.enemiesKilled++;
         // Boss kill — advance level
         if (e->type == CIRC) {

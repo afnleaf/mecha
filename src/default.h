@@ -505,7 +505,7 @@
 #define TRI_SPEED_MIN           100.0f
 #define TRI_SPEED_VAR           80
 #define TRI_CONTACT_DAMAGE      15
-#define TRI_SCORE               100
+#define TRI_GOLD                100
 #define TRI_WING_ANGLE          2.4f
 
 // Enemy — Rectangle (ranged)
@@ -520,7 +520,7 @@
 #define RECT_PROJECTILE_SIZE    4.0f
 #define RECT_BULLET_LIFETIME    10.0f
 #define RECT_ASPECT_RATIO       0.7f
-#define RECT_SCORE              200
+#define RECT_GOLD               200
 
 // Enemy — Rhombus (fast chaser)
 #define RHOM_SIZE               15.0f
@@ -528,7 +528,7 @@
 #define RHOM_SPEED_MIN          180.0f
 #define RHOM_SPEED_VAR          100
 #define RHOM_CONTACT_DAMAGE     22
-#define RHOM_SCORE              300
+#define RHOM_GOLD               300
 #define RHOM_COLOR              (Color){ 160, 32, 240, 255 }
 #define RHOM_TIP_MULT           1.2f
 #define RHOM_BACK_MULT          0.8f
@@ -548,7 +548,7 @@
 #define PENTA_BULLET_LIFETIME   10.0f
 #define PENTA_ROW_OFFSET        14.0f
 #define PENTA_BULLET_SPACING    18.0f
-#define PENTA_SCORE             600
+#define PENTA_GOLD              600
 #define PENTA_COLOR             (Color){ 57, 255, 20, 255 }
 #define PENTA_BULLETS_PER_ROW   5
 
@@ -566,7 +566,7 @@
 #define HEXA_FAN_COUNT          5
 #define HEXA_FAN_SPREAD         0.7854f
 #define HEXA_ORBIT_DIST         280.0f
-#define HEXA_SCORE              600
+#define HEXA_GOLD               600
 #define HEXA_COLOR              (Color){ 255, 160, 30, 255 }
 #define HEXA_OUTLINE_COLOR      (Color){ 180, 100, 10, 255 }
 
@@ -576,7 +576,7 @@
 #define OCTA_SPEED_MIN          300.0f
 #define OCTA_SPEED_VAR          100
 #define OCTA_CONTACT_DAMAGE     33
-#define OCTA_SCORE              300
+#define OCTA_GOLD               300
 #define OCTA_COLOR              (Color){ 255, 0, 0, 255 }
 #define OCTA_OUTLINE_COLOR      (Color){ 180, 100, 10, 255 }
 
@@ -586,7 +586,7 @@
 #define TRAP_SPEED_MIN          70.0f
 #define TRAP_SPEED_VAR          0
 #define TRAP_CONTACT_DAMAGE     30
-#define TRAP_SCORE              5000
+#define TRAP_GOLD               5000
 #define TRAP_COLOR              (Color){ 255, 200, 50, 255 }
 #define TRAP_OUTLINE_COLOR      (Color){ 180, 120, 20, 255 }
 // Shape proportions
@@ -618,7 +618,7 @@
 #define CIRC_SPEED_MIN          PLAYER_SPEED
 #define CIRC_SPEED_VAR          0
 #define CIRC_CONTACT_DAMAGE     30
-#define CIRC_SCORE              10000
+#define CIRC_GOLD               10000
 #define CIRC_VALUE              0
 #define CIRC_COLOR              WHITE
 #define CIRC_OUTLINE_COLOR      LIGHTGRAY
@@ -840,9 +840,9 @@
 #define HUD_HP_TEXT_PAD_X       4
 #define HUD_HP_TEXT_PAD_Y       1
 #define HUD_HP_FONT             14
-// Score
-#define HUD_SCORE_Y             34
-#define HUD_SCORE_FONT          20
+// Gold
+#define HUD_GOLD_Y              34
+#define HUD_GOLD_FONT           20
 #define HUD_KILLS_Y             58
 #define HUD_KILLS_FONT          16
 #define HUD_LEVEL_Y             78
@@ -893,8 +893,8 @@
 // Game Over
 #define HUD_GO_FONT             70
 #define HUD_GO_Y                60
-#define HUD_GO_SCORE_FONT       28
-#define HUD_GO_SCORE_Y          20
+#define HUD_GO_GOLD_FONT        28
+#define HUD_GO_GOLD_Y           20
 #define HUD_GO_RESTART_FONT     20
 #define HUD_GO_RESTART_Y        60
 
@@ -924,9 +924,11 @@
 #define SHOP_INTERACT_RADIUS    40.0f
 #define SHOP_RING_RADIUS        25.0f
 #define SHOP_RING_PULSE_SPEED   4.0f
-#define SHOP_LABEL_FONT         10
-#define SHOP_PRICE_FONT         12
-#define SHOP_WALL_INSET         40.0f
+#define SHOP_LABEL_FONT         14
+#define SHOP_PRICE_FONT         16
+#define SHOP_WALL_INSET_X       50.0f
+#define SHOP_WALL_INSET_TOP     -8.0f
+#define SHOP_WALL_INSET_BOT     50.0f
 #define SPAWN_EXIT_DELAY        2.0f
 // Cheat toggle (diegetic, on the ground in base)
 #define IN_CHEAT_BTN(pos, cx, cy) CheckCollisionPointRec(pos, \
