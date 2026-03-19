@@ -1390,106 +1390,114 @@ static void DrawPedestals(void)
     }
 }
 
+// Draw a button box outline (highlighted when near)
+static void DrawBtnBox(float cx, float cy, float w, float h, bool near)
+{
+    int x = (int)(cx - w / 2);
+    int y = (int)(cy - h / 2);
+    if (near)
+        DrawRectangle(x, y, (int)w, (int)h, Fade(WHITE, 0.1f));
+    DrawRectangleLines(x, y, (int)w, (int)h,
+        Fade(WHITE, near ? 0.5f : 0.2f));
+}
+
+// Draw a toggle button: label + ON/OFF centered in box
+static void DrawToggleBtn(float cx, float cy, const char *label,
+                          bool state, bool near)
+{
+    DrawBtnBox(cx, cy, CHEAT_BTN_W, CHEAT_BTN_H, near);
+    float alpha = near ? 0.9f : 0.35f;
+    int ty = (int)(cy - CHEAT_FONT / 2);
+    const char *val = state ? "ON" : "OFF";
+    Color valCol = state ? GREEN : RED;
+    int lw = MeasureText(label, CHEAT_FONT);
+    int vw = MeasureText(val, CHEAT_FONT);
+    int total = lw + 4 + vw;
+    int tx = (int)(cx - total / 2);
+    DrawText(label, tx, ty, CHEAT_FONT, Fade(WHITE, alpha));
+    DrawText(val, tx + lw + 4, ty, CHEAT_FONT, Fade(valCol, alpha));
+}
+
 // Draw cheat toggle on the ground (all phases except game over)
 static void DrawCheatToggle(void)
 {
-    Vector2 pos = { CHEAT_INF_X, CHEAT_INF_Y };
-    float d = Vector2Distance(g.player.pos, pos);
-    bool near = d < CHEAT_INTERACT_RADIUS;
-    float alpha = near ? 0.8f : 0.35f;
+    Player *p = &g.player;
 
-    const char *label = "INF $:";
-    int lw = MeasureText(label, CHEAT_FONT);
-    DrawText(label, (int)(pos.x - lw / 2 - 10),
-        (int)(pos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, alpha));
+    // INF $
+    {
+        bool near = IN_CHEAT_BTN(p->pos, CHEAT_INF_X, CHEAT_INF_Y);
+        DrawToggleBtn(CHEAT_INF_X, CHEAT_INF_Y, "INF $:",
+            g.infiniteMoney, near);
+    }
 
-    const char *val = g.infiniteMoney ? "ON" : "OFF";
-    Color valCol = g.infiniteMoney ? GREEN : RED;
-    DrawText(val, (int)(pos.x - lw / 2 + lw),
-        (int)(pos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(valCol, alpha));
+    // BUY / SELL ALL
+    {
+        bool near = IN_CHEAT_BTN(p->pos, CHEAT_BUYALL_X, CHEAT_BUYALL_Y);
+        float alpha = near ? 0.9f : 0.35f;
+        DrawBtnBox(CHEAT_BUYALL_X, CHEAT_BUYALL_Y,
+            CHEAT_BTN_W, CHEAT_BTN_H, near);
+        bool allOwned = true;
+        for (int i = 0; i < ABILITY_SLOTS; i++)
+            if (!p->slots[i].owned) { allOwned = false; break; }
+        const char *label = allOwned ? "SELL ALL" : "BUY ALL";
+        Color col = allOwned ? RED : YELLOW;
+        int w = MeasureText(label, CHEAT_FONT);
+        DrawText(label, (int)(CHEAT_BUYALL_X - w / 2),
+            (int)(CHEAT_BUYALL_Y - CHEAT_FONT / 2), CHEAT_FONT,
+            Fade(col, alpha));
+    }
 
-    // INVINCIBLE toggle
-    Vector2 invPos = { CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y };
-    float id = Vector2Distance(g.player.pos, invPos);
-    bool iNear = id < CHEAT_INTERACT_RADIUS;
-    float iAlpha = iNear ? 0.8f : 0.35f;
+    // GOD MODE
+    {
+        bool near = IN_CHEAT_BTN(p->pos, CHEAT_INVINCIBLE_X,
+            CHEAT_INVINCIBLE_Y);
+        DrawToggleBtn(CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y,
+            "GOD MODE:", g.invincible, near);
+    }
 
-    const char *iLabel = "GOD MODE:";
-    int ilw = MeasureText(iLabel, CHEAT_FONT);
-    DrawText(iLabel, (int)(invPos.x - ilw / 2 - 10),
-        (int)(invPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, iAlpha));
+    // NO CD
+    {
+        bool near = IN_CHEAT_BTN(p->pos, CHEAT_NOCD_X, CHEAT_NOCD_Y);
+        DrawToggleBtn(CHEAT_NOCD_X, CHEAT_NOCD_Y, "NO CD:",
+            g.noCooldowns, near);
+    }
 
-    const char *iVal = g.invincible ? "ON" : "OFF";
-    Color iValCol = g.invincible ? GREEN : RED;
-    DrawText(iVal, (int)(invPos.x - ilw / 2 + ilw),
-        (int)(invPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(iValCol, iAlpha));
+    // POD VALUE +/-
+    {
+        bool pn = IN_CHEAT_SM(p->pos, CHEAT_POD_PLUS_X, CHEAT_POD_Y);
+        bool mn = IN_CHEAT_SM(p->pos, CHEAT_POD_MINUS_X, CHEAT_POD_Y);
+        bool anyNear = pn || mn;
+        float alpha = anyNear ? 0.9f : 0.35f;
+        // Label box
+        DrawBtnBox(CHEAT_POD_X, CHEAT_POD_Y,
+            CHEAT_BTN_W, CHEAT_BTN_H, anyNear);
+        const char *label = TextFormat("POD: %d", g.podValue);
+        int lw = MeasureText(label, CHEAT_FONT);
+        DrawText(label, (int)(CHEAT_POD_X - lw / 2),
+            (int)(CHEAT_POD_Y - CHEAT_FONT / 2), CHEAT_FONT,
+            Fade(WHITE, alpha));
+        // + button
+        DrawBtnBox(CHEAT_POD_PLUS_X, CHEAT_POD_Y,
+            CHEAT_BTN_SM, CHEAT_BTN_H, pn);
+        int pw = MeasureText("+", CHEAT_FONT);
+        DrawText("+", (int)(CHEAT_POD_PLUS_X - pw / 2),
+            (int)(CHEAT_POD_Y - CHEAT_FONT / 2), CHEAT_FONT,
+            Fade(GREEN, pn ? 0.9f : alpha));
+        // - button
+        DrawBtnBox(CHEAT_POD_MINUS_X, CHEAT_POD_Y,
+            CHEAT_BTN_SM, CHEAT_BTN_H, mn);
+        int mw = MeasureText("-", CHEAT_FONT);
+        DrawText("-", (int)(CHEAT_POD_MINUS_X - mw / 2),
+            (int)(CHEAT_POD_Y - CHEAT_FONT / 2), CHEAT_FONT,
+            Fade(RED, mn ? 0.9f : alpha));
+    }
 
-    // NO CD toggle
-    Vector2 cdPos = { CHEAT_NOCD_X, CHEAT_NOCD_Y };
-    float cd = Vector2Distance(g.player.pos, cdPos);
-    bool cNear = cd < CHEAT_INTERACT_RADIUS;
-    float cAlpha = cNear ? 0.8f : 0.35f;
-
-    const char *cLabel = "NO CD:";
-    int clw = MeasureText(cLabel, CHEAT_FONT);
-    DrawText(cLabel, (int)(cdPos.x - clw / 2 - 10),
-        (int)(cdPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, cAlpha));
-
-    const char *cVal = g.noCooldowns ? "ON" : "OFF";
-    Color cValCol = g.noCooldowns ? GREEN : RED;
-    DrawText(cVal, (int)(cdPos.x - clw / 2 + clw),
-        (int)(cdPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(cValCol, cAlpha));
-
-    // POD VALUE +/- buttons
-    Vector2 podPlus  = { CHEAT_POD_PLUS_X, CHEAT_POD_Y };
-    Vector2 podMinus = { CHEAT_POD_MINUS_X, CHEAT_POD_Y };
-    float ppd = Vector2Distance(g.player.pos, podPlus);
-    float pmd = Vector2Distance(g.player.pos, podMinus);
-    bool pNear = ppd < CHEAT_INTERACT_RADIUS
-        || pmd < CHEAT_INTERACT_RADIUS;
-    float pAlpha = pNear ? 0.8f : 0.35f;
-
-    const char *podLabel = TextFormat("POD: %d", g.podValue);
-    int plw = MeasureText(podLabel, CHEAT_FONT);
-    DrawText(podLabel, (int)(CHEAT_POD_X - plw / 2 - 10),
-        (int)(CHEAT_POD_Y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, pAlpha));
-
-    float plusAlpha = ppd < CHEAT_INTERACT_RADIUS ? 0.8f : pAlpha;
-    float minusAlpha = pmd < CHEAT_INTERACT_RADIUS ? 0.8f : pAlpha;
-    DrawText("+", (int)(podPlus.x - 4),
-        (int)(podPlus.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(GREEN, plusAlpha));
-    DrawText("-", (int)(podMinus.x - 4),
-        (int)(podMinus.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(RED, minusAlpha));
-
-    // SPAWN BOSS toggle
-    Vector2 bossPos = { CHEAT_BOSS_X, CHEAT_BOSS_Y };
-    float bosd = Vector2Distance(g.player.pos, bossPos);
-    bool bosNear = bosd < CHEAT_INTERACT_RADIUS;
-    float bosAlpha = bosNear ? 0.8f : 0.35f;
-
-    const char *bosLabel = "SPAWN BOSS:";
-    int boslw = MeasureText(bosLabel, CHEAT_FONT);
-    DrawText(bosLabel, (int)(bossPos.x - boslw / 2 - 10),
-        (int)(bossPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(WHITE, bosAlpha));
-
-    const char *bosVal = g.spawnBoss ? "ON" : "OFF";
-    Color bosValCol = g.spawnBoss ? GREEN : RED;
-    DrawText(bosVal, (int)(bossPos.x - boslw / 2 + boslw),
-        (int)(bossPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(bosValCol, bosAlpha));
-
-    // BUY/SELL ALL button
-    Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
-    float bd = Vector2Distance(g.player.pos, buyPos);
-    bool bNear = bd < CHEAT_INTERACT_RADIUS;
-    float bAlpha = bNear ? 0.8f : 0.35f;
-    bool allOwned = true;
-    for (int i = 0; i < ABILITY_SLOTS; i++)
-        if (!g.player.slots[i].owned) { allOwned = false; break; }
-    const char *buyLabel = allOwned ? "SELL ALL" : "BUY ALL";
-    Color buyCol = allOwned ? RED : YELLOW;
-    int bw = MeasureText(buyLabel, CHEAT_FONT);
-    DrawText(buyLabel, (int)(buyPos.x - bw / 2),
-        (int)(buyPos.y - CHEAT_FONT / 2), CHEAT_FONT, Fade(buyCol, bAlpha));
+    // SPAWN BOSS
+    {
+        bool near = IN_CHEAT_BTN(p->pos, CHEAT_BOSS_X, CHEAT_BOSS_Y);
+        DrawToggleBtn(CHEAT_BOSS_X, CHEAT_BOSS_Y, "SPAWN BOSS:",
+            g.spawnBoss, near);
+    }
 }
 
 // Draw shop pedestals in world space (after weapon select)
@@ -2339,8 +2347,9 @@ static void DrawHUD(void)
         {
             const char *phaseNames[] = { "SELECT", "COMBAT", "CLEARING", "BOSS" };
             const char *phaseStr = TextFormat("PHASE: %s", phaseNames[g.phase]);
+            int pFont = fpsFont / 2;
             DrawText(phaseStr, sw - (int)(HUD_FPS_X * ui),
-                (int)(HUD_MARGIN * ui) + fpsFont + (int)(4 * ui), fpsFont, YELLOW);
+                (int)(HUD_MARGIN * ui) + fpsFont + (int)(4 * ui), pFont, YELLOW);
         }
         return;
     }

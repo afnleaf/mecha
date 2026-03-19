@@ -27,7 +27,7 @@ void InitGame(void)
     g.selectPhase     = 0;
 
     // start player in base room, above the pedestal U curve
-    g.player.pos      = (Vector2){ BASE_CENTER_X, BASE_CENTER_Y - 80.0f };
+    g.player.pos      = (Vector2){ PLAYER_SPAWN_X, PLAYER_SPAWN_Y };
     g.player.shadowPos = g.player.pos;
 
     // shop pedestal positions — U along base room walls

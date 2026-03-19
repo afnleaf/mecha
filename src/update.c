@@ -409,21 +409,13 @@ static void UpdateSelect(float dt)
         bool m1 = M1Pressed() || IsKeyPressed(KEY_ENTER)
             || IsGamepadButtonPressed(GAMEPAD_INDEX,
                     GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
-        Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
-        Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
-        Vector2 invPos = { CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y };
-        Vector2 cdPos  = { CHEAT_NOCD_X, CHEAT_NOCD_Y };
-        Vector2 podPos = { CHEAT_POD_X, CHEAT_POD_Y };
-        Vector2 podPlus  = { CHEAT_POD_PLUS_X, CHEAT_POD_Y };
-        Vector2 podMinus = { CHEAT_POD_MINUS_X, CHEAT_POD_Y };
-        Vector2 bossPos = { CHEAT_BOSS_X, CHEAT_BOSS_Y };
-        bool nearInf = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS;
-        bool nearBuy = Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS;
-        bool nearInv = Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS;
-        bool nearCd  = Vector2Distance(p->pos, cdPos)  < CHEAT_INTERACT_RADIUS;
-        bool nearPodP = Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS;
-        bool nearPodM = Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS;
-        bool nearBoss = Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS;
+        bool nearInf  = IN_CHEAT_BTN(p->pos, CHEAT_INF_X, CHEAT_INF_Y);
+        bool nearBuy  = IN_CHEAT_BTN(p->pos, CHEAT_BUYALL_X, CHEAT_BUYALL_Y);
+        bool nearInv  = IN_CHEAT_BTN(p->pos, CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y);
+        bool nearCd   = IN_CHEAT_BTN(p->pos, CHEAT_NOCD_X, CHEAT_NOCD_Y);
+        bool nearPodP = IN_CHEAT_SM(p->pos, CHEAT_POD_PLUS_X, CHEAT_POD_Y);
+        bool nearPodM = IN_CHEAT_SM(p->pos, CHEAT_POD_MINUS_X, CHEAT_POD_Y);
+        bool nearBoss = IN_CHEAT_BTN(p->pos, CHEAT_BOSS_X, CHEAT_BOSS_Y);
         nearCheat = nearInf || nearBuy || nearInv || nearCd
             || nearPodP || nearPodM || nearBoss;
         if (m1 && nearInf)
@@ -560,34 +552,27 @@ static void UpdateShop(void)
                 GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
 
     // Cheat buttons
-    Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
-    Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
-    Vector2 invPos = { CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y };
-    Vector2 cdPos  = { CHEAT_NOCD_X, CHEAT_NOCD_Y };
-    Vector2 podPlus  = { CHEAT_POD_PLUS_X, CHEAT_POD_Y };
-    Vector2 podMinus = { CHEAT_POD_MINUS_X, CHEAT_POD_Y };
-    Vector2 bossPos = { CHEAT_BOSS_X, CHEAT_BOSS_Y };
-    bool nearCheat = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, cdPos)  < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS;
-    if (m1 && Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS)
+    bool nearCheat = IN_CHEAT_BTN(p->pos, CHEAT_INF_X, CHEAT_INF_Y)
+        || IN_CHEAT_BTN(p->pos, CHEAT_BUYALL_X, CHEAT_BUYALL_Y)
+        || IN_CHEAT_BTN(p->pos, CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y)
+        || IN_CHEAT_BTN(p->pos, CHEAT_NOCD_X, CHEAT_NOCD_Y)
+        || IN_CHEAT_SM(p->pos, CHEAT_POD_PLUS_X, CHEAT_POD_Y)
+        || IN_CHEAT_SM(p->pos, CHEAT_POD_MINUS_X, CHEAT_POD_Y)
+        || IN_CHEAT_BTN(p->pos, CHEAT_BOSS_X, CHEAT_BOSS_Y);
+    if (m1 && IN_CHEAT_BTN(p->pos, CHEAT_INF_X, CHEAT_INF_Y))
         g.infiniteMoney = !g.infiniteMoney;
-    if (m1 && Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS)
+    if (m1 && IN_CHEAT_BTN(p->pos, CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y))
         g.invincible = !g.invincible;
-    if (m1 && Vector2Distance(p->pos, cdPos) < CHEAT_INTERACT_RADIUS)
+    if (m1 && IN_CHEAT_BTN(p->pos, CHEAT_NOCD_X, CHEAT_NOCD_Y))
         g.noCooldowns = !g.noCooldowns;
-    if (m1 && Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS)
+    if (m1 && IN_CHEAT_SM(p->pos, CHEAT_POD_PLUS_X, CHEAT_POD_Y))
         g.podValue++;
-    if (m1 && Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS
+    if (m1 && IN_CHEAT_SM(p->pos, CHEAT_POD_MINUS_X, CHEAT_POD_Y)
         && g.podValue > 1)
         g.podValue--;
-    if (m1 && Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS)
+    if (m1 && IN_CHEAT_BTN(p->pos, CHEAT_BOSS_X, CHEAT_BOSS_Y))
         g.spawnBoss = !g.spawnBoss;
-    if (m1 && Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS) {
+    if (m1 && IN_CHEAT_BTN(p->pos, CHEAT_BUYALL_X, CHEAT_BUYALL_Y)) {
         bool allOwned = true;
         for (int i = 0; i < ABILITY_SLOTS; i++)
             if (!p->slots[i].owned) { allOwned = false; break; }

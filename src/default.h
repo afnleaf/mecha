@@ -57,7 +57,7 @@
 #define BASE_WALL_THICKNESS     4.0f
 #define BASE_WALL_COLOR         (Color){ 80, 80, 120, 255 }
 #define BASE_LABEL_FONT         60
-#define BASE_LABEL_Y            (BASE_TOP - BASE_H * 0.3)
+#define BASE_LABEL_Y            (BASE_TOP - BASE_H * 0.45)
 #define BASE_LABEL_COLOR        (Color){ 50, 50, 70, 255 }
 #define COMBAT_LABEL_FONT       80
 #define COMBAT_LABEL_COLOR      (Color){ 50, 50, 70, 255 }
@@ -75,6 +75,8 @@
 
 // Mecha -------------------------------------------------------------------- /
 // Player
+#define PLAYER_SPAWN_X          BASE_CENTER_X
+#define PLAYER_SPAWN_Y          (BASE_CENTER_Y - 180.0f)
 #define PLAYER_SPEED            300.0f
 #define PLAYER_SIZE             16.0f
 #define PLAYER_HP               100
@@ -927,20 +929,29 @@
 #define SHOP_WALL_INSET         40.0f
 #define SPAWN_EXIT_DELAY        2.0f
 // Cheat toggle (diegetic, on the ground in base)
-#define CHEAT_INTERACT_RADIUS   30.0f
+#define IN_CHEAT_BTN(pos, cx, cy) CheckCollisionPointRec(pos, \
+    (Rectangle){(cx)-CHEAT_BTN_W/2, (cy)-CHEAT_BTN_H/2, CHEAT_BTN_W, CHEAT_BTN_H})
+#define IN_CHEAT_SM(pos, cx, cy) CheckCollisionPointRec(pos, \
+    (Rectangle){(cx)-CHEAT_BTN_SM/2, (cy)-CHEAT_BTN_H/2, CHEAT_BTN_SM, CHEAT_BTN_H})
 #define CHEAT_FONT              20
-#define CHEAT_INF_X             (BASE_W - 250.0f)
-#define CHEAT_INF_Y             (BASE_TOP + 30.0f)
-#define CHEAT_BUYALL_X          (BASE_W - 250.0f)
-#define CHEAT_BUYALL_Y          (BASE_TOP + 60.0f)
-#define CHEAT_INVINCIBLE_X      (BASE_W - 250.0f)
-#define CHEAT_INVINCIBLE_Y      (BASE_TOP + 90.0f)
-#define CHEAT_NOCD_X            (BASE_W - 250.0f)
-#define CHEAT_NOCD_Y            (BASE_TOP + 120.0f)
-#define CHEAT_POD_X             (BASE_W - 250.0f)
-#define CHEAT_POD_Y             (BASE_TOP + 150.0f)
-#define CHEAT_POD_PLUS_X        (CHEAT_POD_X + 60.0f)
-#define CHEAT_POD_MINUS_X       (CHEAT_POD_X + 90.0f)
-#define CHEAT_BOSS_X            (BASE_W - 250.0f)
-#define CHEAT_BOSS_Y            (BASE_TOP + 180.0f)
+#define CHEAT_BTN_W             190.0f
+#define CHEAT_BTN_H             28.0f
+#define CHEAT_BTN_SM            28.0f
+#define CHEAT_X                 (BASE_W - 300.0f)
+#define CHEAT_Y                 (BASE_TOP + 20.0f)
+#define CHEAT_SPACING           30.0f
+#define CHEAT_INF_X             CHEAT_X
+#define CHEAT_INF_Y             (CHEAT_Y)
+#define CHEAT_BUYALL_X          CHEAT_X
+#define CHEAT_BUYALL_Y          (CHEAT_Y + CHEAT_SPACING)
+#define CHEAT_INVINCIBLE_X      CHEAT_X
+#define CHEAT_INVINCIBLE_Y      (CHEAT_Y + CHEAT_SPACING * 2)
+#define CHEAT_NOCD_X            CHEAT_X
+#define CHEAT_NOCD_Y            (CHEAT_Y + CHEAT_SPACING * 3)
+#define CHEAT_POD_X             CHEAT_X
+#define CHEAT_POD_Y             (CHEAT_Y + CHEAT_SPACING * 4)
+#define CHEAT_POD_PLUS_X        (CHEAT_POD_X + 112.0f)
+#define CHEAT_POD_MINUS_X       (CHEAT_POD_PLUS_X + 34.0f)
+#define CHEAT_BOSS_X            CHEAT_X
+#define CHEAT_BOSS_Y            (CHEAT_Y + CHEAT_SPACING * 5)
 
