@@ -56,19 +56,13 @@ Key documentation: `docs/NOTES.md` (todo list), `docs/GDD.md` (game design doc),
 
 - Single global `GameState g` struct defined in `init.c`, extern'd via `game.h` (Emscripten requires `void(*)(void)` callback pattern)
 - Multi-file build: each `.c` includes `game.h` which includes `mecha.h`. Cross-file functions are non-static and declared in `game.h`. File-internal functions stay `static`.
-- Player weapons/abilities: `Gun`, `Minigun`, `Sword`, `Revolver`, `Sniper`, `Rocket`, `Shotgun`, `Railgun`, `Bfg`, `Grenade`, `Shield`, `Flamethrower`, `GroundSlam`, `Parry`, `Dash`, `Spin`, `Laser` composed as fields in `Player`
 - Enemy types: `EnemyDef` data table indexed by `EnemyType` enum, table-driven spawning via `SPAWN_PRIORITY` (both in `spawn.c`)
 - Collision dispatchers: `EnemyHitSweep`, `EnemyHitPoint`, `EnemyHitCircle` in `collision.c` — switch on enemy type, one `case` per shape
 - Update pipeline in `update.c`: `UpdatePlayer` -> `UpdateEnemies` -> `UpdateProjectiles` -> `UpdateLightningChain` -> `UpdateParticles` -> `UpdateBeams` -> `UpdateDeployables` -> `MoveCamera`
 - Draw pipeline in `draw.c`: `DrawWorld` (camera space) -> `DrawHUD` (screen space)
 - Player models: all 5 platonic solids — `DrawTetra2D`, `DrawCube2D`, `DrawOcta2D`, `DrawDodeca2D`, `DrawIcosa2D`. **Do not delete any Draw*2D functions.**
 - All gameplay constants belong in `default.h`, not as magic numbers in source files
-- HUD scales via `ui = screenHeight / 450.0f`
-- Player-relative HUD: weapon status (revolver rounds, gun heat, reload/overheat QTE) drawn as `DrawRing` arcs near the player via `GetWorldToScreen2D`. Constants prefixed `HUD_ARC_*` in default.h. Left-side HUD column is for all cooldowns.
 - Pools: projectiles[1024], enemies[1024], deployables[1024], particles[1024], beams[8], vfxTimers[72]
-- Deployable pool: shared by turret, mine, heal field, fire zone — type-switched via `DeployableType`
-- VfxTimer pool: shared by explosion rings and mine webs — type-switched via `VfxTimerType`
-- Enemy debuffs: `slowTimer`/`slowFactor` (reduced speed), `rootTimer` (no move, can shoot), `stunTimer` (no move, no shoot)
 
 ## Code Style
 
@@ -99,17 +93,6 @@ Prefixes:
 - In progress:
 etc
 
-## Version Roadmap
-
-- **v(-2)**: Add all weapons and enemies (current milestone — weapons/abilities done, remaining: mini boss TRAP, big boss CIRC)
-- **v(-1)**: Room-based progression with weapon selection between rounds, mini boss fight
-- **v(0)**: Chassis selection (platonic solid characters with unique identities)
-
 ## Controls
 
 WASD: move | Mouse: aim | M1: primary weapon | M2: alt fire | Ctrl: swap weapon | Space: dash (3 charges) | Space+M2: dash slash | P/Esc: pause | 0: exit
-
-Primary weapons (select screen): Machine Gun, Sword, Revolver, Sniper, Rocket. Revolver uses both mouse buttons — M1 precise single shots, M2 fans all remaining rounds rapidly.
-
-Abilities (12 slots, all keybinds shown in pause menu and weapon select):
-Q: Shotgun | E: Railgun | Shift: Spin (lifesteal) | 1: Ground Slam (AoE stun) | 2: Parry (deflect window) | 3: Turret (auto-shooter) | 4: Mine (root on trigger) | Z: Heal Field | X: Shield | C: Grenade | V: Fire Zone | F: BFG
