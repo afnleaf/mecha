@@ -476,7 +476,15 @@
 #define SPAWN_RAMP              0.98f
 #define SPAWN_MIN_INTERVAL      0.4f
 #define SPAWN_MARGIN            400.0f
-#define SPAWN_CHANCE_MAX        100
+// Spawn unlock curve (kills required before type can appear)
+#define RECT_SPAWN_KILLS        5
+#define OCTA_SPAWN_KILLS        40
+#define RHOM_SPAWN_KILLS        60
+#define HEXA_SPAWN_KILLS        25
+#define PENTA_SPAWN_KILLS       30
+#define TRAP_SPAWN_KILLS        50
+// Boss
+#define BOSS_KILL_THRESHOLD     100
 
 // Enemy pod values
 #define TRI_VALUE               1
@@ -485,7 +493,7 @@
 #define OCTA_VALUE              3
 #define PENTA_VALUE             4
 #define HEXA_VALUE              5
-#define TRAP_VALUE              10
+#define TRAP_VALUE              20
 #define POD_VALUE_INITIAL       3
 
 // Enemy — Triangle (chaser)
@@ -508,8 +516,6 @@
 #define RECT_BULLET_DAMAGE      12
 #define RECT_PROJECTILE_SIZE    4.0f
 #define RECT_BULLET_LIFETIME    10.0f
-#define RECT_SPAWN_KILLS        5
-#define RECT_SPAWN_CHANCE       20
 #define RECT_ASPECT_RATIO       0.7f
 #define RECT_SCORE              200
 
@@ -519,8 +525,6 @@
 #define RHOM_SPEED_MIN          180.0f
 #define RHOM_SPEED_VAR          100
 #define RHOM_CONTACT_DAMAGE     22
-#define RHOM_SPAWN_KILLS        100
-#define RHOM_SPAWN_CHANCE       20
 #define RHOM_SCORE              300
 #define RHOM_COLOR              (Color){ 160, 32, 240, 255 }
 #define RHOM_TIP_MULT           1.2f
@@ -539,8 +543,6 @@
 #define PENTA_BULLET_DAMAGE     8
 #define PENTA_PROJECTILE_SIZE   5.0f
 #define PENTA_BULLET_LIFETIME   10.0f
-#define PENTA_SPAWN_KILLS       15
-#define PENTA_SPAWN_CHANCE      5
 #define PENTA_ROW_OFFSET        14.0f
 #define PENTA_BULLET_SPACING    18.0f
 #define PENTA_SCORE             600
@@ -558,8 +560,6 @@
 #define HEXA_BULLET_DAMAGE      7
 #define HEXA_PROJECTILE_SIZE    4.0f
 #define HEXA_BULLET_LIFETIME    8.0f
-#define HEXA_SPAWN_KILLS        25
-#define HEXA_SPAWN_CHANCE       10
 #define HEXA_FAN_COUNT          5
 #define HEXA_FAN_SPREAD         0.7854f
 #define HEXA_ORBIT_DIST         280.0f
@@ -573,8 +573,6 @@
 #define OCTA_SPEED_MIN          300.0f
 #define OCTA_SPEED_VAR          100
 #define OCTA_CONTACT_DAMAGE     33
-#define OCTA_SPAWN_KILLS        10
-#define OCTA_SPAWN_CHANCE       10
 #define OCTA_SCORE              300
 #define OCTA_COLOR              (Color){ 255, 0, 0, 255 }
 #define OCTA_OUTLINE_COLOR      (Color){ 180, 100, 10, 255 }
@@ -585,8 +583,6 @@
 #define TRAP_SPEED_MIN          70.0f
 #define TRAP_SPEED_VAR          0
 #define TRAP_CONTACT_DAMAGE     30
-#define TRAP_SPAWN_KILLS        50
-#define TRAP_SPAWN_CHANCE       0       // not random-spawned
 #define TRAP_SCORE              5000
 #define TRAP_COLOR              (Color){ 255, 200, 50, 255 }
 #define TRAP_OUTLINE_COLOR      (Color){ 180, 120, 20, 255 }
@@ -612,6 +608,70 @@
 #define TRAP_CHARGE_DURATION    0.6f
 #define TRAP_SLAM_RADIUS        120.0f
 #define TRAP_SLAM_DAMAGE        25
+
+// Enemy — Circle (big boss, shadow of the player)
+#define CIRC_SIZE               PLAYER_SIZE
+#define CIRC_HP                 PLAYER_HP * 10
+#define CIRC_SPEED_MIN          PLAYER_SPEED
+#define CIRC_SPEED_VAR          0
+#define CIRC_CONTACT_DAMAGE     30
+#define CIRC_SCORE              10000
+#define CIRC_VALUE              0
+#define CIRC_COLOR              WHITE
+// Attack timing
+#define CIRC_ATTACK_INTERVAL    2.0f
+// Dash (charge)
+#define CIRC_CHARGE_SPEED       DASH_SPEED
+#define CIRC_CHARGE_DURATION    DASH_DURATION
+#define CIRC_SLAM_RADIUS        100.0f
+#define CIRC_SLAM_DAMAGE        20
+// Gun burst
+#define CIRC_GUN_COUNT          8
+#define CIRC_GUN_SPREAD         0.5f
+#define CIRC_GUN_SPEED          800.0f
+#define CIRC_GUN_DAMAGE         8
+#define CIRC_GUN_LIFETIME       3.0f
+#define CIRC_GUN_SIZE           3.0f
+// Revolver fan
+#define CIRC_REV_COUNT          6
+#define CIRC_REV_SPREAD         0.8f
+#define CIRC_REV_SPEED          1200.0f
+#define CIRC_REV_DAMAGE         15
+#define CIRC_REV_LIFETIME       2.0f
+#define CIRC_REV_SIZE           4.0f
+// Sniper shot
+#define CIRC_SNIPER_SPEED       2400.0f
+#define CIRC_SNIPER_DAMAGE      40
+#define CIRC_SNIPER_LIFETIME    1.5f
+#define CIRC_SNIPER_SIZE        4.0f
+// Rocket
+#define CIRC_ROCKET_SPEED       600.0f
+#define CIRC_ROCKET_DAMAGE      30
+#define CIRC_ROCKET_LIFETIME    3.0f
+#define CIRC_ROCKET_SIZE        6.0f
+// Ring wave
+#define CIRC_RING_COUNT         16
+#define CIRC_RING_SPEED         250.0f
+#define CIRC_RING_DAMAGE        10
+#define CIRC_RING_LIFETIME      6.0f
+#define CIRC_RING_SIZE          4.0f
+// Spiral burst
+#define CIRC_SPIRAL_ARMS        3
+#define CIRC_SPIRAL_PER_ARM     6
+#define CIRC_SPIRAL_SPEED       200.0f
+#define CIRC_SPIRAL_DAMAGE      8
+#define CIRC_SPIRAL_LIFETIME    5.0f
+#define CIRC_SPIRAL_SIZE        3.0f
+// Shotgun blast
+#define CIRC_SHOTGUN_PELLETS    8
+#define CIRC_SHOTGUN_SPREAD     0.6f
+#define CIRC_SHOTGUN_SPEED      1000.0f
+#define CIRC_SHOTGUN_DAMAGE     8
+#define CIRC_SHOTGUN_LIFETIME   0.3f
+#define CIRC_SHOTGUN_SIZE       3.0f
+// Muzzle
+#define CIRC_MUZZLE_SIZE        3.0f
+#define CIRC_MUZZLE_LIFETIME    0.12f
 
 // Particles ---------------------------------------------------------------- /
 // Default burst (SpawnParticles)

@@ -140,37 +140,230 @@ static void ShootTrap(Enemy *e, Vector2 toTarget, float dist, float dt) {
     }
 }
 
+static void CircFireWeapon(
+    Enemy *e, WeaponType wpn,
+    Vector2 shootDir, float baseAngle, Vector2 muzzle)
+{
+    switch (wpn) {
+    case WPN_GUN: {
+        float halfSpread = CIRC_GUN_SPREAD / 2.0f;
+        float step = CIRC_GUN_SPREAD / (CIRC_GUN_COUNT - 1);
+        for (int b = 0; b < CIRC_GUN_COUNT; b++) {
+            float a = baseAngle - halfSpread + step * b;
+            Vector2 dir = { cosf(a), sinf(a) };
+            Vector2 m = Vector2Add(e->pos,
+                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+            SpawnProjectile(m, dir, CIRC_GUN_SPEED,
+                CIRC_GUN_DAMAGE, CIRC_GUN_LIFETIME,
+                CIRC_GUN_SIZE, true, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+        }
+    } break;
+    case WPN_SWORD: {
+        e->chargeDir = shootDir;
+        e->chargeTimer = CIRC_CHARGE_DURATION;
+    } break;
+    case WPN_REVOLVER: {
+        float halfSpread = CIRC_REV_SPREAD / 2.0f;
+        float step = CIRC_REV_SPREAD / (CIRC_REV_COUNT - 1);
+        for (int b = 0; b < CIRC_REV_COUNT; b++) {
+            float a = baseAngle - halfSpread + step * b;
+            Vector2 dir = { cosf(a), sinf(a) };
+            Vector2 m = Vector2Add(e->pos,
+                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+            SpawnProjectile(m, dir, CIRC_REV_SPEED,
+                CIRC_REV_DAMAGE, CIRC_REV_LIFETIME,
+                CIRC_REV_SIZE, true, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+        }
+    } break;
+    case WPN_SNIPER: {
+        SpawnProjectile(muzzle, shootDir,
+            CIRC_SNIPER_SPEED, CIRC_SNIPER_DAMAGE,
+            CIRC_SNIPER_LIFETIME, CIRC_SNIPER_SIZE,
+            true, false, PROJ_BULLET, DMG_BALLISTIC);
+    } break;
+    case WPN_ROCKET: {
+        SpawnProjectile(muzzle, shootDir,
+            CIRC_ROCKET_SPEED, CIRC_ROCKET_DAMAGE,
+            CIRC_ROCKET_LIFETIME, CIRC_ROCKET_SIZE,
+            true, false, PROJ_ROCKET, DMG_EXPLOSIVE);
+    } break;
+    default: break;
+    }
+    if (wpn != WPN_SWORD) {
+        SpawnParticle(muzzle,
+            Vector2Scale(shootDir, ENEMY_MUZZLE_SPEED),
+            CIRC_COLOR, CIRC_MUZZLE_SIZE,
+            CIRC_MUZZLE_LIFETIME);
+    }
+}
+
+static void ShootCirc(
+    Enemy *e, Vector2 toTarget, float dist, float dt)
+{
+    if (e->chargeTimer > 0) return;
+    e->shootTimer -= dt;
+    if (e->shootTimer <= 0 && dist > 1.0f) {
+        // Build unchosen weapons list
+        WeaponType weapons[3];
+        int wcount = 0;
+        for (int w = 0; w < NUM_PRIMARY_WEAPONS; w++) {
+            WeaponType wt = SELECT_WEAPONS[w];
+            if (wt != g.player.primary
+                && wt != g.player.secondary)
+                weapons[wcount++] = wt;
+        }
+
+        Vector2 shootDir = Vector2Scale(toTarget, 1.0f / dist);
+        float baseAngle = atan2f(shootDir.y, shootDir.x);
+        Vector2 muzzle = Vector2Add(e->pos,
+            Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
+
+        int pattern = e->attackPhase % 8;
+        switch (pattern) {
+        case 0: case 2: case 4: {
+            // Unchosen weapon attack
+            int idx = pattern / 2;
+            if (idx >= wcount) idx = 0;
+            CircFireWeapon(e, weapons[idx],
+                shootDir, baseAngle, muzzle);
+        } break;
+        case 1: {
+            // Ring wave
+            float step = 2.0f * PI / CIRC_RING_COUNT;
+            for (int b = 0; b < CIRC_RING_COUNT; b++) {
+                float a = step * b;
+                Vector2 dir = { cosf(a), sinf(a) };
+                Vector2 m = Vector2Add(e->pos,
+                    Vector2Scale(dir,
+                        e->size + MUZZLE_OFFSET));
+                SpawnProjectile(m, dir,
+                    CIRC_RING_SPEED, CIRC_RING_DAMAGE,
+                    CIRC_RING_LIFETIME, CIRC_RING_SIZE,
+                    true, false, PROJ_BULLET,
+                    DMG_BALLISTIC);
+            }
+            SpawnParticles(e->pos, CIRC_COLOR, 12);
+        } break;
+        case 3: {
+            // Dash toward player
+            e->chargeDir = shootDir;
+            e->chargeTimer = CIRC_CHARGE_DURATION;
+        } break;
+        case 5: {
+            // Spiral burst
+            float time = (float)GetTime();
+            for (int arm = 0; arm < CIRC_SPIRAL_ARMS;
+                arm++) {
+                float armAngle = 2.0f * PI * arm
+                    / CIRC_SPIRAL_ARMS + time;
+                for (int b = 0; b < CIRC_SPIRAL_PER_ARM;
+                    b++) {
+                    float a = armAngle + b * 0.3f;
+                    Vector2 dir = { cosf(a), sinf(a) };
+                    Vector2 m = Vector2Add(e->pos,
+                        Vector2Scale(dir,
+                            e->size + MUZZLE_OFFSET));
+                    SpawnProjectile(m, dir,
+                        CIRC_SPIRAL_SPEED,
+                        CIRC_SPIRAL_DAMAGE,
+                        CIRC_SPIRAL_LIFETIME,
+                        CIRC_SPIRAL_SIZE,
+                        true, false, PROJ_BULLET,
+                        DMG_BALLISTIC);
+                }
+            }
+            SpawnParticles(e->pos, CIRC_COLOR, 8);
+        } break;
+        case 6: {
+            // Shotgun blast at player
+            float halfSpread =
+                CIRC_SHOTGUN_SPREAD / 2.0f;
+            float step = CIRC_SHOTGUN_SPREAD
+                / (CIRC_SHOTGUN_PELLETS - 1);
+            for (int b = 0; b < CIRC_SHOTGUN_PELLETS;
+                b++) {
+                float a = baseAngle - halfSpread
+                    + step * b;
+                Vector2 dir = { cosf(a), sinf(a) };
+                Vector2 m = Vector2Add(e->pos,
+                    Vector2Scale(dir,
+                        e->size + MUZZLE_OFFSET));
+                SpawnProjectile(m, dir,
+                    CIRC_SHOTGUN_SPEED,
+                    CIRC_SHOTGUN_DAMAGE,
+                    CIRC_SHOTGUN_LIFETIME,
+                    CIRC_SHOTGUN_SIZE,
+                    true, true, PROJ_BULLET,
+                    DMG_BALLISTIC);
+            }
+            SpawnParticle(muzzle,
+                Vector2Scale(shootDir,
+                    ENEMY_MUZZLE_SPEED),
+                ORANGE, CIRC_MUZZLE_SIZE,
+                CIRC_MUZZLE_LIFETIME);
+        } break;
+        case 7: {
+            // Ground slam AoE (damages player nearby)
+            float playerDist = Vector2Distance(
+                e->pos, g.player.pos);
+            if (playerDist <= SLAM_RANGE) {
+                DamagePlayer(CIRC_SLAM_DAMAGE,
+                    DMG_BLUNT, HIT_AOE);
+            }
+            // Ring of bullets outward after slam
+            float step = 2.0f * PI / CIRC_RING_COUNT;
+            for (int b = 0; b < CIRC_RING_COUNT; b++) {
+                float a = step * b;
+                Vector2 dir = { cosf(a), sinf(a) };
+                Vector2 m = Vector2Add(e->pos,
+                    Vector2Scale(dir,
+                        e->size + MUZZLE_OFFSET));
+                SpawnProjectile(m, dir,
+                    CIRC_RING_SPEED, CIRC_RING_DAMAGE,
+                    CIRC_RING_LIFETIME, CIRC_RING_SIZE,
+                    true, false, PROJ_BULLET,
+                    DMG_BALLISTIC);
+            }
+            SpawnParticles(e->pos, CIRC_COLOR, 16);
+        } break;
+        }
+        e->attackPhase++;
+        e->shootTimer = CIRC_ATTACK_INTERVAL;
+    }
+}
+
 // enemy definitions — one row per type
 const EnemyDef ENEMY_DEFS[] = {
 //              size         hp        spdMin            spdVar
-//              contactDmg   spnKills  spnChance         score
+//              contactDmg   spnKills  score
 //              value        shoot
     [TRI]   = { TRI_SIZE,    TRI_HP,   TRI_SPEED_MIN,   TRI_SPEED_VAR,
-                TRI_CONTACT_DAMAGE,    0,               0,
+                TRI_CONTACT_DAMAGE,    0,
                 TRI_SCORE,   TRI_VALUE,   NULL },
     [RECT]  = { RECT_SIZE,   RECT_HP,  RECT_SPEED_MIN,  RECT_SPEED_VAR,
-                RECT_CONTACT_DAMAGE,   RECT_SPAWN_KILLS, RECT_SPAWN_CHANCE,
+                RECT_CONTACT_DAMAGE,   RECT_SPAWN_KILLS,
                 RECT_SCORE,  RECT_VALUE,  ShootRect },
     [PENTA] = { PENTA_SIZE,  PENTA_HP, PENTA_SPEED_MIN, PENTA_SPEED_VAR,
-                PENTA_CONTACT_DAMAGE,  PENTA_SPAWN_KILLS,PENTA_SPAWN_CHANCE,
+                PENTA_CONTACT_DAMAGE,  PENTA_SPAWN_KILLS,
                 PENTA_SCORE, PENTA_VALUE, ShootPenta },
     [RHOM]  = { RHOM_SIZE,   RHOM_HP,  RHOM_SPEED_MIN,  RHOM_SPEED_VAR,
-                RHOM_CONTACT_DAMAGE,   RHOM_SPAWN_KILLS, RHOM_SPAWN_CHANCE,
+                RHOM_CONTACT_DAMAGE,   RHOM_SPAWN_KILLS,
                 RHOM_SCORE,  RHOM_VALUE,  NULL },
     [HEXA]  = { HEXA_SIZE,   HEXA_HP,  HEXA_SPEED_MIN,  HEXA_SPEED_VAR,
-                HEXA_CONTACT_DAMAGE,   HEXA_SPAWN_KILLS, HEXA_SPAWN_CHANCE,
+                HEXA_CONTACT_DAMAGE,   HEXA_SPAWN_KILLS,
                 HEXA_SCORE,  HEXA_VALUE,  ShootHexa },
     [OCTA]  = { OCTA_SIZE,   OCTA_HP,  OCTA_SPEED_MIN,  OCTA_SPEED_VAR,
-                OCTA_CONTACT_DAMAGE,   OCTA_SPAWN_KILLS, OCTA_SPAWN_CHANCE,
+                OCTA_CONTACT_DAMAGE,   OCTA_SPAWN_KILLS,
                 OCTA_SCORE,  OCTA_VALUE,  NULL },
     [TRAP]  = { TRAP_SIZE,   TRAP_HP,  TRAP_SPEED_MIN,  TRAP_SPEED_VAR,
-                TRAP_CONTACT_DAMAGE,   TRAP_SPAWN_KILLS, TRAP_SPAWN_CHANCE,
+                TRAP_CONTACT_DAMAGE,   TRAP_SPAWN_KILLS,
                 TRAP_SCORE,  TRAP_VALUE,  ShootTrap },
+    [CIRC]  = { CIRC_SIZE,   CIRC_HP,  CIRC_SPEED_MIN,  CIRC_SPEED_VAR,
+                CIRC_CONTACT_DAMAGE,   0,
+                CIRC_SCORE,  CIRC_VALUE,  ShootCirc },
 };
-
-// checked in order, first to pass wins. TRI is fallback.
-static const EnemyType SPAWN_PRIORITY[] = { PENTA, OCTA, HEXA, RHOM, RECT };
-#define SPAWN_PRIORITY_COUNT 5
 
 // Spawn Helpers ------------------------------------------------------------ /
 Projectile* SpawnProjectile(
@@ -307,15 +500,20 @@ static void FillFromDef(Enemy *e, EnemyType type) {
     e->value         = d->value;
 }
 
+static const EnemyType SPAWNABLE[] = {
+    TRI, RECT, RHOM, OCTA, PENTA, HEXA, TRAP
+};
+#define SPAWNABLE_COUNT 7
+
 static EnemyType PickEnemyType(void) {
-    for (int t = 0; t < SPAWN_PRIORITY_COUNT; t++) {
-        const EnemyDef *d = &ENEMY_DEFS[SPAWN_PRIORITY[t]];
-        if (g.enemiesKilled >= d->spawnKills
-            && GetRandomValue(1, SPAWN_CHANCE_MAX) <= d->spawnChance) {
-            return SPAWN_PRIORITY[t];
-        }
+    EnemyType eligible[SPAWNABLE_COUNT];
+    int count = 0;
+    for (int t = 0; t < SPAWNABLE_COUNT; t++) {
+        if (g.enemiesKilled >= ENEMY_DEFS[SPAWNABLE[t]].spawnKills)
+            eligible[count++] = SPAWNABLE[t];
     }
-    return TRI;
+    if (count == 0) return TRI;
+    return eligible[GetRandomValue(0, count - 1)];
 }
 
 void SpawnPod(int podValue)
@@ -430,9 +628,11 @@ void DamageEnemy(int idx, int damage, DamageType dmgType, DamageMethod method)
         g.score += e->score;
         g.enemiesKilled++;
         // Boss kill — advance level
-        if (e->type == TRAP) {
+        if (e->type == CIRC) {
             g.level++;
             g.phase = PHASE_COMBAT;
+            // big white explosion
+            SpawnParticles(e->pos, WHITE, DEATH_PARTICLES * 4);
         }
         // fire/explosion
         SpawnParticles(e->pos, RED, DEATH_PARTICLES);

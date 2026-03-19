@@ -995,7 +995,124 @@ static void DrawEnemies(void)
             DrawLineV(br, fr, TRAP_OUTLINE_COLOR);
         } break;
         case CIRC: {
-            break;
+            Color cFill = (e->hitFlash > 0) ? RED : CIRC_COLOR;
+            float rotY = (float)GetTime() * PLAYER_ROT_SPEED;
+            float rotX = PLAYER_ROT_TILT;
+            int nV = 2 + (SPHERE_STACKS - 1) * SPHERE_SLICES;
+            float vtx[2 + (SPHERE_STACKS-1) * SPHERE_SLICES][3];
+            vtx[0][0] = 0; vtx[0][1] = e->size; vtx[0][2] = 0;
+            vtx[1][0] = 0; vtx[1][1] = -e->size; vtx[1][2] = 0;
+            for (int st = 1; st < SPHERE_STACKS; st++) {
+                float phi = PI * (float)st / (float)SPHERE_STACKS;
+                float sp = sinf(phi), cp = cosf(phi);
+                for (int sl = 0; sl < SPHERE_SLICES; sl++) {
+                    float th = 2.0f * PI * (float)sl
+                        / (float)SPHERE_SLICES;
+                    int vi = 2 + (st-1)*SPHERE_SLICES + sl;
+                    vtx[vi][0] = e->size * sp * cosf(th);
+                    vtx[vi][1] = e->size * cp;
+                    vtx[vi][2] = e->size * sp * sinf(th);
+                }
+            }
+            Vector2 pj2[2 + (SPHERE_STACKS-1) * SPHERE_SLICES];
+            float pz2[2 + (SPHERE_STACKS-1) * SPHERE_SLICES];
+            ProjectVertices(vtx, nV, rotY, rotX,
+                e->pos, 1.0f, pj2, pz2);
+            // Depth shading: brighter faces face camera
+            // Top cap
+            for (int s = 0; s < SPHERE_SLICES; s++) {
+                int a = 0, b = 2 + s;
+                int c = 2 + (s+1) % SPHERE_SLICES;
+                float cross = (pj2[b].x-pj2[a].x)
+                    * (pj2[c].y-pj2[a].y)
+                    - (pj2[b].y-pj2[a].y)
+                    * (pj2[c].x-pj2[a].x);
+                if (cross < 0) {
+                    float z = (pz2[a]+pz2[b]+pz2[c])
+                        / (3.0f * e->size);
+                    float v = 0.6f + 0.4f * (z + 1.0f) / 2.0f;
+                    Color fc = (Color){ (u8)(cFill.r * v),
+                        (u8)(cFill.g * v), (u8)(cFill.b * v),
+                        cFill.a };
+                    DrawTriangle(pj2[a], pj2[b], pj2[c], fc);
+                }
+            }
+            // Middle bands
+            for (int st = 0; st < SPHERE_STACKS-2; st++) {
+                for (int sl = 0; sl < SPHERE_SLICES; sl++) {
+                    int cu = 2 + st*SPHERE_SLICES + sl;
+                    int nx = 2 + st*SPHERE_SLICES
+                        + (sl+1) % SPHERE_SLICES;
+                    int bl = 2 + (st+1)*SPHERE_SLICES + sl;
+                    int bn = 2 + (st+1)*SPHERE_SLICES
+                        + (sl+1) % SPHERE_SLICES;
+                    float cr1 = (pj2[bl].x-pj2[cu].x)
+                        * (pj2[nx].y-pj2[cu].y)
+                        - (pj2[bl].y-pj2[cu].y)
+                        * (pj2[nx].x-pj2[cu].x);
+                    if (cr1 < 0) {
+                        float z = (pz2[cu]+pz2[bl]+pz2[nx])
+                            / (3.0f * e->size);
+                        float v = 0.6f+0.4f*(z+1.0f)/2.0f;
+                        Color fc = (Color){
+                            (u8)(cFill.r*v),
+                            (u8)(cFill.g*v),
+                            (u8)(cFill.b*v), cFill.a };
+                        DrawTriangle(pj2[cu], pj2[bl],
+                            pj2[nx], fc);
+                    }
+                    float cr2 = (pj2[bl].x-pj2[nx].x)
+                        * (pj2[bn].y-pj2[nx].y)
+                        - (pj2[bl].y-pj2[nx].y)
+                        * (pj2[bn].x-pj2[nx].x);
+                    if (cr2 < 0) {
+                        float z = (pz2[nx]+pz2[bl]+pz2[bn])
+                            / (3.0f * e->size);
+                        float v = 0.6f+0.4f*(z+1.0f)/2.0f;
+                        Color fc = (Color){
+                            (u8)(cFill.r*v),
+                            (u8)(cFill.g*v),
+                            (u8)(cFill.b*v), cFill.a };
+                        DrawTriangle(pj2[nx], pj2[bl],
+                            pj2[bn], fc);
+                    }
+                }
+            }
+            // Bottom cap
+            int lr = 2 + (SPHERE_STACKS-2) * SPHERE_SLICES;
+            for (int s = 0; s < SPHERE_SLICES; s++) {
+                int a = 1;
+                int b = lr + (s+1) % SPHERE_SLICES;
+                int c = lr + s;
+                float cross = (pj2[b].x-pj2[a].x)
+                    * (pj2[c].y-pj2[a].y)
+                    - (pj2[b].y-pj2[a].y)
+                    * (pj2[c].x-pj2[a].x);
+                if (cross < 0) {
+                    float z = (pz2[a]+pz2[b]+pz2[c])
+                        / (3.0f * e->size);
+                    float v = 0.6f+0.4f*(z+1.0f)/2.0f;
+                    Color fc = (Color){ (u8)(cFill.r*v),
+                        (u8)(cFill.g*v), (u8)(cFill.b*v),
+                        cFill.a };
+                    DrawTriangle(pj2[a], pj2[b], pj2[c], fc);
+                }
+            }
+            // Wireframe
+            Color edg = Fade(GRAY, 0.4f);
+            for (int st = 0; st < SPHERE_STACKS-1; st++) {
+                for (int sl = 0; sl < SPHERE_SLICES; sl++) {
+                    int cu = 2 + st*SPHERE_SLICES + sl;
+                    int nx = 2 + st*SPHERE_SLICES
+                        + (sl+1) % SPHERE_SLICES;
+                    DrawLineV(pj2[cu], pj2[nx], edg);
+                    if (st < SPHERE_STACKS - 2) {
+                        int bl = 2 + (st+1)*SPHERE_SLICES
+                            + sl;
+                        DrawLineV(pj2[cu], pj2[bl], edg);
+                    }
+                }
+            }
         } break;
         default: break;
         }

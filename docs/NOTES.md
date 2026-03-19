@@ -13,17 +13,39 @@ joint implementation between claude and myself the user! 🤝🫡 ^~~~^
 // this is THE piece of data that we are operating on
 // it sits inside of our pipeline
 typedef struct GameState {
+    // the player entity
     Player player;
-    Bullet bullets[MAX_BULLETS];
+    Projectile projectiles[MAX_PROJECTILES];
     Enemy enemies[MAX_ENEMIES];
-    Particle particles[MAX_PARTICLES];
+    Deployable deployables[MAX_DEPLOYABLES];
+    LightningChain lightning;
+    // vfx event buffer — update writes, draw reads
+    VfxState vfx;
+    //
     Camera2D camera;
     int score;
     float spawnTimer;
     float spawnInterval;
+    int podValue;
     int enemiesKilled;
+    GamePhase phase;
+    int level;
     bool gameOver;
     bool paused;
+    bool gamepadActive;     // true = last input from gamepad
+    int selectIndex;
+    int selectPhase;    // 0 = picking primary, 1 = picking secondary
+    float selectDemoTimer;
+    float selectSwordTimer;  // sword arc demo in select screen
+    float selectSwordAngle;
+    Vector2 selectPedestals[NUM_PRIMARY_WEAPONS];
+    float transitionTimer;   // >0 = fade transition active
+    // shop
+    int shopIndex;           // highlighted shop pedestal (-1 = none)
+    Vector2 shopPedestals[ABILITY_SLOTS];
+    float spawnDelay;        // countdown after leaving base
+    // cheats
+    bool infiniteMoney;
 } GameState;
 // the static struct and the emscripten void requirement are important
 // futher study needed
@@ -109,12 +131,12 @@ asset loader
 - [x] cleanup controls hud menu to be properly visible and programmatic
 - [x] arrow keys/okl; to aim for keyboard only accessibility, right enter+shift as m2/m1
 - [x] controller support
+- [x] waves/phases after screen/phase refactor
 - [x] map change, one big map with base and combat zone
 - [x] add money it is the `int score`, already have it working.
 - [x] add shop pay with score
 - [x] add cheat toggles, infinite money, buy all/sell all abilities
 - [] able to remap abilities (tab/alt modifier)
-- [] waves/phases after screen/phase refactor
 
 
 ### refactorin time
@@ -151,7 +173,7 @@ asset loader
 - [x] (user) add octagon enemy (stopper)
 - [x] add mini boss, trapezoid, multiple attacks
 - [x] design enemy value table (number of sides they have lol?)
-- [] endless waves of pods
+- [x] endless waves of pods
 - [] add big boss circle
 - [] enemies receive a tell for their attacks
 - [] enemies have a range for their aggro
@@ -197,6 +219,7 @@ factory level sets pod value
 - [x] flamethrower range longer
 - [x] rocket goes max distance, m2 explodes it, just remove rocket explodes where m1 was pressed (better for controller/kb only)
 - [x] make multiple rockets possible at one time
+- [] remove lunge and replace with heavy sword attack (more damage, slower)
 
 if this is a mecha game, then down the line we want two arms = two weapons, or replace weapon with dedicated ability, etc. do we want m1 m2 to be from the same weapon but two different modes of firing or is m1 m2 arm1 arm2 weapon1, weapon2.
 

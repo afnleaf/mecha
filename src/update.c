@@ -1629,10 +1629,9 @@ static void UpdateEnemies(float dt) {
             if (g.enemies[i].active) { anyAlive = true; break; }
         }
         if (!anyAlive) {
-            // Boss check
-            if (g.enemiesKilled >= TRAP_SPAWN_KILLS * g.level) {
+            if (g.enemiesKilled >= BOSS_KILL_THRESHOLD) {
                 g.phase = PHASE_BOSS;
-                SpawnBoss(TRAP);
+                SpawnBoss(CIRC);
             } else {
                 SpawnPod(g.podValue);
                 g.podValue++;
@@ -1673,18 +1672,39 @@ static void UpdateEnemies(float dt) {
         // toPlayer still needed for shooting AI
         Vector2 toPlayer = Vector2Subtract(p->shadowPos, e->pos);
         float distToPlayer = Vector2Length(toPlayer);
-        // TRAP charge movement — committed direction, no lerp
+        // Charge movement — committed direction, no lerp
         if (e->type == TRAP && e->chargeTimer > 0) {
             e->chargeTimer -= dt;
             e->vel = Vector2Scale(e->chargeDir, TRAP_CHARGE_SPEED);
             if (e->chargeTimer <= 0) {
-                // Slam AoE at end of charge
                 float playerDist = Vector2Distance(e->pos, p->pos);
                 if (playerDist <= TRAP_SLAM_RADIUS) {
                     DamagePlayer(TRAP_SLAM_DAMAGE, DMG_BLUNT, HIT_AOE);
                 }
                 SpawnParticles(e->pos, TRAP_COLOR, 16);
                 SpawnVfxTimer(e->pos, EXPLOSION_VFX_DURATION, VFX_EXPLOSION);
+            }
+        } else if (e->type == CIRC && e->chargeTimer > 0) {
+            e->chargeTimer -= dt;
+            e->vel = Vector2Scale(e->chargeDir, CIRC_CHARGE_SPEED);
+            if (e->chargeTimer <= 0) {
+                // Ring burst on arrival
+                float step = 2.0f * PI / CIRC_RING_COUNT;
+                for (int b = 0; b < CIRC_RING_COUNT; b++) {
+                    float a = step * b;
+                    Vector2 dir = { cosf(a), sinf(a) };
+                    Vector2 m = Vector2Add(e->pos,
+                        Vector2Scale(dir,
+                            e->size + MUZZLE_OFFSET));
+                    SpawnProjectile(m, dir,
+                        CIRC_RING_SPEED, CIRC_RING_DAMAGE,
+                        CIRC_RING_LIFETIME, CIRC_RING_SIZE,
+                        true, false, PROJ_BULLET,
+                        DMG_BALLISTIC);
+                }
+                SpawnParticles(e->pos, CIRC_COLOR, 12);
+                SpawnVfxTimer(e->pos, EXPLOSION_VFX_DURATION,
+                    VFX_EXPLOSION);
             }
         } else if (!rooted && dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toTarget, 1.0f / dist);

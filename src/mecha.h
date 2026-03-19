@@ -459,7 +459,6 @@ typedef struct EnemyDef {
     int   speedVar;
     int   contactDamage;
     int   spawnKills;
-    int   spawnChance;
     int   score;
     int   value;
     EnemyShootFn shoot;
