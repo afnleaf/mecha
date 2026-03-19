@@ -146,36 +146,18 @@ static void CircFireWeapon(
 {
     switch (wpn) {
     case WPN_GUN: {
-        float halfSpread = CIRC_GUN_SPREAD / 2.0f;
-        float step = CIRC_GUN_SPREAD / (CIRC_GUN_COUNT - 1);
-        for (int b = 0; b < CIRC_GUN_COUNT; b++) {
-            float a = baseAngle - halfSpread + step * b;
-            Vector2 dir = { cosf(a), sinf(a) };
-            Vector2 m = Vector2Add(e->pos,
-                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-            SpawnProjectile(m, dir, CIRC_GUN_SPEED,
-                CIRC_GUN_DAMAGE, CIRC_GUN_LIFETIME,
-                CIRC_GUN_SIZE, true, false,
-                PROJ_BULLET, DMG_BALLISTIC);
-        }
+        e->burstTimer = CIRC_GUN_BURST_DURATION;
+        e->burstCooldown = 0;
     } break;
     case WPN_SWORD: {
         e->chargeDir = shootDir;
-        e->chargeTimer = CIRC_CHARGE_DURATION;
+        e->chargeTimer = CIRC_SWORD_DASH_DURATION;
+        e->sweepTimer = -1;  // flag: start sweep when charge ends
     } break;
     case WPN_REVOLVER: {
-        float halfSpread = CIRC_REV_SPREAD / 2.0f;
-        float step = CIRC_REV_SPREAD / (CIRC_REV_COUNT - 1);
-        for (int b = 0; b < CIRC_REV_COUNT; b++) {
-            float a = baseAngle - halfSpread + step * b;
-            Vector2 dir = { cosf(a), sinf(a) };
-            Vector2 m = Vector2Add(e->pos,
-                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
-            SpawnProjectile(m, dir, CIRC_REV_SPEED,
-                CIRC_REV_DAMAGE, CIRC_REV_LIFETIME,
-                CIRC_REV_SIZE, true, false,
-                PROJ_BULLET, DMG_BALLISTIC);
-        }
+        e->fanRounds = CIRC_REV_COUNT;
+        e->fanTimer = 0;
+        e->fanAngle = baseAngle;
     } break;
     case WPN_SNIPER: {
         SpawnProjectile(muzzle, shootDir,
@@ -203,6 +185,74 @@ static void ShootCirc(
     Enemy *e, Vector2 toTarget, float dist, float dt)
 {
     if (e->chargeTimer > 0) return;
+    // Sword sweep — damage player if swept edge reaches them
+    if (e->sweepTimer > 0) {
+        float progress = 1.0f - (e->sweepTimer / CIRC_SWORD_DURATION);
+        e->sweepTimer -= dt;
+        float newProgress = 1.0f - (e->sweepTimer / CIRC_SWORD_DURATION);
+        if (newProgress > 1.0f) newProgress = 1.0f;
+        float dist2 = Vector2Distance(e->pos, g.player.pos);
+        if (dist2 < CIRC_SWORD_RADIUS + g.player.size) {
+            Vector2 toP = Vector2Subtract(g.player.pos, e->pos);
+            float pAngle = atan2f(toP.y, toP.x);
+            float diff = fmodf(pAngle - e->sweepAngle + 3*PI,
+                2*PI) - PI;
+            // Sweep goes from -arc/2 to +arc/2 over duration
+            float sweepStart = -CIRC_SWORD_ARC / 2.0f
+                + CIRC_SWORD_ARC * progress;
+            float sweepEnd = -CIRC_SWORD_ARC / 2.0f
+                + CIRC_SWORD_ARC * newProgress;
+            if (diff >= sweepStart && diff <= sweepEnd)
+                DamagePlayer(CIRC_SWORD_DAMAGE, DMG_SLASH,
+                    HIT_MELEE);
+        }
+        if (e->sweepTimer <= 0) SpawnParticles(e->pos, WHITE, 8);
+        return;
+    }
+    // Fan the hammer burst
+    if (e->fanRounds > 0) {
+        e->fanTimer -= dt;
+        if (e->fanTimer <= 0) {
+            float spread = ((float)GetRandomValue(
+                -CIRC_REV_SPREAD, CIRC_REV_SPREAD)) * 0.001f;
+            float a = e->fanAngle + spread;
+            Vector2 dir = { cosf(a), sinf(a) };
+            Vector2 m = Vector2Add(e->pos,
+                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+            SpawnProjectile(m, dir, CIRC_REV_SPEED,
+                CIRC_REV_DAMAGE, CIRC_REV_LIFETIME,
+                CIRC_REV_SIZE, true, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+            SpawnParticle(m, Vector2Scale(dir, ENEMY_MUZZLE_SPEED),
+                CIRC_COLOR, CIRC_MUZZLE_SIZE, CIRC_MUZZLE_LIFETIME);
+            e->fanRounds--;
+            e->fanTimer = CIRC_REV_FAN_COOLDOWN;
+        }
+        return;
+    }
+    // Gun burst — sustained fire aimed at player
+    if (e->burstTimer > 0) {
+        e->burstTimer -= dt;
+        e->burstCooldown -= dt;
+        if (e->burstCooldown <= 0) {
+            Vector2 toP = Vector2Subtract(g.player.pos, e->pos);
+            float aimAngle = atan2f(toP.y, toP.x);
+            float spread = ((float)GetRandomValue(
+                -CIRC_GUN_SPREAD, CIRC_GUN_SPREAD)) * 0.001f;
+            float a = aimAngle + spread;
+            Vector2 dir = { cosf(a), sinf(a) };
+            Vector2 m = Vector2Add(e->pos,
+                Vector2Scale(dir, e->size + MUZZLE_OFFSET));
+            SpawnProjectile(m, dir, CIRC_GUN_SPEED,
+                CIRC_GUN_DAMAGE, CIRC_GUN_LIFETIME,
+                CIRC_GUN_SIZE, true, false,
+                PROJ_BULLET, DMG_BALLISTIC);
+            SpawnParticle(m, Vector2Scale(dir, ENEMY_MUZZLE_SPEED),
+                CIRC_COLOR, CIRC_MUZZLE_SIZE, CIRC_MUZZLE_LIFETIME);
+            e->burstCooldown = CIRC_GUN_FIRE_RATE;
+        }
+        return;
+    }
     e->shootTimer -= dt;
     if (e->shootTimer <= 0 && dist > 1.0f) {
         // Build unchosen weapons list
@@ -220,12 +270,11 @@ static void ShootCirc(
         Vector2 muzzle = Vector2Add(e->pos,
             Vector2Scale(shootDir, e->size + MUZZLE_OFFSET));
 
-        int pattern = e->attackPhase % 8;
+        int pattern = GetRandomValue(0, 7);
         switch (pattern) {
         case 0: case 2: case 4: {
             // Unchosen weapon attack
-            int idx = pattern / 2;
-            if (idx >= wcount) idx = 0;
+            int idx = GetRandomValue(0, wcount - 1);
             CircFireWeapon(e, weapons[idx],
                 shootDir, baseAngle, muzzle);
         } break;
@@ -329,7 +378,6 @@ static void ShootCirc(
             SpawnParticles(e->pos, CIRC_COLOR, 16);
         } break;
         }
-        e->attackPhase++;
         e->shootTimer = CIRC_ATTACK_INTERVAL;
     }
 }
@@ -645,7 +693,7 @@ void DamagePlayer(int damage, DamageType dmgType, DamageMethod method)
 {
     (void)dmgType; (void)method; // threaded through for future resistances
     Player *p = &g.player;
-    if (p->iFrames > 0) return;
+    if (g.invincible || p->iFrames > 0) return;
     p->hp -= damage;
     p->iFrames = IFRAME_DURATION;
     if (p->blink.cooldown <= 0)

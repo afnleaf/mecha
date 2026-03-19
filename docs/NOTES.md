@@ -135,7 +135,7 @@ asset loader
 - [x] map change, one big map with base and combat zone
 - [x] add money it is the `int score`, already have it working.
 - [x] add shop pay with score
-- [x] add cheat toggles, infinite money, buy all/sell all abilities
+- [x] add cheat toggles, infinite money, buy all/sell all abilities, invincible
 - [] able to remap abilities (tab/alt modifier)
 
 
@@ -174,11 +174,12 @@ asset loader
 - [x] add mini boss, trapezoid, multiple attacks
 - [x] design enemy value table (number of sides they have lol?)
 - [x] endless waves of pods
-- [] add big boss circle
+- [x] add big boss circle
+- [x] trap becomes elite unit
+- [] remove enemy spawn gating from kill count
 - [] enemies receive a tell for their attacks
 - [] enemies have a range for their aggro
 - [] enemies don't attack immediately after spawning
-- [] trap becomes elite unit
 - [] pod value increase function
 - [] cutting out weaker enemies at high values
 

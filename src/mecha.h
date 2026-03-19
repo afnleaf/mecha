@@ -443,6 +443,16 @@ typedef struct Enemy {
     u8 attackPhase;     // boss attack cycle counter
     float chargeTimer;  // boss charge duration remaining
     Vector2 chargeDir;  // committed charge direction
+    // CIRC revolver fan state
+    u8 fanRounds;       // rounds left in burst
+    float fanTimer;     // time until next fan shot
+    float fanAngle;     // aim angle for fan
+    // CIRC sword sweep state
+    float sweepTimer;   // >0 = sweep active
+    float sweepAngle;   // center angle of sweep
+    // CIRC gun burst state
+    float burstTimer;   // time remaining in burst
+    float burstCooldown; // time until next bullet in burst
     float blinkMark;    // blink dagger slash mark timer (visual)
     bool  blinkMarked;  // queued for blink damage
 } Enemy;
@@ -521,6 +531,9 @@ typedef struct GameState {
     float spawnDelay;        // countdown after leaving base
     // cheats
     bool infiniteMoney;
+    bool invincible;
+    bool noCooldowns;
+    bool spawnBoss;
 } GameState;
 
 #endif // MECHA_H

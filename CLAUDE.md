@@ -84,6 +84,9 @@ Key documentation: `docs/NOTES.md` (todo list), `docs/GDD.md` (game design doc),
 - When the user asks for implementation help, give specifications and snippets, not full rewrites — unless in agent building mode
 - Refactor from ends inward: design output shape first, then input, then the middle transformation
 - Don't over-engineer for hypothetical edge cases
+- **Read the existing code before reimplementing behavior.** When new code needs to do what existing code already does, read the existing implementation and replicate it faithfully. Don't guess or take shortcuts. Example: CIRC boss weapon attacks were supposed to mirror the player's weapons, but were all implemented as instant spread shots instead of reading how each player weapon actually fires (sequential fan, sustained burst, melee sweep, etc).
+- **Trust the user's visual observations.** The user playtests the game — you cannot see it. If they say something isn't working, investigate rather than arguing from code. Example: user reported boss attacks weren't firing, spent multiple rounds being told they were, when actually a god-mode bug was silently consuming all enemy projectiles before rendering.
+- **Think through side effects across the pipeline.** When modifying one system, trace the consequences through other systems that interact with it. Example: adding invincibility made `DamagePlayer` early-return, but enemy bullets were still deactivated on player hit (`b->active = false` ran unconditionally after the damage call), so all enemy projectiles touching the player were silently eaten.
 
 ### Commit Messages
 Use `git commit -m "short sentence"` — always a single `-m` with a one-line string, no heredocs or multi-line. No co-author line — the user is the sole author.

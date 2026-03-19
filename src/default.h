@@ -57,6 +57,7 @@
 #define BASE_WALL_THICKNESS     4.0f
 #define BASE_WALL_COLOR         (Color){ 80, 80, 120, 255 }
 #define BASE_LABEL_FONT         60
+#define BASE_LABEL_Y            (BASE_TOP - BASE_H * 0.3)
 #define BASE_LABEL_COLOR        (Color){ 50, 50, 70, 255 }
 #define COMBAT_LABEL_FONT       80
 #define COMBAT_LABEL_COLOR      (Color){ 50, 50, 70, 255 }
@@ -618,6 +619,7 @@
 #define CIRC_SCORE              10000
 #define CIRC_VALUE              0
 #define CIRC_COLOR              WHITE
+#define CIRC_OUTLINE_COLOR      LIGHTGRAY
 // Attack timing
 #define CIRC_ATTACK_INTERVAL    2.0f
 // Dash (charge)
@@ -625,16 +627,24 @@
 #define CIRC_CHARGE_DURATION    DASH_DURATION
 #define CIRC_SLAM_RADIUS        100.0f
 #define CIRC_SLAM_DAMAGE        20
+// Sword sweep
+#define CIRC_SWORD_DASH_DURATION 0.12f
+#define CIRC_SWORD_DURATION     0.25f
+#define CIRC_SWORD_ARC          (0.9f * PI)
+#define CIRC_SWORD_RADIUS       130.0f
+#define CIRC_SWORD_DAMAGE       30
 // Gun burst
-#define CIRC_GUN_COUNT          8
-#define CIRC_GUN_SPREAD         0.5f
+#define CIRC_GUN_BURST_DURATION 1.0f
+#define CIRC_GUN_FIRE_RATE      0.06f
+#define CIRC_GUN_SPREAD         80
 #define CIRC_GUN_SPEED          800.0f
 #define CIRC_GUN_DAMAGE         8
 #define CIRC_GUN_LIFETIME       3.0f
 #define CIRC_GUN_SIZE           3.0f
 // Revolver fan
 #define CIRC_REV_COUNT          6
-#define CIRC_REV_SPREAD         0.8f
+#define CIRC_REV_SPREAD         120
+#define CIRC_REV_FAN_COOLDOWN   0.10f
 #define CIRC_REV_SPEED          1200.0f
 #define CIRC_REV_DAMAGE         15
 #define CIRC_REV_LIFETIME       2.0f
@@ -918,9 +928,19 @@
 #define SPAWN_EXIT_DELAY        2.0f
 // Cheat toggle (diegetic, on the ground in base)
 #define CHEAT_INTERACT_RADIUS   30.0f
-#define CHEAT_FONT              14
+#define CHEAT_FONT              20
 #define CHEAT_INF_X             (BASE_W - 250.0f)
 #define CHEAT_INF_Y             (BASE_TOP + 30.0f)
 #define CHEAT_BUYALL_X          (BASE_W - 250.0f)
 #define CHEAT_BUYALL_Y          (BASE_TOP + 60.0f)
+#define CHEAT_INVINCIBLE_X      (BASE_W - 250.0f)
+#define CHEAT_INVINCIBLE_Y      (BASE_TOP + 90.0f)
+#define CHEAT_NOCD_X            (BASE_W - 250.0f)
+#define CHEAT_NOCD_Y            (BASE_TOP + 120.0f)
+#define CHEAT_POD_X             (BASE_W - 250.0f)
+#define CHEAT_POD_Y             (BASE_TOP + 150.0f)
+#define CHEAT_POD_PLUS_X        (CHEAT_POD_X + 60.0f)
+#define CHEAT_POD_MINUS_X       (CHEAT_POD_X + 90.0f)
+#define CHEAT_BOSS_X            (BASE_W - 250.0f)
+#define CHEAT_BOSS_Y            (BASE_TOP + 180.0f)
 

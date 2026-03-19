@@ -411,11 +411,33 @@ static void UpdateSelect(float dt)
                     GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
         Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
         Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
+        Vector2 invPos = { CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y };
+        Vector2 cdPos  = { CHEAT_NOCD_X, CHEAT_NOCD_Y };
+        Vector2 podPos = { CHEAT_POD_X, CHEAT_POD_Y };
+        Vector2 podPlus  = { CHEAT_POD_PLUS_X, CHEAT_POD_Y };
+        Vector2 podMinus = { CHEAT_POD_MINUS_X, CHEAT_POD_Y };
+        Vector2 bossPos = { CHEAT_BOSS_X, CHEAT_BOSS_Y };
         bool nearInf = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS;
         bool nearBuy = Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS;
-        nearCheat = nearInf || nearBuy;
+        bool nearInv = Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS;
+        bool nearCd  = Vector2Distance(p->pos, cdPos)  < CHEAT_INTERACT_RADIUS;
+        bool nearPodP = Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS;
+        bool nearPodM = Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS;
+        bool nearBoss = Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS;
+        nearCheat = nearInf || nearBuy || nearInv || nearCd
+            || nearPodP || nearPodM || nearBoss;
         if (m1 && nearInf)
             g.infiniteMoney = !g.infiniteMoney;
+        if (m1 && nearInv)
+            g.invincible = !g.invincible;
+        if (m1 && nearCd)
+            g.noCooldowns = !g.noCooldowns;
+        if (m1 && nearPodP)
+            g.podValue++;
+        if (m1 && nearPodM && g.podValue > 1)
+            g.podValue--;
+        if (m1 && nearBoss)
+            g.spawnBoss = !g.spawnBoss;
         if (m1 && nearBuy) {
             bool allOwned = true;
             for (int i = 0; i < ABILITY_SLOTS; i++)
@@ -540,10 +562,31 @@ static void UpdateShop(void)
     // Cheat buttons
     Vector2 infPos = { CHEAT_INF_X, CHEAT_INF_Y };
     Vector2 buyPos = { CHEAT_BUYALL_X, CHEAT_BUYALL_Y };
+    Vector2 invPos = { CHEAT_INVINCIBLE_X, CHEAT_INVINCIBLE_Y };
+    Vector2 cdPos  = { CHEAT_NOCD_X, CHEAT_NOCD_Y };
+    Vector2 podPlus  = { CHEAT_POD_PLUS_X, CHEAT_POD_Y };
+    Vector2 podMinus = { CHEAT_POD_MINUS_X, CHEAT_POD_Y };
+    Vector2 bossPos = { CHEAT_BOSS_X, CHEAT_BOSS_Y };
     bool nearCheat = Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS
-        || Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS;
+        || Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, cdPos)  < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS
+        || Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS;
     if (m1 && Vector2Distance(p->pos, infPos) < CHEAT_INTERACT_RADIUS)
         g.infiniteMoney = !g.infiniteMoney;
+    if (m1 && Vector2Distance(p->pos, invPos) < CHEAT_INTERACT_RADIUS)
+        g.invincible = !g.invincible;
+    if (m1 && Vector2Distance(p->pos, cdPos) < CHEAT_INTERACT_RADIUS)
+        g.noCooldowns = !g.noCooldowns;
+    if (m1 && Vector2Distance(p->pos, podPlus) < CHEAT_INTERACT_RADIUS)
+        g.podValue++;
+    if (m1 && Vector2Distance(p->pos, podMinus) < CHEAT_INTERACT_RADIUS
+        && g.podValue > 1)
+        g.podValue--;
+    if (m1 && Vector2Distance(p->pos, bossPos) < CHEAT_INTERACT_RADIUS)
+        g.spawnBoss = !g.spawnBoss;
     if (m1 && Vector2Distance(p->pos, buyPos) < CHEAT_INTERACT_RADIUS) {
         bool allOwned = true;
         for (int i = 0; i < ABILITY_SLOTS; i++)
@@ -1599,6 +1642,22 @@ static void UpdatePlayer(float dt)
     UpdateWeapon(p, toMouse, dt);
     UpdateAbilities(p, toMouse, dt);
 
+    // No cooldowns cheat: zero ability/dash cooldowns, max BFG
+    if (g.noCooldowns) {
+        p->shotgun.cooldownTimer = 0;
+        p->railgun.cooldownTimer = 0;
+        p->spin.cooldownTimer = 0;
+        p->slam.cooldownTimer = 0;
+        p->parry.cooldownTimer = 0;
+        p->grenade.cooldownTimer = 0;
+        p->turretCooldown = 0;
+        p->mineCooldown = 0;
+        p->healCooldown = 0;
+        p->flame.fuel = FLAME_FUEL_MAX;
+        p->dash.charges = p->dash.maxCharges;
+        p->bfg.charge = BFG_CHARGE_COST;
+    }
+
     // Boundary clamp (base + corridor + combat zone)
     ClampToPlayArea(p);
 
@@ -1633,6 +1692,7 @@ static void UpdateEnemies(float dt) {
                 g.phase = PHASE_BOSS;
                 SpawnBoss(CIRC);
             } else {
+                if (g.spawnBoss) SpawnBoss(CIRC);
                 SpawnPod(g.podValue);
                 g.podValue++;
             }
@@ -1688,23 +1748,31 @@ static void UpdateEnemies(float dt) {
             e->chargeTimer -= dt;
             e->vel = Vector2Scale(e->chargeDir, CIRC_CHARGE_SPEED);
             if (e->chargeTimer <= 0) {
-                // Ring burst on arrival
-                float step = 2.0f * PI / CIRC_RING_COUNT;
-                for (int b = 0; b < CIRC_RING_COUNT; b++) {
-                    float a = step * b;
-                    Vector2 dir = { cosf(a), sinf(a) };
-                    Vector2 m = Vector2Add(e->pos,
-                        Vector2Scale(dir,
-                            e->size + MUZZLE_OFFSET));
-                    SpawnProjectile(m, dir,
-                        CIRC_RING_SPEED, CIRC_RING_DAMAGE,
-                        CIRC_RING_LIFETIME, CIRC_RING_SIZE,
-                        true, false, PROJ_BULLET,
-                        DMG_BALLISTIC);
+                if (e->sweepTimer < 0) {
+                    // Sword dash ended — start sweep
+                    Vector2 toP = Vector2Subtract(
+                        g.player.pos, e->pos);
+                    e->sweepAngle = atan2f(toP.y, toP.x);
+                    e->sweepTimer = CIRC_SWORD_DURATION;
+                } else {
+                    // Ring burst on arrival
+                    float step = 2.0f * PI / CIRC_RING_COUNT;
+                    for (int b = 0; b < CIRC_RING_COUNT; b++) {
+                        float a = step * b;
+                        Vector2 dir = { cosf(a), sinf(a) };
+                        Vector2 m = Vector2Add(e->pos,
+                            Vector2Scale(dir,
+                                e->size + MUZZLE_OFFSET));
+                        SpawnProjectile(m, dir,
+                            CIRC_RING_SPEED, CIRC_RING_DAMAGE,
+                            CIRC_RING_LIFETIME, CIRC_RING_SIZE,
+                            true, false, PROJ_BULLET,
+                            DMG_BALLISTIC);
+                    }
+                    SpawnParticles(e->pos, CIRC_COLOR, 12);
+                    SpawnVfxTimer(e->pos, EXPLOSION_VFX_DURATION,
+                        VFX_EXPLOSION);
                 }
-                SpawnParticles(e->pos, CIRC_COLOR, 12);
-                SpawnVfxTimer(e->pos, EXPLOSION_VFX_DURATION,
-                    VFX_EXPLOSION);
             }
         } else if (!rooted && dist > 1.0f) {
             Vector2 chaseDir = Vector2Scale(toTarget, 1.0f / dist);
@@ -2246,7 +2314,7 @@ static void UpdateProjectiles(float dt) {
             float dist = Vector2Distance(b->pos, p->pos);
             if (dist < p->size + b->size && p->iFrames <= 0) {
                 DamagePlayer(b->damage, b->dmgType, HIT_PROJ);
-                b->active = false;
+                if (!g.invincible) b->active = false;
             }
         } else {
             // Player projectile — hit enemies
